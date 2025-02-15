@@ -83,6 +83,65 @@ dfx deploy
 ```
 
 ```
+Committing batch with 13 operations.
+Deployed canisters.
+URLs:
+  Frontend canister via browser
+    helloproj01_frontend:
+      - http://127.0.0.1:4943/?canisterId=bd3sg-teaaa-aaaaa-qaaba-cai
+      - http://bd3sg-teaaa-aaaaa-qaaba-cai.localhost:4943/
+  Backend canister via Candid interface:
+    helloproj01_backend: http://127.0.0.1:4943/?canisterId=be2us-64aaa-aaaaa-qaabq-cai&id=bkyz2-fmaaa-aaaaa-qaaaq-cai
+```
+
+
+Frontend
+
+- http://127.0.0.1:4943/?canisterId=bd3sg-teaaa-aaaaa-qaaba-cai
+- http://bd3sg-teaaa-aaaaa-qaaba-cai.localhost:4943/
+
+Backend
+
+http://127.0.0.1:4943/?canisterId=be2us-64aaa-aaaaa-qaabq-cai&id=bkyz2-fmaaa-aaaaa-qaaaq-cai
+
+
+```
+dfx canister call helloproj01_backend greet '("Internet computer")'
+```
+
+```
+("Hello, Internet computer!")
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+------
+
+
+```
 dfx canister create testproj01_backend
 
 dfx canister create testproj01_frontend

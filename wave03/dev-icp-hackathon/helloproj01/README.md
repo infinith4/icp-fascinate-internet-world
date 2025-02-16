@@ -86,6 +86,26 @@ dfx canister call helloproj01_backend add_password '(
 )'
 
 
+dfx canister call helloproj01_backend add_password '(
+  record {
+    service_name = "Instagram";
+    username = "myemail@example.com";
+    password = "mypassword123";
+    notes = opt "My Instagram account"
+  }
+)'
+
+dfx canister call helloproj01_backend add_password '(
+  record {
+    service_name = "Internet Computer";
+    username = "myemail@example.com";
+    password = "mypassword123";
+    notes = opt "My Internet Computer account"
+  }
+)'
+
+
+
 vscode ➜ /src/helloproj01 $ dfx canister call helloproj01_backend get_passwords
 WARN: Cannot fetch Candid interface for get_passwords, sending arguments with inferred types.
 (
@@ -104,3 +124,10 @@ WARN: Cannot fetch Candid interface for get_passwords, sending arguments with in
     };
   },
 )
+
+
+https://github.com/dfinity/examples/blob/master/rust/counter/src/lib.rs
+
+vscode ➜ /src/helloproj01 $ dfx canister call helloproj01_backend delete_password '(1 : nat64)'
+WARN: Cannot fetch Candid interface for delete_password, sending arguments with inferred types.
+(true)

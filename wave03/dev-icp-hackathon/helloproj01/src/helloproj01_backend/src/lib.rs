@@ -3,6 +3,7 @@ use candid::{CandidType, Principal};
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::cell::RefCell;
+use candid::types::number::Nat;
 
 #[derive(Clone, Debug, CandidType, Deserialize)]
 struct PasswordEntry {
@@ -71,22 +72,32 @@ fn add_password(entry: PasswordEntry) -> bool {
 //     })
 // }
 
-// #[ic_cdk::update]
-// fn delete_password(index: usize) -> bool {
-//     let caller = ic_cdk::caller();
-//     PASSWORD_ENTRY_STATE.with(|state| {
-//         let mut store = state.take();
-//         if let Some(user_passwords) = store.passwords.get_mut(&caller) {
-//             if index < user_passwords.len() {
-//                 user_passwords.remove(index);
-//                 state(store);
-//                 return true;
-//             }
-//         }
-//         state.set(store);
-//         false
-//     })
-// }
+//Nat: dfx canister call helloproj01_backend delete_password "(0 : nat)"
+//usize: dfx canister call helloproj01_backend delete_password "(0 : nat64)"
+
+#[ic_cdk::update]
+fn delete_password(index: usize) -> bool {
+    println!("start delete_password; index: {}", index);
+    let index_usize :String = index.to_string();
+    println!("start delete_password; index_usize: {}", index_usize);
+    let caller = ic_cdk::caller();
+    PASSWORD_ENTRY_STATE.with(|state| {
+        let mut store = state.take();
+        if let Some(user_passwords) = store.passwords.get_mut(&caller) {
+            if index < user_passwords.len() {
+                user_passwords.remove(index);
+                
+                let mut passwords: HashMap<Principal, Vec<PasswordEntry>> = HashMap::new();
+                passwords.insert(caller, user_passwords.to_vec());
+                let mut password_store: PasswordStore = PasswordStore::default();
+                password_store.passwords = passwords;
+                *state.borrow_mut() = password_store;
+                return true;
+            }
+        }
+        false
+    })
+}
 
 #[ic_cdk::query]
 fn greet(name: String) -> String {

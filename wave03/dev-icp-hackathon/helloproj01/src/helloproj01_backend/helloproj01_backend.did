@@ -1,3 +1,4 @@
 service : {
     "greet": (text) -> (text) query;
+    // "delete_password": (index) -> (bool) update;
 }

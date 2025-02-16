@@ -1,4 +1,13 @@
+type PasswordEntry = record {
+    service_name : text;
+    username : text;
+    password : text;
+    notes : opt text;
+};
+
 service : {
     "greet": (text) -> (text) query;
-    // "delete_password": (index) -> (bool) update;
+    "get_passwords": () -> (vec PasswordEntry) query;
+    "add_password": (PasswordEntry) -> (bool);
+    "delete_password": (nat64) -> (bool);
 }

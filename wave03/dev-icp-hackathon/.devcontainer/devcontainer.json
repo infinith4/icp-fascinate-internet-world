@@ -20,7 +20,11 @@
 				"yzhang.markdown-all-in-one",
 				"rust-lang.rust-analyzer",
 				"dfinity-foundation.vscode-motoko",
-				"Vue.volar"
+				"Vue.volar",
+				"vadimcn.vscode-lldb",
+				"llvm-vs-code-extensions.lldb-dap",
+				"ms-vscode.cpptools",
+				"webfreak.debug"
 			]
 		}
 	},

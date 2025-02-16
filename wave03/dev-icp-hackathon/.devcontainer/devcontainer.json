@@ -19,7 +19,8 @@
 			"extensions": [
 				"yzhang.markdown-all-in-one",
 				"rust-lang.rust-analyzer",
-				"dfinity-foundation.vscode-motoko"
+				"dfinity-foundation.vscode-motoko",
+				"Vue.volar"
 			]
 		}
 	},

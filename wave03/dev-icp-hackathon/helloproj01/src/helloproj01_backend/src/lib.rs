@@ -55,22 +55,26 @@ fn add_password(entry: PasswordEntry) -> bool {
     true
 }
 
-// #[ic_cdk::update]
-// fn update_password(index: usize, entry: PasswordEntry) -> bool {
-//     let caller = ic_cdk::caller();
-//     PASSWORD_ENTRY_STATE.with(|state| {
-//         let mut store = state.take();
-//         if let Some(user_passwords) = store.passwords.get_mut(&caller) {
-//             if index < user_passwords.len() {
-//                 user_passwords[index] = entry;
-//                 state.set(store);
-//                 return true;
-//             }
-//         }
-//         state.set(store);
-//         false
-//     })
-// }
+#[ic_cdk::update]
+fn update_password(index: usize, entry: PasswordEntry) -> bool {
+    let caller = ic_cdk::caller();
+    PASSWORD_ENTRY_STATE.with(|state| {
+        let mut store = state.take();
+        if let Some(user_passwords) = store.passwords.get_mut(&caller) {
+            if index < user_passwords.len() {
+                user_passwords[index] = entry;
+
+                let mut passwords: HashMap<Principal, Vec<PasswordEntry>> = HashMap::new();
+                passwords.insert(caller, user_passwords.to_vec());
+                let mut password_store: PasswordStore = PasswordStore::default();
+                password_store.passwords = passwords;
+                *state.borrow_mut() = password_store;
+                return true;
+            }
+        }
+        false
+    })
+}
 
 //Nat: dfx canister call helloproj01_backend delete_password "(0 : nat)"
 //usize: dfx canister call helloproj01_backend delete_password "(0 : nat64)"

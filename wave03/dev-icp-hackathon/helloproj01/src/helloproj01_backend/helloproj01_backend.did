@@ -9,5 +9,6 @@ service : {
     "greet": (text) -> (text) query;
     "get_passwords": () -> (vec PasswordEntry) query;
     "add_password": (PasswordEntry) -> (bool);
+    "update_password": (nat64, PasswordEntry) -> (bool);
     "delete_password": (nat64) -> (bool);
 }

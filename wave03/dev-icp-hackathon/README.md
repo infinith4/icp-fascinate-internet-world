@@ -94,6 +94,8 @@ URLs:
     helloproj01_backend: http://127.0.0.1:4943/?canisterId=be2us-64aaa-aaaaa-qaabq-cai&id=bkyz2-fmaaa-aaaaa-qaaaq-cai
 ```
 
+Installing code for canister helloproj01_backend, with canister ID bkyz2-fmaaa-aaaaa-qaaaq-cai
+Installing code for canister helloproj01_frontend, with canister ID bd3sg-teaaa-aaaaa-qaaba-cai
 
 Frontend
 

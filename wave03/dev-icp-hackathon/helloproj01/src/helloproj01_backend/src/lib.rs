@@ -101,6 +101,16 @@ fn delete_password(index: usize) -> bool {
         false
     })
 }
+// use aes_gcm::aead::{Aead, KeyInit, OsRng};
+// use aes_gcm::{Aes256Gcm, Key, Nonce};
+
+// // 暗号化関数
+// fn encrypt_password(password: &str, key: &[u8; 32]) -> Vec<u8> {
+//     let cipher = Aes256Gcm::new(Key::<Aes256Gcm>::from_slice(key));
+//     let nonce = Nonce::from_slice(&[0; 12]); // 固定値でなくランダム生成が望ましい
+//     cipher.encrypt(nonce, password.as_bytes()).expect("encryption failure!")
+// }
+
 
 #[ic_cdk::query]
 fn greet(name: String) -> String {
@@ -121,7 +131,7 @@ mod tests {
         };
 
         // Add password
-        assert!(add_password(entry.clone()));
+        assert!(add_password(entry));
 
         // Get passwords
         let passwords = get_passwords();

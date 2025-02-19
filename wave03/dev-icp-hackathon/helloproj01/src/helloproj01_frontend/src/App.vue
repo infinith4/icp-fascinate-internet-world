@@ -11,6 +11,8 @@ async function handleSubmit(e) {
     greeting.value = response;
   });
 }
+import PasswordForm from "./components/PasswordForm.vue";
+import PasswordList from "./components/PasswordList.vue";
 </script>
 
 <template>
@@ -24,5 +26,10 @@ async function handleSubmit(e) {
       <button type="submit">Click Me!</button>
     </form>
     <section id="greeting">{{ greeting }}</section>
+    <div>
+      <h1>ICP Password Manager</h1>
+      <PasswordForm />
+      <PasswordList />
+    </div>
   </main>
 </template>

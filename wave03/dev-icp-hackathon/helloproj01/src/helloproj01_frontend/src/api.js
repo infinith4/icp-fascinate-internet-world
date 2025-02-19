@@ -1,7 +1,7 @@
 import { HttpAgent, Actor } from "@dfinity/agent";
 
-const canisterId = "YOUR_CANISTER_ID"; // `dfx deploy` 後に取得
-const agent = new HttpAgent({ host: "http://localhost:4943" });
+const canisterId = "bkyz2-fmaaa-aaaaa-qaaaq-cai"; // `dfx deploy` 後に取得
+const agent = new HttpAgent({ host: "http://127.0.0.1:4943" });
 
 const idlFactory = ({ IDL }) => {
   return IDL.Service({

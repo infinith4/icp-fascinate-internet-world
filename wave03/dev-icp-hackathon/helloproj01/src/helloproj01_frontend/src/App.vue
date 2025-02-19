@@ -29,6 +29,7 @@ import PasswordList from "./components/PasswordList.vue";
     <div>
       <h1>ICP Password Manager</h1>
       <PasswordForm />
+      <h2>Password List</h2>
       <PasswordList />
     </div>
   </main>

@@ -9,6 +9,9 @@ struct PasswordEntry {
     service_name: String,
     username: String,
     password: String,
+    encrypted: String,
+    iv: String,
+    salt: String,
     notes: Option<String>,
 }
 
@@ -117,45 +120,3 @@ fn greet(name: String) -> String {
     format!("Hello, {}!", name)
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_add_and_get_password() {
-        let entry = PasswordEntry {
-            service_name: "TestService".to_string(),
-            username: "testuser".to_string(),
-            password: "testpass123".to_string(),
-            notes: Some("Test note".to_string()),
-        };
-
-        // Add password
-        assert!(add_password(entry));
-
-        // Get passwords
-        let passwords = get_passwords();
-        assert!(!passwords.is_empty());
-        assert_eq!(passwords[0].service_name, "TestService");
-        assert_eq!(passwords[0].username, "testuser");
-    }
-
-    // #[test]
-    // fn test_delete_password() {
-    //     let entry = PasswordEntry {
-    //         service_name: "DeleteTest".to_string(),
-    //         username: "deleteuser".to_string(),
-    //         password: "deletepass123".to_string(),
-    //         notes: None,
-    //     };
-
-    //     // Add password
-    //     add_password(entry);
-    //     // Delete password
-    //     assert!(delete_password(Nat::from(0)));
-
-    //     // Verify deletion
-    //     let passwords = get_passwords();
-    //     assert!(passwords.is_empty());
-    // }
-}

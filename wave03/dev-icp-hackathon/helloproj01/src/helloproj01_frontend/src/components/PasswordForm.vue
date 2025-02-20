@@ -11,6 +11,9 @@
 <script setup>
 import { ref } from "vue";
 import backend from "../api";
+import { helloproj01_backend } from 'declarations/helloproj01_backend/index';
+import encryptPassword from "../encryptPassword";
+// import decryptPassword from "../decryptPassword";
 
 const service_name = ref("");
 const username = ref("");
@@ -18,14 +21,23 @@ const password = ref("");
 const notes = ref("");
 
 const addPassword = async () => {
+
+  const encryptedData = await encryptPassword(password.value, "test")
+  // alert(encryptedData.encrypted);
+  alert(encryptedData.iv);
+  alert(encryptedData.salt);
   const entry = {
     service_name: service_name.value,
     username: username.value,
+    //password: await encryptPassword(password.value,"masterpassword"),
     password: password.value,
+    encrypted: encryptedData.encrypted,
+    iv: encryptedData.iv,
+    salt: encryptedData.salt,
     notes: notes.value ? [notes.value] : [],
   };
   
-  const success = await backend.add_password(entry);
+  const success = await helloproj01_backend.add_password(entry);
   if (success) {
     alert("Password added successfully!");
     service_name.value = "";

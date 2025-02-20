@@ -22,11 +22,16 @@ import decryptPassword from "../decryptPassword";
 const passwords = ref([]);
 
 const fetchPasswords = async () => {
-  await helloproj01_backend.get_passwords().then((response) => {
-    // for(res in response){
-    //   console.log(await decryptPassword({res.encryped, res.iv, res.salt}))
-    // }
-    passwords.value = response;
+  await helloproj01_backend.get_passwords().then(async (response) => {
+    passwords.value = await Promise.all(
+      response.map(async (res) => {
+        return await decryptPassword({
+          encrypted: res.encrypted,
+          iv: res.iv,
+          salt: res.salt,
+        });
+      })
+    );
   });
 };
 

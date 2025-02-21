@@ -1,0 +1,79 @@
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use candid::Principal;
+    use ic_cdk::api::call::RejectionCode;
+    use ic_cdk_test::{Scenario, WasmResult};
+
+    fn create_password_entry() -> PasswordEntry {
+        PasswordEntry {
+            service_name: "TestService".to_string(),
+            username: "test_user".to_string(),
+            password: "test_password".to_string(),
+            encrypted: "encrypted_data".to_string(),
+            iv: "test_iv".to_string(),
+            salt: "test_salt".to_string(),
+            notes: Some("Test notes".to_string()),
+        }
+    }
+
+    #[test]
+    fn test_add_password() {
+        let mut scenario = Scenario::new();
+        let canister = scenario.create_canister_from_wasm("helloproj01_backend.wasm");
+
+        let entry = create_password_entry();
+        let result: bool = scenario.call(canister, "add_password", (entry.clone(),)).unwrap();
+        assert!(result, "Failed to add password");
+
+        let passwords: Vec<PasswordEntry> = scenario.call(canister, "get_passwords", ()).unwrap();
+        assert_eq!(passwords.len(), 1);
+        assert_eq!(passwords[0].service_name, entry.service_name);
+    }
+
+    #[test]
+    fn test_update_password() {
+        let mut scenario = Scenario::new();
+        let canister = scenario.create_canister_from_wasm("helloproj01_backend.wasm");
+
+        let entry = create_password_entry();
+        scenario.call::<bool>(canister, "add_password", (entry.clone(),)).unwrap();
+
+        let updated_entry = PasswordEntry {
+            service_name: "UpdatedService".to_string(),
+            ..entry
+        };
+
+        let result: bool = scenario.call(canister, "update_password", (0usize, updated_entry.clone())).unwrap();
+        assert!(result, "Failed to update password");
+
+        let passwords: Vec<PasswordEntry> = scenario.call(canister, "get_passwords", ()).unwrap();
+        assert_eq!(passwords.len(), 1);
+        assert_eq!(passwords[0].service_name, "UpdatedService");
+    }
+
+    #[test]
+    fn test_delete_password() {
+        let mut scenario = Scenario::new();
+        let canister = scenario.create_canister_from_wasm("helloproj01_backend.wasm");
+
+        let entry = create_password_entry();
+        scenario.call::<bool>(canister, "add_password", (entry.clone(),)).unwrap();
+
+        let result: bool = scenario.call(canister, "delete_password", (0usize,)).unwrap();
+        assert!(result, "Failed to delete password");
+
+        let passwords: Vec<PasswordEntry> = scenario.call(canister, "get_passwords", ()).unwrap();
+        assert!(passwords.is_empty(), "Password list should be empty after deletion");
+    }
+
+    #[test]
+    fn test_greet() {
+        let mut scenario = Scenario::new();
+        let canister = scenario.create_canister_from_wasm("helloproj01_backend.wasm");
+
+        let name = "Alice".to_string();
+        let response: String = scenario.call(canister, "greet", (name.clone(),)).unwrap();
+        assert_eq!(response, format!("Hello, {}!", name));
+    }
+}

@@ -118,6 +118,7 @@ dfx canister call helloproj01_backend greet '("Internet computer")'
 
 
 
+cargo test --package helloproj01_backend --test integration_test --  --show-output 
 
 
 

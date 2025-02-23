@@ -30,4 +30,14 @@ cargo --version
 
 rustup target add wasm32-unknown-unknown
 
+
+cd /src
+
+curl -OL https://github.com/dfinity/pocketic/releases/download/7.0.0/pocket-ic-x86_64-linux.gz
+gzip -d pocket-ic-x86_64-linux.gz
+chmod +x pocket-ic-x86_64-linux
+mv pocket-ic-x86_64-linux pocket-ic
+export POCKET_IC_BIN="$(pwd)/pocket-ic"
+
+
 exec bash

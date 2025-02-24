@@ -81,6 +81,9 @@ dfx canister call helloproj01_backend add_password '(
     service_name = "Google";
     username = "myemail@example.com";
     password = "mypassword123";
+    salt = "aaaa";
+    encrypted = "aaaa";
+    iv = "aaaa";
     notes = opt "My Google account"
   }
 )'

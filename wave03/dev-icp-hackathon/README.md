@@ -123,7 +123,9 @@ cargo test --package helloproj01_backend --test integration_test --  --show-outp
 
 
 
+dfx start
 
+dfx canister call --update helloproj01_backend add_password 
 
 
 

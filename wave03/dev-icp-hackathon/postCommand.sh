@@ -39,5 +39,9 @@ chmod +x pocket-ic-x86_64-linux
 mv pocket-ic-x86_64-linux pocket-ic
 export POCKET_IC_BIN="$(pwd)/pocket-ic"
 
+git clone https://github.com/sstephenson/bats.git
+cd bats
+./install.sh /usr/local
+
 
 exec bash

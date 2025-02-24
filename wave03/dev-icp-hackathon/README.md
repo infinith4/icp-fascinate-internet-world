@@ -2,6 +2,17 @@
 
 ## 前提条件
 
+### devcontainer を利用する。
+
+1. wave03/dev-icp-hackathon 内をvscode または cursor で開く。
+2. devcontainerを開く。
+
+以下の画面の「コンテナーで再度開く」をクリックする。
+
+[devcon](./contents/devcontainer_スクリーンショット%202025-02-25%200.22.39.png)
+
+コンテナ起動後の環境に関しては以下の通り。
+
 ```
 dfx --version
 ```
@@ -19,8 +30,6 @@ cargo --version
 ```
 
 cargo 1.85.0 (d73d2caf9 2024-12-31)
-
-
 
 
 ## playground へのDeploy方法

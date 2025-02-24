@@ -17,9 +17,6 @@ import PasswordList from "./components/PasswordList.vue";
 
 <template>
   <main>
-    <img src="/logo2.svg" alt="DFINITY logo" />
-    <br />
-    <br />
     <form action="#" @submit="handleSubmit">
       <label for="name">Enter your name: &nbsp;</label>
       <input id="name" alt="Name" type="text" />
@@ -32,5 +29,6 @@ import PasswordList from "./components/PasswordList.vue";
       <h3>Password List</h3>
       <PasswordList />
     </div>
+    <img src="/logo2.svg" alt="DFINITY logo" />
   </main>
 </template>

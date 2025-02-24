@@ -1,10 +1,46 @@
 <template>
-  <form @submit.prevent="addPassword">
-    <input v-model="service_name" placeholder="Service Name" required />
-    <input v-model="username" placeholder="Username" required />
-    <input v-model="password" type="password" placeholder="Password" required />
-    <input v-model="notes" placeholder="Notes (Optional)" />
-    <button type="submit">Add Password</button>
+  <form @submit.prevent="addPassword" class="password-form">
+    <div class="form-group">
+      <label for="service-name">Service Name</label>
+      <input 
+        id="service-name"
+        v-model="service_name" 
+        placeholder="Enter service name" 
+        required 
+      />
+    </div>
+
+    <div class="form-group">
+      <label for="username">Username</label>
+      <input 
+        id="username"
+        v-model="username" 
+        placeholder="Enter username" 
+        required 
+      />
+    </div>
+
+    <div class="form-group">
+      <label for="password">Password</label>
+      <input 
+        id="password"
+        v-model="password" 
+        type="password" 
+        placeholder="Enter password" 
+        required 
+      />
+    </div>
+
+    <div class="form-group">
+      <label for="notes">Notes</label>
+      <input 
+        id="notes"
+        v-model="notes" 
+        placeholder="Optional notes" 
+      />
+    </div>
+
+    <button type="submit" class="submit-btn">Add Password</button>
   </form>
 </template>
 

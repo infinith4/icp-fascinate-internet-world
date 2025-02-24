@@ -1,7 +1,6 @@
 async function decryptPassword(encryptedData, masterPassword) {
     const decoder = new TextDecoder();
     const encoder = new TextEncoder();
-    console.log(JSON.stringify(encryptedData))
 
     // Base64 をデコード
     const encryptedBytes = new Uint8Array(atob(encryptedData.encrypted).split("").map(c => c.charCodeAt(0)));

@@ -17,16 +17,15 @@ import PasswordList from "./components/PasswordList.vue";
 
 <template>
   <main>
-    <form action="#" @submit="handleSubmit">
+    <!-- <form action="#" @submit="handleSubmit">
       <label for="name">Enter your name: &nbsp;</label>
       <input id="name" alt="Name" type="text" />
       <button type="submit">Click Me!</button>
     </form>
-    <section id="greeting">{{ greeting }}</section>
+    <section id="greeting">{{ greeting }}</section> -->
     <div>
       <h2>ICP Password Manager</h2>
       <PasswordForm />
-      <h3>Password List</h3>
       <PasswordList />
     </div>
     <img src="/logo2.svg" alt="DFINITY logo" />

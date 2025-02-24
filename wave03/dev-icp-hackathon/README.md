@@ -129,9 +129,34 @@ dfx canister call --update helloproj01_backend add_password
 
 
 
+## tests
+
+cd /src/helloproj01/src/helloproj01_backend
+
+テストメソッドを全てテストを実行する方法
+
+```
+cargo test --package helloproj01_backend --test integration_test -- --show-output
+```
+
+各テストメソッドごとにテストを実行する方法
+
+```
+cargo test --package helloproj01_backend --test integration_test -- test_hello_world --exact --show-output
+cargo test --package helloproj01_backend --test integration_test -- test_add_password --exact --show-output
+cargo test --package helloproj01_backend --test integration_test -- test_get_passwords --exact --show-output
+cargo test --package helloproj01_backend --test integration_test -- test_update_password --exact --show-output
+cargo test --package helloproj01_backend --test integration_test -- test_delete_password --exact --show-output
+```
 
 
+## playground
 
+
+dfx deploy --playground
+
+
+dfx canister --network playground call helloproj01_backend greet '("everyone in playground")'
 
 
 

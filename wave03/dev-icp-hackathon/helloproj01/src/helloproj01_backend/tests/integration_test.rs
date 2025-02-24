@@ -19,6 +19,21 @@ fn setup() -> (PocketIc, Principal) {
     (pic, backend_canister)
 }
 
+fn create_password_entry(param: Option<String>) -> PasswordEntry {
+    let prefix = param.unwrap_or_default();
+    return PasswordEntry {
+        service_name: format!("{}TestService", prefix).to_string(),
+        username: format!("{}test_user", prefix).to_string(),
+        password: format!("{}test_password", prefix).to_string(),
+        encrypted: format!("{}test_encrypted", prefix).to_string(),
+        iv: format!("{}test_iv", prefix).to_string(),
+        salt: format!("{}test_salt", prefix).to_string(),
+        notes: Some(format!("{}Test notes", prefix).to_string()),
+    }
+}
+
+
+//cargo test --package helloproj01_backend --test integration_test -- test_hello_world --exact --show-output
 #[test]
 fn test_hello_world() {
     let (pic, backend_canister) = setup();
@@ -27,44 +42,26 @@ fn test_hello_world() {
         backend_canister,
         Principal::anonymous(),
         "greet",
-        encode_one("ICPZ").unwrap(),
+        encode_one("ICP").unwrap(),
     ) else {
         panic!("Expected reply");
     };
+
+    println!("response assertion");
     let result: String = decode_one(&response).unwrap();
     assert_eq!(result, "Hello, ICP!");
-}
-
-fn create_password_entry() -> PasswordEntry {
-    PasswordEntry {
-        service_name: "TestService".to_string(),
-        username: "test_user".to_string(),
-        password: "test_password".to_string(),
-        encrypted: "encrypted_data".to_string(),
-        iv: "test_iv".to_string(),
-        salt: "test_salt".to_string(),
-        notes: Some("Test notes".to_string()),
-    }
 }
 
 //cargo test --package helloproj01_backend --test integration_test -- test_add_password --exact --show-output
 #[test]
 fn test_add_password() {
     let (pic, backend_canister) = setup();
-    let entry = create_password_entry();
+    let entry = create_password_entry(None);
     let Ok(WasmResult::Reply(response)) = pic.update_call(
         backend_canister,
         Principal::anonymous(),
         "add_password",
-        encode_one(PasswordEntry {
-            service_name: "Google".to_string(),
-            username: "myemail@example.com".to_string(),
-            password: "mypassword123".to_string(),
-            salt: "aaaa".to_string(),
-            encrypted: "aaaa".to_string(),
-            iv: "aaaa".to_string(),
-            notes: Some("My Google account".to_string()),
-        }).unwrap(),
+        encode_one(entry).unwrap(),
     ) else {
         panic!("Expected reply");
     };
@@ -80,25 +77,22 @@ fn test_add_password() {
     ) else {
         panic!("Expected reply"); 
     };
-    println!("-------------------------response");
+    println!("response assertion");
     let result_get_passwords: Vec<PasswordEntry> = decode_one(&response).unwrap();
     assert_eq!(!result_get_passwords.is_empty(), true);
     assert_eq!(result_get_passwords.len(), 1);
-    assert_eq!(result_get_passwords[0].service_name, "Google");
-    
-
-    
-    // let result: bool = scenario.call(canister, "add_password", ).unwrap();
-    // assert!(result, "Failed to add password");
-
-    // let passwords: Vec<PasswordEntry> = scenario.call(canister, "get_passwords", ()).unwrap();
-    // assert_eq!(passwords.len(), 1);
-    // assert_eq!(passwords[0].service_name, entry.service_name);
+    assert_eq!(result_get_passwords[0].service_name, "TestService");
+    assert_eq!(result_get_passwords[0].username, "test_user");
+    assert_eq!(result_get_passwords[0].password, "test_password");
+    assert_eq!(result_get_passwords[0].encrypted, "test_encrypted");
+    assert_eq!(result_get_passwords[0].iv, "test_iv");
+    assert_eq!(result_get_passwords[0].salt, "test_salt");
+    assert_eq!(result_get_passwords[0].notes, Some("Test notes".to_string()));
 }
 
 //cargo test --package helloproj01_backend --test integration_test -- test_get_passwords --exact --show-output
 #[test]
-fn test_get_passwords() {
+fn test_get_passwords_length0() {
     let (pic, backend_canister) = setup();
     //let entry = create_password_entry();
     let Ok(WasmResult::Reply(response)) = pic.query_call(
@@ -109,41 +103,22 @@ fn test_get_passwords() {
     ) else {
         panic!("Expected reply"); 
     };
-    println!("-------------------------response");
+
+    println!("response assertion");
     let result: Vec<PasswordEntry> = decode_one(&response).unwrap();
     assert_eq!(result.is_empty(), true);
-    //assert_eq!(result[0].service_name, "TestService");
-        
-    //assert_eq!(result.encrypted, entry.encrypted);
-
-    
-    // let result: bool = scenario.call(canister, "add_password", ).unwrap();
-    // assert!(result, "Failed to add password");
-
-    // let passwords: Vec<PasswordEntry> = scenario.call(canister, "get_passwords", ()).unwrap();
-    // assert_eq!(passwords.len(), 1);
-    // assert_eq!(passwords[0].service_name, entry.service_name);
 }
 
 //cargo test --package helloproj01_backend --test integration_test -- test_update_password --exact --show-output
 #[test]
 fn test_update_password() {
-
     let (pic, backend_canister) = setup();
-    let entry = create_password_entry();
+    let entry = create_password_entry(None);
     let Ok(WasmResult::Reply(response)) = pic.update_call(
         backend_canister,
         Principal::anonymous(),
         "add_password",
-        encode_one(PasswordEntry {
-            service_name: "Google".to_string(),
-            username: "myemail@example.com".to_string(),
-            password: "mypassword123".to_string(),
-            salt: "aaaa".to_string(),
-            encrypted: "aaaa".to_string(),
-            iv: "aaaa".to_string(),
-            notes: Some("My Google account".to_string()),
-        }).unwrap(),
+        encode_one(entry).unwrap(),
     ) else {
         panic!("Expected reply");
     };
@@ -159,25 +134,17 @@ fn test_update_password() {
     ) else {
         panic!("Expected reply"); 
     };
-    println!("-------------------------response");
+    println!("response assertion");
     let result_get_passwords: Vec<PasswordEntry> = decode_one(&response).unwrap();
     assert_eq!(!result_get_passwords.is_empty(), true);
     assert_eq!(result_get_passwords.len(), 1);
-    assert_eq!(result_get_passwords[0].service_name, "Google");
 
+    let update_entry = create_password_entry(Some("update".to_string()));
     let Ok(WasmResult::Reply(response)) = pic.update_call(
         backend_canister,
         Principal::anonymous(),
         "update_password",
-        encode_args((0_u64, PasswordEntry {
-            service_name: "updateGoogle".to_string(),
-            username: "updatemyemail@example.com".to_string(),
-            password: "updatemypassword123".to_string(),
-            salt: "updateaaaa".to_string(),
-            encrypted: "updateaaaa".to_string(),
-            iv: "updateaaaa".to_string(),
-            notes: Some("updateMy Google account".to_string()),
-        })).unwrap(),
+        encode_args((0_u64, update_entry)).unwrap(),
     ) else {
         panic!("Expected reply");
     };
@@ -193,11 +160,11 @@ fn test_update_password() {
     ) else {
         panic!("Expected reply"); 
     };
-    println!("-------------------------response");
+    println!("response assertion");
     let result_get_passwords_after_update: Vec<PasswordEntry> = decode_one(&response).unwrap();
     assert_eq!(!result_get_passwords_after_update.is_empty(), true);
     assert_eq!(result_get_passwords_after_update.len(), 1);
-    assert_eq!(result_get_passwords_after_update[0].service_name, "updateGoogle");
+    assert_eq!(result_get_passwords_after_update[0].service_name, "updateTestService");
 
 }
 
@@ -206,19 +173,12 @@ fn test_update_password() {
 #[test]
 fn test_delete_password() {
     let (pic, backend_canister) = setup();
+    let entry = create_password_entry(None);
     let Ok(WasmResult::Reply(response)) = pic.update_call(
         backend_canister,
         Principal::anonymous(),
         "add_password",
-        encode_one(PasswordEntry {
-            service_name: "Google".to_string(),
-            username: "myemail@example.com".to_string(),
-            password: "mypassword123".to_string(),
-            salt: "aaaa".to_string(),
-            encrypted: "aaaa".to_string(),
-            iv: "aaaa".to_string(),
-            notes: Some("My Google account".to_string()),
-        }).unwrap(),
+        encode_one(entry).unwrap(),
     ) else {
         panic!("Expected reply");
     };
@@ -237,33 +197,7 @@ fn test_delete_password() {
         panic!("Expected reply");
     };
 
+    println!("response assertion");
     let result: bool = decode_one(&response).unwrap();
     assert!(result);
 }
-
-// }
-
-
-// use candid::encode_one;
-// use pocket_ic::PocketIc;
-
-//  #[test]
-//  fn test_counter_canister() {
-//     let pic = PocketIc::new();
-//     // Create an empty canister as the anonymous principal and add cycles.
-//     let canister_id = pic.create_canister();
-//     pic.add_cycles(canister_id, 2_000_000_000_000);
-    
-//     let wasm_bytes = load_counter_wasm(...);
-//     pic.install_canister(canister_id, wasm_bytes, vec![], None);
-//     // 'inc' is a counter canister method.
-//     call_counter_canister(&pic, canister_id, "inc");
-//     // Check if it had the desired effect.
-//     let reply = call_counter_canister(&pic, canister_id, "read");
-//     assert_eq!(reply, WasmResult::Reply(vec![0, 0, 0, 1]));
-//  }
-
-// fn call_counter_canister(pic: &PocketIc, canister_id: CanisterId, method: &str) -> WasmResult {
-//     pic.update_call(canister_id, Principal::anonymous(), method, encode_one(()).unwrap())
-//         .expect("Failed to call counter canister")
-// }

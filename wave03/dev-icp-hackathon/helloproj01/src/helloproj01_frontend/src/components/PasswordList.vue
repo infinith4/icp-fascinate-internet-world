@@ -1,7 +1,7 @@
 <template>
-  <div>
-    <h3>Stored Passwords</h3>
-    <p v-if="passwords.length === 0">No passwords stored yet.</p>
+  <div class="password-list">
+    <h3 class="title">Stored Passwords</h3>
+    <p v-if="passwords.length === 0" class="empty-message">No passwords stored yet.</p>
     <table v-else class="table">
       <thead>
         <tr>
@@ -13,10 +13,14 @@
       </thead>
       <tbody>
         <tr v-for="(entry, index) in passwords" :key="index">
-          <td><strong>{{ entry.service_name }}</strong></td>
+          <td>{{ entry.service_name }}</td>
           <td>{{ entry.username }}</td>
           <td>{{ entry.password }}</td>
-          <td><button @click="deletePassword(index)">Delete</button></td>
+          <td>
+            <button class="delete-btn" @click="deletePassword(index)">
+              Delete
+            </button>
+          </td>
         </tr>
       </tbody>
     </table>
@@ -29,8 +33,7 @@ import backend from "../api";
 import { helloproj01_backend } from 'declarations/helloproj01_backend/index';
 
 import decryptPassword from "../decryptPassword";
-
-const masterPassword = "ckan83nBjx$smNcqOjs";
+const masterPassword = process.env.MASTERPASSWORD;
 const passwords = ref([]);
 
 const fetchPasswords = async () => {
@@ -59,3 +62,56 @@ const deletePassword = async (index) => {
 
 onMounted(fetchPasswords);
 </script>
+
+<style scoped>
+.password-list {
+  padding: 20px;
+}
+
+.title {
+  color: #2c3e50;
+  margin-bottom: 20px;
+}
+
+.empty-message {
+  color: #666;
+  font-style: italic;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 20px;
+}
+
+.table th,
+.table td {
+  padding: 12px;
+  text-align: left;
+  border-bottom: 1px solid #ddd;
+}
+
+.table th {
+  background-color: #f8f9fa;
+  color: #2c3e50;
+  font-weight: 600;
+}
+
+.table tr:hover {
+  background-color: #f5f5f5;
+}
+
+.delete-btn {
+  background-color: #dc3545;
+  color: white;
+  border: none;
+  padding: 6px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.delete-btn:hover {
+  background-color: #c82333;
+}
+</style>

@@ -29,6 +29,7 @@ export default defineConfig({
     vue(),
     environment('all', { prefix: 'CANISTER_' }),
     environment('all', { prefix: 'DFX_' }),
+    environment('all', { prefix: 'MASTERPASSWORD' }),
   ],
   resolve: {
     alias: [

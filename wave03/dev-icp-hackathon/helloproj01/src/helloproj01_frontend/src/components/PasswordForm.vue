@@ -17,7 +17,7 @@ const service_name = ref("");
 const username = ref("");
 const password = ref("");
 const notes = ref("");
-const masterPassword = "ckan83nBjx$smNcqOjs";
+const masterPassword = process.env.MASTERPASSWORD;
 
 const addPassword = async () => {
 
@@ -26,7 +26,6 @@ const addPassword = async () => {
   const entry = {
     service_name: service_name.value,
     username: username.value,
-    //password: await encryptPassword(password.value,"masterpassword"),
     password: password.value,
     encrypted: encryptedData.encrypted,
     iv: encryptedData.iv,

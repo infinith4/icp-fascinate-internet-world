@@ -27,9 +27,9 @@ import PasswordList from "./components/PasswordList.vue";
     </form>
     <section id="greeting">{{ greeting }}</section>
     <div>
-      <h1>ICP Password Manager</h1>
+      <h2>ICP Password Manager</h2>
       <PasswordForm />
-      <h2>Password List</h2>
+      <h3>Password List</h3>
       <PasswordList />
     </div>
   </main>

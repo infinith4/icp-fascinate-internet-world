@@ -1,14 +1,25 @@
 <template>
   <div>
-    <h2>Stored Passwords</h2>
-    <ul>
-      <p>passwords.length {{ passwords.length }}</p>
-      <li v-for="(entry, index) in passwords" :key="index">
-        <strong>service_name</strong> - username - password - encryped - iv - salt
-        <strong>{{ entry.service_name }}</strong> - {{ entry.username }} - {{ entry.password }} - {{ entry.encrypted }} - {{ entry.iv }} - {{ entry.salt }}
-        <button @click="deletePassword(index)">Delete</button>
-      </li>
-    </ul>
+    <h3>Stored Passwords</h3>
+    <p v-if="passwords.length === 0">No passwords stored yet.</p>
+    <table v-else class="table">
+      <thead>
+        <tr>
+          <th>Service Name</th>
+          <th>Username</th>
+          <th>Password</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr v-for="(entry, index) in passwords" :key="index">
+          <td><strong>{{ entry.service_name }}</strong></td>
+          <td>{{ entry.username }}</td>
+          <td>{{ entry.password }}</td>
+          <td><button @click="deletePassword(index)">Delete</button></td>
+        </tr>
+      </tbody>
+    </table>
   </div>
 </template>
 
@@ -19,17 +30,19 @@ import { helloproj01_backend } from 'declarations/helloproj01_backend/index';
 
 import decryptPassword from "../decryptPassword";
 
+const masterPassword = "ckan83nBjx$smNcqOjs";
 const passwords = ref([]);
 
 const fetchPasswords = async () => {
   await helloproj01_backend.get_passwords().then(async (response) => {
     passwords.value = await Promise.all(
       response.map(async (res) => {
-        return await decryptPassword({
+        const responseDecryptPassword = await decryptPassword({
           encrypted: res.encrypted,
           iv: res.iv,
           salt: res.salt,
-        });
+        }, masterPassword);
+        return { service_name: res.service_name, username: res.username, password: responseDecryptPassword };
       })
     );
   });

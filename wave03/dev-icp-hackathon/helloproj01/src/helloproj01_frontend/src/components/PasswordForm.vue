@@ -10,22 +10,19 @@
 
 <script setup>
 import { ref } from "vue";
-import backend from "../api";
 import { helloproj01_backend } from 'declarations/helloproj01_backend/index';
 import encryptPassword from "../encryptPassword";
-// import decryptPassword from "../decryptPassword";
 
 const service_name = ref("");
 const username = ref("");
 const password = ref("");
 const notes = ref("");
+const masterPassword = "ckan83nBjx$smNcqOjs";
 
 const addPassword = async () => {
 
-  const encryptedData = await encryptPassword(password.value, "test")
-  // alert(encryptedData.encrypted);
-  alert(encryptedData.iv);
-  alert(encryptedData.salt);
+  const encryptedData = await encryptPassword(password.value, masterPassword)
+
   const entry = {
     service_name: service_name.value,
     username: username.value,
@@ -44,6 +41,8 @@ const addPassword = async () => {
     username.value = "";
     password.value = "";
     notes.value = "";
+
+    location.reload();
   } else {
     alert("Failed to add password.");
   }

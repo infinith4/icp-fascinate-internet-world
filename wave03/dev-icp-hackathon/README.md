@@ -1,23 +1,87 @@
+# ICP Password Manager
+
 ## 前提条件
 
 ```
 dfx --version
 ```
 
-dfx 0.24.3
+dfx 0.25.0
+
+最新バージョンにアップデートする方法は以下の通り。
+
+```
+dfxvm update
+```
 
 ```
 cargo --version
 ```
 
-cargo 1.84.1 (66221abde 2024-11-19)
+cargo 1.85.0 (d73d2caf9 2024-12-31)
 
 
-### 最新バージョンにアップデート
+
+
+## playground へのDeploy方法
+
+playground へのDeploy 方法は以下の通り。
 
 ```
-dfxvm update
+dfx deploy --playground
 ```
+
+以下のURLが生成されるので、そちらにアクセスする。
+
+```
+Upgraded code for canister helloproj01_frontend, with canister ID 475h5-dyaaa-aaaab-qac4a-cai
+Deployed canisters.
+URLs:
+  Frontend canister via browser:
+    helloproj01_frontend: https://475h5-dyaaa-aaaab-qac4a-cai.icp0.io/
+  Backend canister via Candid interface:
+    helloproj01_backend: https://a4gq6-oaaaa-aaaab-qaa4q-cai.raw.icp0.io/?id=5stdt-mqaaa-aaaab-qac3q-cai
+```
+
+## Backend canister
+
+まずは、Backend canisterの場合は以下のように表示される。
+
+add_password, get_passwords を実行した結果は以下のとおり。
+
+[add_password, get_passwords を実行した結果](./contents/backend01_screencapture-a4gq6-oaaaa-aaaab-qaa4q-cai-raw-icp0-io-2025-02-25-00_01_24.png)
+
+
+次に update_password, get_passwords を実行した結果 を実行した結果は以下のとおり。
+
+[update_password, get_passwords を実行した結果](./contents/backend03_screencapture-a4gq6-oaaaa-aaaab-qaa4q-cai-raw-icp0-io-2025-02-25-00_03_37.png)
+
+update_password でindex: 1 を指定して更新した結果が反映されていることが確認できる。
+
+
+[delete_password, get_passwords を実行した結果](./contents/backend04_screencapture-a4gq6-oaaaa-aaaab-qaa4q-cai-raw-icp0-io-2025-02-25-00_04_31.png)
+
+delete_password でindex: 1 を指定して更新した結果が反映されていることが確認できる。
+
+## Frontend canister
+
+
+次に Frontend canisterの場合は以下のように表示される。
+
+パスワードを入力し、Add Password をクリックする。
+
+[パスワード入力画面](./contents/frontend01_screencapture-475h5-dyaaa-aaaab-qac4a-cai-icp0-io-2025-02-24-23_55_56.png)
+
+
+パスワード保存に成功した旨のアラートが表示される。
+
+[アラート](./contents/frontend02_スクリーンショット%202025-02-24%2023.57.05.png)
+
+
+保存結果が一覧に表示される。
+
+[一覧](./contents/frontend03_screencapture-475h5-dyaaa-aaaab-qac4a-cai-icp0-io-2025-02-24-23_59_45.png)
+
 
 
 新しいプロジェクトの作成

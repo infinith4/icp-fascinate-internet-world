@@ -1,7 +1,6 @@
 type PasswordEntry = record {
     service_name : text;
     username : text;
-    password : text;
     encrypted: text;
     iv: text;
     salt: text;

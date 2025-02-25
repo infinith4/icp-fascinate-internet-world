@@ -24,7 +24,6 @@ fn create_password_entry(param: Option<String>) -> PasswordEntry {
     return PasswordEntry {
         service_name: format!("{}TestService", prefix).to_string(),
         username: format!("{}test_user", prefix).to_string(),
-        password: format!("{}test_password", prefix).to_string(),
         encrypted: format!("{}test_encrypted", prefix).to_string(),
         iv: format!("{}test_iv", prefix).to_string(),
         salt: format!("{}test_salt", prefix).to_string(),
@@ -83,7 +82,6 @@ fn test_add_password() {
     assert_eq!(result_get_passwords.len(), 1);
     assert_eq!(result_get_passwords[0].service_name, "TestService");
     assert_eq!(result_get_passwords[0].username, "test_user");
-    assert_eq!(result_get_passwords[0].password, "test_password");
     assert_eq!(result_get_passwords[0].encrypted, "test_encrypted");
     assert_eq!(result_get_passwords[0].iv, "test_iv");
     assert_eq!(result_get_passwords[0].salt, "test_salt");

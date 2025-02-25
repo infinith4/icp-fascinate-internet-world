@@ -9,7 +9,6 @@ pub mod helloproj01_backend_lib {
     pub struct PasswordEntry {
         pub service_name: String,
         pub username: String,
-        pub password: String,
         pub encrypted: String,
         pub iv: String,
         pub salt: String,
@@ -84,9 +83,6 @@ pub mod helloproj01_backend_lib {
     
     #[ic_cdk::update]
     fn delete_password(index: usize) -> bool {
-        println!("start delete_password; index: {}", index);
-        let index_usize :String = index.to_string();
-        println!("start delete_password; index_usize: {}", index_usize);
         let caller = ic_cdk::caller();
         PASSWORD_ENTRY_STATE.with(|state| {
             let mut store = state.take();

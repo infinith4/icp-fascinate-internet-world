@@ -29,7 +29,6 @@
 
 <script setup>
 import { ref, onMounted } from "vue";
-import backend from "../api";
 import { helloproj01_backend } from 'declarations/helloproj01_backend/index';
 
 import decryptPassword from "../decryptPassword";

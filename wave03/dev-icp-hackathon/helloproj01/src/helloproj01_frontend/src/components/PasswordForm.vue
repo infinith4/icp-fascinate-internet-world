@@ -62,7 +62,6 @@ const addPassword = async () => {
   const entry = {
     service_name: service_name.value,
     username: username.value,
-    password: password.value,
     encrypted: encryptedData.encrypted,
     iv: encryptedData.iv,
     salt: encryptedData.salt,

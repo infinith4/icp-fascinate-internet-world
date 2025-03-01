@@ -1,0 +1,27 @@
+{
+  "canisters": {
+    "ii_test_backend": {
+      "candid": "src/ii_test_backend/ii_test_backend.did",
+      "package": "ii_test_backend",
+      "type": "rust"
+    },
+    "ii_test_frontend": {
+      "dependencies": [
+        "ii_test_backend"
+      ],
+      "source": [
+        "src/ii_test_frontend/dist"
+      ],
+      "type": "assets",
+      "workspace": "ii_test_frontend"
+    }
+  },
+  "defaults": {
+    "build": {
+      "args": "",
+      "packtool": ""
+    }
+  },
+  "output_env_file": ".env",
+  "version": 1
+}

@@ -1,6 +1,8 @@
 <script setup>
 import { ref } from 'vue';
 import { helloproj01_backend } from 'declarations/helloproj01_backend/index';
+
+
 let greeting = ref('');
 
 async function handleSubmit(e) {
@@ -11,6 +13,7 @@ async function handleSubmit(e) {
     greeting.value = response;
   });
 }
+import Login from "./components/Login.vue";
 import PasswordForm from "./components/PasswordForm.vue";
 import PasswordList from "./components/PasswordList.vue";
 </script>
@@ -23,6 +26,7 @@ import PasswordList from "./components/PasswordList.vue";
       <button type="submit">Click Me!</button>
     </form>
     <section id="greeting">{{ greeting }}</section> -->
+    <Login />
     <div>
       <h2>ICP Password Manager</h2>
       <PasswordForm />

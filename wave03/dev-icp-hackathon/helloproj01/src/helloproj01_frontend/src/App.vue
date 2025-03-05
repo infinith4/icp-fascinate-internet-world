@@ -16,6 +16,7 @@ async function handleSubmit(e) {
 import Login from "./components/Login.vue";
 import PasswordForm from "./components/PasswordForm.vue";
 import PasswordList from "./components/PasswordList.vue";
+import AuthStatus from './components/AuthStatus.vue';
 </script>
 
 <template>
@@ -26,12 +27,13 @@ import PasswordList from "./components/PasswordList.vue";
       <button type="submit">Click Me!</button>
     </form>
     <section id="greeting">{{ greeting }}</section> -->
+    <h2>ICP Password Manager</h2>
+    <AuthStatus />
     <Login />
-    <div>
-      <h2>ICP Password Manager</h2>
-      <PasswordForm />
-      <PasswordList />
-    </div>
+      <div>
+        <PasswordForm />
+        <PasswordList />
+      </div>
     <img src="/logo2.svg" alt="DFINITY logo" />
   </main>
 </template>

@@ -1,59 +1,70 @@
 <template>
-  <form @submit.prevent="addPassword" class="password-form">
-    <div class="form-group">
-      <label for="service-name">Service Name</label>
-      <input 
-        id="service-name"
-        v-model="service_name" 
-        placeholder="Enter service name" 
-        required 
-      />
-    </div>
+  <div v-if="authStore.isAuthenticated">
+    <form @submit.prevent="addPassword" class="password-form">
+      <div class="form-group">
+        <label for="service-name">Service Name</label>
+        <input 
+          id="service-name"
+          v-model="service_name" 
+          placeholder="Enter service name" 
+          required 
+        />
+      </div>
 
-    <div class="form-group">
-      <label for="username">Username</label>
-      <input 
-        id="username"
-        v-model="username" 
-        placeholder="Enter username" 
-        required 
-      />
-    </div>
+      <div class="form-group">
+        <label for="username">Username</label>
+        <input 
+          id="username"
+          v-model="username" 
+          placeholder="Enter username" 
+          required 
+        />
+      </div>
 
-    <div class="form-group">
-      <label for="password">Password</label>
-      <input 
-        id="password"
-        v-model="password" 
-        type="password" 
-        placeholder="Enter password" 
-        required 
-      />
-    </div>
+      <div class="form-group">
+        <label for="password">Password</label>
+        <input 
+          id="password"
+          v-model="password" 
+          type="password" 
+          placeholder="Enter password" 
+          required 
+        />
+      </div>
 
-    <div class="form-group">
-      <label for="notes">Notes</label>
-      <input 
-        id="notes"
-        v-model="notes" 
-        placeholder="Optional notes" 
-      />
-    </div>
+      <div class="form-group">
+        <label for="notes">Notes</label>
+        <input 
+          id="notes"
+          v-model="notes" 
+          placeholder="Optional notes" 
+        />
+      </div>
 
-    <button type="submit" class="submit-btn">Add Password</button>
-  </form>
+      <button type="submit" class="submit-btn">Add Password</button>
+    </form>
+  </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { ref } from "vue";
-import { helloproj01_backend } from 'declarations/helloproj01_backend/index';
+import { helloproj01_backend } from '../../../declarations/helloproj01_backend/index';
 import encryptPassword from "../encryptPassword";
+import { useAuthStore } from '../stores/authStore';
+import { onMounted } from 'vue';
 
 const service_name = ref("");
 const username = ref("");
 const password = ref("");
 const notes = ref("");
-const masterPassword = process.env.MASTERPASSWORD;
+
+const authStore = useAuthStore();
+
+onMounted(() => {
+  authStore.initAuthClient();
+});
+
+const masterPassword = import.meta.env.MASTERPASSWORD;
 
 const addPassword = async () => {
 

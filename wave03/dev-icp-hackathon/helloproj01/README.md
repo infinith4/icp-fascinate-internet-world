@@ -136,6 +136,9 @@ WARN: Cannot fetch Candid interface for delete_password, sending arguments with 
 (true)
 
 
+https://zenn.dev/halifax/articles/ic_internet_identity
+
+
 Deployed canisters.
 URLs:
   Frontend canister via browser:

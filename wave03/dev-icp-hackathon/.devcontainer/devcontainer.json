@@ -35,7 +35,7 @@
 	//"forwardPorts": [3006,3306],
 
 	// Use 'postCreateCommand' to run commands after the container is created.
-	"postCreateCommand": "bash postCommand.sh",
+	"postCreateCommand": "sed -i 's/\r//' postCommand.sh; bash postCommand.sh",
 	// Configure tool-specific properties.
 	// "customizations": {},
 

@@ -1,6 +1,8 @@
 <script setup>
 import { ref } from 'vue';
 import { helloproj01_backend } from 'declarations/helloproj01_backend/index';
+
+
 let greeting = ref('');
 
 async function handleSubmit(e) {
@@ -11,8 +13,10 @@ async function handleSubmit(e) {
     greeting.value = response;
   });
 }
+import Login from "./components/Login.vue";
 import PasswordForm from "./components/PasswordForm.vue";
 import PasswordList from "./components/PasswordList.vue";
+import AuthStatus from './components/AuthStatus.vue';
 </script>
 
 <template>
@@ -23,11 +27,13 @@ import PasswordList from "./components/PasswordList.vue";
       <button type="submit">Click Me!</button>
     </form>
     <section id="greeting">{{ greeting }}</section> -->
-    <div>
-      <h2>ICP Password Manager</h2>
-      <PasswordForm />
-      <PasswordList />
-    </div>
+    <h2>ICP Password Manager</h2>
+    <AuthStatus />
+    <Login />
+      <div>
+        <PasswordForm />
+        <PasswordList />
+      </div>
     <img src="/logo2.svg" alt="DFINITY logo" />
   </main>
 </template>

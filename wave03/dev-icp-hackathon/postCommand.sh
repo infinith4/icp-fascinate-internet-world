@@ -25,8 +25,10 @@ sh -ci "$HOME/.local/share/dfx/env && dfx --version"
 
 dfx --version
 
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+. "$HOME/.cargo/env"
 
-bash ./postCommandRust.sh
+# bash ./postCommandRust.sh
 
 . "$HOME/.cargo/env"
 

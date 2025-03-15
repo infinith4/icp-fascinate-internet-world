@@ -134,3 +134,20 @@ https://github.com/dfinity/examples/blob/master/rust/counter/src/lib.rs
 vscode ➜ /src/helloproj01 $ dfx canister call helloproj01_backend delete_password '(1 : nat64)'
 WARN: Cannot fetch Candid interface for delete_password, sending arguments with inferred types.
 (true)
+
+
+https://zenn.dev/halifax/articles/ic_internet_identity
+
+
+Deployed canisters.
+URLs:
+  Frontend canister via browser:
+    helloproj01_frontend:
+      - http://bd3sg-teaaa-aaaaa-qaaba-cai.localhost:4943/ (Recommended)
+      - http://127.0.0.1:4943/?canisterId=bd3sg-teaaa-aaaaa-qaaba-cai (Legacy)
+    internet_identity:
+      - http://br5f7-7uaaa-aaaaa-qaaca-cai.localhost:4943/ (Recommended)
+      - http://127.0.0.1:4943/?canisterId=br5f7-7uaaa-aaaaa-qaaca-cai (Legacy)
+  Backend canister via Candid interface:
+    helloproj01_backend: http://127.0.0.1:4943/?canisterId=be2us-64aaa-aaaaa-qaabq-cai&id=bkyz2-fmaaa-aaaaa-qaaaq-cai
+    internet_identity: http://127.0.0.1:4943/?canisterId=be2us-64aaa-aaaaa-qaabq-cai&id=br5f7-7uaaa-aaaaa-qaaca-cai

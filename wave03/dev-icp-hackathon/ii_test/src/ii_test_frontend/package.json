@@ -1,10 +1,10 @@
 {
-  "name": "helloproj01_frontend",
+  "name": "ii_test_frontend",
   "private": true,
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "setup": "npm i && dfx canister create helloproj01_backend && dfx generate helloproj01_backend && dfx deploy",
+    "setup": "npm i && dfx canister create ii_test_backend && dfx generate ii_test_backend && dfx deploy",
     "start": "vite --port 3000",
     "prebuild": "dfx generate",
     "build": "tsc && vite build",
@@ -18,17 +18,13 @@
     "sass": "^1.63.6",
     "typescript": "^5.1.3",
     "vite": "^4.3.9",
-    "vite-plugin-environment": "^1.1.3",
-    "vite-plugin-vuetify": "^2.1.0",
-    "vuetify": "^3.7.13"
+    "vite-plugin-environment": "^1.1.3"
   },
   "dependencies": {
-    "@dfinity/agent": "^2.3.0",
-    "@dfinity/auth-client": "^2.3.0",
-    "@dfinity/candid": "^2.1.3",
-    "@dfinity/principal": "^2.1.3",
-    "@mdi/font": "^7.4.47",
     "pinia": "^2.1.6",
-    "vue": "^3.3.4"
+    "vue": "^3.3.4",
+    "@dfinity/agent": "^2.1.3",
+    "@dfinity/candid": "^2.1.3",
+    "@dfinity/principal": "^2.1.3"
   }
 }

@@ -46,7 +46,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup >
 import { ref } from "vue";
 import { helloproj01_backend } from '../../../declarations/helloproj01_backend/index';
 import encryptPassword from "../encryptPassword";

@@ -36,6 +36,10 @@ const masterPassword = process.env.MASTERPASSWORD;
 const passwords = ref([]);
 
 const fetchPasswords = async () => {
+  
+      // Change identity
+      const agent = Actor.agentOf(iitest_backend);
+      agent.replaceIdentity(this.authClient.getIdentity());
   await helloproj01_backend.get_passwords().then(async (response) => {
     passwords.value = await Promise.all(
       response.map(async (res) => {

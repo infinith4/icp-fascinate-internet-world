@@ -127,13 +127,13 @@ vetkd のsystem api のDeploy
 
 ちょっとわからないが、本番でローンチされていないようなのでsystem api をそのまま利用する。
 
-dfx canister create system_api --specified-id s55qq-oqaaa-aaaaa-aaakq-cai
+dfx canister create vetkd_system_api --specified-id s55qq-oqaaa-aaaaa-aaakq-cai
 
 
-dfx deploy system_api --specified-id s55qq-oqaaa-aaaaa-aaakq-cai
+dfx deploy vetkd_system_api --specified-id s55qq-oqaaa-aaaaa-aaakq-cai
 
 
-dfx canister delete system_api
+dfx canister delete vetkd_system_api
 
 cargo install cargo-audit
 

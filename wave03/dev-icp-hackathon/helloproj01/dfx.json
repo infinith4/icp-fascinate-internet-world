@@ -4,19 +4,24 @@
       "main": "src/secrets_backend/main.mo",
       "type": "motoko"
     },
-    "system_api": {
-      "candid": "src/system_api/vetkd_system_api.did",
+    "vetkd_system_api": {
+      "candid": "src/vetkd_system_api/vetkd_system_api.did",
       "package": "vetkd_system_api",
-      "type": "rust"
+      "type": "rust",
+      "specified_id": "s55qq-oqaaa-aaaaa-aaakq-cai"
     },
     "helloproj01_backend": {
       "candid": "src/helloproj01_backend/helloproj01_backend.did",
       "package": "helloproj01_backend",
-      "type": "rust"
+      "type": "rust",
+      "dependencies": [
+        "vetkd_system_api"
+      ]
     },
     "helloproj01_frontend": {
       "dependencies": [
-        "helloproj01_backend"
+        "helloproj01_backend",
+        "vetkd_system_api"
       ],
       "source": [
         "src/helloproj01_frontend/dist"

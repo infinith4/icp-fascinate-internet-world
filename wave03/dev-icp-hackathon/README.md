@@ -122,6 +122,8 @@ Success! The dfx server is running in the background.
 
 ### Local Canister実行環境へのdeploy
 
+dfx identity use default
+
 ```
 dfx deploy
 ```

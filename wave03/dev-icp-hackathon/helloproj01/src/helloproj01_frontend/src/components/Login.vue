@@ -11,7 +11,7 @@ const login = async () => {
   console.log("----------------------------authclient");
   
   authClient.login({
-    identityProvider: "http://br5f7-7uaaa-aaaaa-qaaca-cai.localhost:4943/",
+    identityProvider: "http://bkyz2-fmaaa-aaaaa-qaaaq-cai.localhost:4943/",
     //identityProvider: "http://127.0.0.1:4943/?canisterId=be2us-64aaa-aaaaa-qaabq-cai",
     onSuccess: async () => {
       console.log("authClient.getIdentity()");

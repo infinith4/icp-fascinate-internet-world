@@ -122,9 +122,24 @@ Success! The dfx server is running in the background.
 
 ### Local Canister実行環境へのdeploy
 
+
+
+innternet identity のCanister id を適当な以下のIDでDeployする。
+
+dfx deploy internet_identity --specified-id bkyz2-fmaaa-aaaaa-qaaaq-cais
+
+Login.vue でIDが一致するように指定する。
+
+```
+authClient.login({
+    identityProvider: "http://bkyz2-fmaaa-aaaaa-qaaaq-cai.localhost:4943/",
+```
+
+
 ```
 dfx deploy
 ```
+
 
 ```
 Committing batch with 13 operations.
@@ -162,4 +177,8 @@ cargo test --package helloproj01_backend --test integration_test -- test_get_pas
 cargo test --package helloproj01_backend --test integration_test -- test_update_password --exact --show-output
 cargo test --package helloproj01_backend --test integration_test -- test_delete_password --exact --show-output
 ```
+
+
+
+dfx deploy internet_identity --argument '(null)'
 

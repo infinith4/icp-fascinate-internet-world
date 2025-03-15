@@ -13,6 +13,5 @@ onMounted(() => {
   <div>
     <p>認証状態: {{ authStore.isAuthenticated ? 'ログイン済み' : '未ログイン' }}</p>
     <button v-if="!authStore.isAuthenticated" @click="authStore.login">ログイン</button>
-    <button v-else @click="authStore.logout">ログアウト</button>
   </div>
 </template>

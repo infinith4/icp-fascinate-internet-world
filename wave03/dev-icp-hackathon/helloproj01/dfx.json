@@ -1,5 +1,14 @@
 {
   "canisters": {
+    "secrets_backend": {
+      "main": "src/secrets_backend/main.mo",
+      "type": "motoko"
+    },
+    "system_api": {
+      "candid": "src/system_api/vetkd_system_api.did",
+      "package": "vetkd_system_api",
+      "type": "rust"
+    },
     "helloproj01_backend": {
       "candid": "src/helloproj01_backend/helloproj01_backend.did",
       "package": "helloproj01_backend",

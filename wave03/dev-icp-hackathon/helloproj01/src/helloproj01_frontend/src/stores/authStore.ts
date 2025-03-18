@@ -33,7 +33,7 @@ export const useAuthStore = defineStore('auth', {
       this.client = client;
       
       if (await client.isAuthenticated()) {
-        this.authenticate(client);
+        this.authenticate();
       } else {
         this.state = 'anonymous';
         this.actor = createActor();
@@ -46,7 +46,7 @@ export const useAuthStore = defineStore('auth', {
       this.client.login({
         maxTimeToLive: BigInt(1800) * BigInt(1_000_000_000),
         identityProvider: "http://be2us-64aaa-aaaaa-qaabq-cai.localhost:4943/",
-        onSuccess: () => this.authenticate(this.client!),
+        onSuccess: () => {this.authenticate( )},
       });
     },
 
@@ -60,7 +60,8 @@ export const useAuthStore = defineStore('auth', {
       // router.push('/') // 必要に応じてルーターを使用
     },
 
-    async authenticate(client: AuthClient) {
+    async authenticate() {
+      const client = this.client!;
       this.handleSessionTimeout();
 
       try {

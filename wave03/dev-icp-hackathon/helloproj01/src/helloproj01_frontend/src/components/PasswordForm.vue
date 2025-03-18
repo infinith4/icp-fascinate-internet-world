@@ -73,8 +73,8 @@ const masterPassword = import.meta.env.MASTERPASSWORD;
 const addPassword = async (cryptoService: CryptoService) => {
   console.log("start addSecret");
   await addSecret(
-    secretFromContent("test", [], authStore.client.getIdentity().getPrincipal()),
-    authStore.actor,
+    secretFromContent("test", [], authStore.client!.getIdentity().getPrincipal()),
+    authStore.actor!,
     authStore.crypto
   );
   console.log("end addSecret");

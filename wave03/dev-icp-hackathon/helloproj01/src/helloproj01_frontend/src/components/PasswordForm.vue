@@ -71,12 +71,13 @@ onMounted(() => {
 const masterPassword = import.meta.env.MASTERPASSWORD;
 
 const addPassword = async (cryptoService: CryptoService) => {
+  console.log("start addSecret");
   await addSecret(
     secretFromContent("test", [], authStore.client.getIdentity().getPrincipal()),
     authStore.actor,
     authStore.crypto
   );
-  // console.log("start cryptoService.encryptWithSecretKey");
+  console.log("end addSecret");
   // await cryptoService.encryptWithSecretKey(BigInt(1), "tests", "tests");
   // console.log("end cryptoService.encryptWithSecretKey");
   const encryptedData = await encryptPassword(password.value, masterPassword)

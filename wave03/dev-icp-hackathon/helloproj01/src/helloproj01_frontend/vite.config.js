@@ -16,6 +16,7 @@ export default defineConfig({
         global: 'globalThis',
       },
     },
+    exclude: ['secrets_backend', 'vetkd_system_api'],
   },
   server: {
     proxy: {
@@ -37,5 +38,6 @@ export default defineConfig({
       { find: '@', replacement: fileURLToPath(new URL('./src', import.meta.url)) },
     ],
     dedupe: ['@dfinity/agent'],
+    extensions: ['.js', '.ts', '.vue', '.did.js', '.did']
   }
 });

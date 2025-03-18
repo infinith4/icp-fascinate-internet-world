@@ -9,8 +9,8 @@ import {
 // import { idlFactory } from './backend';
 
 //import { ENCRYPTED_NOTES_CANISTER_ID, _SERVICE } from './backend';
-import { idlFactory } from './backend';
-import type { _SERVICE } from "../../../declarations/secrets_backend/secrets_backend.did";
+import { idlFactory } from './idlFactory';
+import type { _SERVICE } from "../../../declarations/secrets_backend/secrets_backend.did.d.ts";
 // import { idlFactory } from "../../../declarations/vetkd_system_api/vetkd_system_api.did";
 
 export type BackendActor = ActorSubclass<_SERVICE>;

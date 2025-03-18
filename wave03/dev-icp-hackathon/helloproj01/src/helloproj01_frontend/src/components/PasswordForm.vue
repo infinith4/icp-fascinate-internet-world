@@ -51,7 +51,10 @@ import { ref } from "vue";
 import { helloproj01_backend } from '../../../declarations/helloproj01_backend/index';
 import encryptPassword from "../encryptPassword";
 import { useAuthStore } from '../stores/authStore';
+import { CryptoService } from '../libs/crypto';
 import { onMounted } from 'vue';
+import { addSecret } from "../stores/secrets";
+import { secretFromContent } from "../libs/secret";
 
 const service_name = ref("");
 const username = ref("");
@@ -61,13 +64,21 @@ const notes = ref("");
 const authStore = useAuthStore();
 
 onMounted(() => {
+
   authStore.initAuthClient();
 });
 
 const masterPassword = import.meta.env.MASTERPASSWORD;
 
-const addPassword = async () => {
-
+const addPassword = async (cryptoService: CryptoService) => {
+  await addSecret(
+    secretFromContent("test", [], authStore.client.getIdentity().getPrincipal()),
+    authStore.actor,
+    authStore.crypto
+  );
+  // console.log("start cryptoService.encryptWithSecretKey");
+  // await cryptoService.encryptWithSecretKey(BigInt(1), "tests", "tests");
+  // console.log("end cryptoService.encryptWithSecretKey");
   const encryptedData = await encryptPassword(password.value, masterPassword)
 
   const entry = {
@@ -79,17 +90,17 @@ const addPassword = async () => {
     notes: notes.value ? [notes.value] : [],
   };
   
-  const success = await helloproj01_backend.add_password(entry);
-  if (success) {
-    alert("Password added successfully!");
-    service_name.value = "";
-    username.value = "";
-    password.value = "";
-    notes.value = "";
+  // const success = await helloproj01_backend.add_password(entry);
+  // if (success) {
+  //   alert("Password added successfully!");
+  //   service_name.value = "";
+  //   username.value = "";
+  //   password.value = "";
+  //   notes.value = "";
 
-    location.reload();
-  } else {
-    alert("Failed to add password.");
-  }
+  //   location.reload();
+  // } else {
+  //   alert("Failed to add password.");
+  // }
 };
 </script>

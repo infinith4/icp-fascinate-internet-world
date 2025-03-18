@@ -1,29 +1,31 @@
 <template>
-  <div class="password-list">
-    <h3 class="title">Stored Passwords</h3>
-    <p v-if="passwords.length === 0" class="empty-message">No passwords stored yet.</p>
-    <table v-else class="table">
-      <thead>
-        <tr>
-          <th>Service Name</th>
-          <th>Username</th>
-          <th>Password</th>
-          <th></th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr v-for="(entry, index) in passwords" :key="index">
-          <td>{{ entry.service_name }}</td>
-          <td>{{ entry.username }}</td>
-          <td>{{ entry.password }}</td>
-          <td>
-            <button class="delete-btn" @click="deletePassword(index)">
-              Delete
-            </button>
-          </td>
-        </tr>
-      </tbody>
-    </table>
+  <div v-if="authStore.isAuthenticated">
+    <div class="password-list">
+      <h3 class="title">Stored Passwords</h3>
+      <p v-if="passwords.length === 0" class="empty-message">No passwords stored yet.</p>
+      <table v-else class="table">
+        <thead>
+          <tr>
+            <th>Service Name</th>
+            <th>Username</th>
+            <th>Password</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="(entry, index) in passwords" :key="index">
+            <td>{{ entry.service_name }}</td>
+            <td>{{ entry.username }}</td>
+            <td>{{ entry.password }}</td>
+            <td>
+              <button class="delete-btn" @click="deletePassword(index)">
+                Delete
+              </button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
   </div>
 </template>
 

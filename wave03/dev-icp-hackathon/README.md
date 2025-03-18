@@ -135,6 +135,24 @@ dfx deploy vetkd_system_api --specified-id s55qq-oqaaa-aaaaa-aaakq-cai
 
 dfx canister delete vetkd_system_api
 
+
+```
+URLs:
+  Frontend canister via browser:
+    helloproj01_frontend:
+      - http://bd3sg-teaaa-aaaaa-qaaba-cai.localhost:4943/ (Recommended)
+      - http://127.0.0.1:4943/?canisterId=bd3sg-teaaa-aaaaa-qaaba-cai (Legacy)
+    internet_identity:
+      - http://be2us-64aaa-aaaaa-qaabq-cai.localhost:4943/ (Recommended)
+      - http://127.0.0.1:4943/?canisterId=be2us-64aaa-aaaaa-qaabq-cai (Legacy)
+  Backend canister via Candid interface:
+    helloproj01_backend: http://127.0.0.1:4943/?canisterId=b77ix-eeaaa-aaaaa-qaada-cai&id=bkyz2-fmaaa-aaaaa-qaaaq-cai
+    internet_identity: http://127.0.0.1:4943/?canisterId=b77ix-eeaaa-aaaaa-qaada-cai&id=be2us-64aaa-aaaaa-qaabq-cai
+    secrets_backend: http://127.0.0.1:4943/?canisterId=b77ix-eeaaa-aaaaa-qaada-cai&id=br5f7-7uaaa-aaaaa-qaaca-cai
+    vetkd_system_api: http://127.0.0.1:4943/?canisterId=b77ix-eeaaa-aaaaa-qaada-cai&id=bw4dl-smaaa-aaaaa-qaacq-cai
+```
+
+
 cargo install cargo-audit
 
 
@@ -197,6 +215,14 @@ URLs:
 
 dfx deploy secrets_backend
 
+
+## Step 8: Update the generated canister interface bindings:
+
+```sh
+dfx generate "secrets_backend"
+dfx generate "helloproj01_backend"
+dfx generate "vetkd_system_api"
+```
 
 
 ## Backend側のテスト実行方法

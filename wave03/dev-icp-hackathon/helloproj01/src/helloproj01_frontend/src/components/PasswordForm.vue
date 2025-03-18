@@ -1,5 +1,5 @@
 <template>
-  <div v-if="authStore.isAuthenticated">
+  
     <form @submit.prevent="addPassword" class="password-form">
       <div class="form-group">
         <label for="service-name">Service Name</label>
@@ -43,7 +43,7 @@
 
       <button type="submit" class="submit-btn">Add Password</button>
     </form>
-  </div>
+
 </template>
 
 <script setup lang="ts">
@@ -65,13 +65,17 @@ const authStore = useAuthStore();
 
 onMounted(() => {
 
-  authStore.initAuthClient();
+  authStore.initAuth();
 });
 
 const masterPassword = import.meta.env.MASTERPASSWORD;
 
 const addPassword = async (cryptoService: CryptoService) => {
   console.log("start addSecret");
+  console.log(authStore.isAuthenticated);
+  console.log(authStore.client!.getIdentity().getPrincipal());
+  console.log(secretFromContent("test", [], authStore.client!.getIdentity().getPrincipal()));
+  
   await addSecret(
     secretFromContent("test", [], authStore.client!.getIdentity().getPrincipal()),
     authStore.actor!,

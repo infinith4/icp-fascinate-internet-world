@@ -57,6 +57,8 @@ export async function refreshSecrets(
   actor: BackendActor,
   cryptoService: CryptoService
 ) {
+  console.log("await actor.whoami()");
+  console.log(await actor.whoami());
   console.log("refreshSecrets");
   const secretsList = await actor.get_secrets();
   console.log("get_secrets");

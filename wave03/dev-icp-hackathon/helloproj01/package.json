@@ -16,6 +16,8 @@
     "src/helloproj01_frontend"
   ],
   "dependencies": {
-    "pinia": "^3.0.1"
+    "ic-vetkd-utils-wasm2js": "^0.1.0",
+    "pinia": "^3.0.1",
+    "vetkeys-client-utils": "^0.1.1"
   }
 }

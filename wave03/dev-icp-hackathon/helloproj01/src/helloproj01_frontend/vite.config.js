@@ -9,11 +9,24 @@ dotenv.config({ path: '../../.env' });
 export default defineConfig({
   build: {
     emptyOutDir: true,
+    target: 'es2020',
+    chunkSizeWarningLimit: 1000,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          vendor: ['vue', '@dfinity/agent', '@dfinity/auth-client']
+        }
+      }
+    }
   },
   optimizeDeps: {
     esbuildOptions: {
       define: {
         global: 'globalThis',
+      },
+      platform: 'browser',
+      supported: {
+        bigint: true,
       },
     },
     exclude: ['secrets_backend', 'vetkd_system_api'],

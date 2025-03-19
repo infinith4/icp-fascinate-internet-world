@@ -10,7 +10,7 @@ import {
 
 //import { ENCRYPTED_NOTES_CANISTER_ID, _SERVICE } from './backend';
 import { idlFactory } from './idlFactory';
-import type { _SERVICE } from "../../../declarations/secrets_backend/secrets_backend.did.js";
+import type { _SERVICE } from "../../../declarations/secrets_backend/secrets_backend.did.d.ts";
 // import { idlFactory } from "../../../declarations/vetkd_system_api/vetkd_system_api.did";
 
 export type BackendActor = ActorSubclass<_SERVICE>;
@@ -20,8 +20,11 @@ export function createActor(options?: {
   actorOptions?: ActorConfig;
 }): BackendActor {
   console.log("createActor")
+  const isDevelopment = import.meta.env.DEV;
+  const canisterId = "br5f7-7uaaa-aaaaa-qaaca-cai"; // secrets_backend canister ID
+  
   const hostOptions = {
-    host:'http://localhost:4943', //deploy したときのURLを Legacy にしないと動かない
+    host: isDevelopment ? 'http://127.0.0.1:4943' : 'https://ic0.app'   //deploy したときのURLを Legacy にしないと動かない
   };
 
   if (!options) {
@@ -35,8 +38,9 @@ export function createActor(options?: {
   }
 
   const agent = new HttpAgent({ ...options.agentOptions });
+  
   // Fetch root key for certificate validation during development
-  if (true) {
+  if (isDevelopment) {
     console.log(`Dev environment - fetching root key...`);
 
     agent.fetchRootKey().catch((err) => {
@@ -50,7 +54,7 @@ export function createActor(options?: {
   // Creates an actor with using the candid interface and the HttpAgent
   return Actor.createActor(idlFactory, {
     agent,
-    canisterId: "br5f7-7uaaa-aaaaa-qaaca-cai",
+    canisterId,
     ...options?.actorOptions,
   });
 }

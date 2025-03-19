@@ -71,12 +71,12 @@ export async function addSecret(
   console.log("await actor.whoami()");
   console.log(await actor.whoami());
   console.log("await actor.create_secret()");
-  console.log("await actor.create_secret()");
   const new_id: bigint = await actor.create_secret();
 
   console.log("new_id");
   console.log(new_id);
   secret.id = new_id;
+  console.log(await serialize(secret, crypto));
   const encryptedSecret = (await serialize(secret, crypto)).password;
   
   console.log("encryptedSecret");

@@ -51,10 +51,11 @@ import { ref } from "vue";
 import { helloproj01_backend } from '../../../declarations/helloproj01_backend/index';
 import encryptPassword from "../encryptPassword";
 import { useAuthStore } from '../stores/authStore';
-import { CryptoService } from '../libs/crypto';
+import { type CryptoService } from '../libs/crypto';
 import { onMounted } from 'vue';
 import { addSecret } from "../stores/secrets";
 import { secretFromContent } from "../libs/secret";
+import { type BackendActor } from "../libs/actor";
 
 const service_name = ref("");
 const username = ref("");

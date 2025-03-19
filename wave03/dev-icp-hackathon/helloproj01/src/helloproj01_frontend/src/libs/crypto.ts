@@ -5,14 +5,16 @@ import * as agent from "@dfinity/agent";
 
 // Usage of the imported bindings only works if the respective .wasm was loaded, which is done in main.ts.
 // See also https://github.com/rollup/plugins/tree/master/packages/wasm#using-with-wasm-bindgen-and-wasm-pack
-import * as vetkd from "../../../../../vetkd_user_lib/ic_vetkd_utils.js";
+// import * as vetkd from "../../../../../vetkd_user_lib/ic_vetkd_utils.js";
 
+import { TransportSecretKey } from 'vetkeys-client-utils';
 export class CryptoService {
   constructor(private actor: BackendActor) {
   }
 
   // The function encrypts data with the secret-id-specific secretKey.
   public async encryptWithSecretKey(secret_id: bigint, owner: string, data: string) {
+    console.log("encryptWithSecretKey");
     await this.fetch_secret_key_if_needed(secret_id, owner);
     const secret_key = await this.getSecretKey(secret_id, owner);
 
@@ -59,9 +61,15 @@ export class CryptoService {
   // }
 
   private async fetch_secret_key_if_needed(secret_id: bigint, owner: string) {
+    console.log("fetch_secret_key_if_needed");
+
     if (!await get([secret_id.toString(), owner])) {
+      console.log("fetch_secret_key_if_needed");
       const seed = window.crypto.getRandomValues(new Uint8Array(32));
-      const tsk = new vetkd.TransportSecretKey(seed);
+      console.log("fetch_secret_key_if_needed");
+      //https://www.npmjs.com/package/ic-vetkd-utils-wasm2js?activeTab=readme に置き換える？
+      const tsk = new TransportSecretKey(seed);
+      console.log("fetch_secret_key_if_needed");
 
       const ek_bytes_hex = await this.actor.encrypted_symmetric_key_for_secret(secret_id, tsk.public_key());
       const pk_bytes_hex = await this.actor.symmetric_key_verification_key_for_secret();

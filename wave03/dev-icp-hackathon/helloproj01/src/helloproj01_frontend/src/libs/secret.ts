@@ -36,6 +36,7 @@ export async function serialize(
   secret: SecretModel,
   cryptoService: CryptoService
 ): Promise<Secret> {
+  console.log("serialize");
   const serializableSecret: SerializableSecretModel = {
     title: secret.title,
     content: secret.content,

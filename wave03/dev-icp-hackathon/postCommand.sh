@@ -46,6 +46,9 @@ chmod +x pocket-ic-x86_64-linux
 mv pocket-ic-x86_64-linux pocket-ic
 export POCKET_IC_BIN="$(pwd)/pocket-ic"
 
+
+curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
+
 git clone https://github.com/sstephenson/bats.git
 cd bats
 sudo ./install.sh /usr/local

@@ -31,35 +31,44 @@
 
 <script setup>
 import { ref, onMounted } from "vue";
+import { useAuthStore } from '../stores/authStore';
 import { helloproj01_backend } from 'declarations/helloproj01_backend/index';
+// import { secrets_backend } from 'declarations/secrets_backend/secrets_backend.did.d.ts';
+import { decryptSecrets, refreshSecrets } from "../stores/secrets";
 
-import decryptPassword from "../decryptPassword";
-const masterPassword = process.env.MASTERPASSWORD;
+// import decryptPassword from "../decryptPassword";
+// const masterPassword = process.env.MASTERPASSWORD;
 const passwords = ref([]);
 
+const authStore = useAuthStore();
+
+onMounted(() => {
+
+  authStore.initAuth();
+});
 const fetchPasswords = async () => {
-  await helloproj01_backend.get_passwords().then(async (response) => {
+  await secrets_backend.refreshSecrets().then(async (response) => {
     passwords.value = await Promise.all(
       response.map(async (res) => {
-        const responseDecryptPassword = await decryptPassword({
-          encrypted: res.encrypted,
-          iv: res.iv,
-          salt: res.salt,
-        }, masterPassword);
-        return { service_name: res.service_name, username: res.username, password: responseDecryptPassword };
+        // const responseDecryptPassword = await decryptPassword({
+        //   encrypted: res.encrypted,
+        //   iv: res.iv,
+        //   salt: res.salt,
+        // }, masterPassword);
+        // return { service_name: res.service_name, username: res.username, password: responseDecryptPassword };
       })
     );
   });
 };
 
-const deletePassword = async (index) => {
-  const success = await helloproj01_backend.delete_password(index);
-  if (success) {
-    await fetchPasswords();
-  } else {
-    alert("Failed to delete password.");
-  }
-};
+// const deletePassword = async (index) => {
+//   const success = await helloproj01_backend.delete_password(index);
+//   if (success) {
+//     await fetchPasswords();
+//   } else {
+//     alert("Failed to delete password.");
+//   }
+// };
 
-onMounted(fetchPasswords);
+//onMounted(fetchPasswords);
 </script>

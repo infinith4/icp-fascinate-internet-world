@@ -57,19 +57,19 @@ export async function serialize(
   };
 }
 
-// export async function deserialize(
-//   esecret: Secret,
-//   cryptoService: CryptoService
-// ): Promise<SecretModel> {
-//   const serializedSecret = await cryptoService.decryptWithSecretKey(esecret.id, esecret.owner, esecret.encrypted_text);
-//   const deserializedSecret: SerializableSecretModel = JSON.parse(serializedSecret);
-//   return {
-//     id: esecret.id,
-//     owner: esecret.owner,
-//     users: esecret.users,
-//     ...deserializedSecret,
-//   };
-// }
+export async function deserialize(
+  secret: Secret,
+  cryptoService: CryptoService
+): Promise<SecretModel> {
+  const serializedSecret = await cryptoService.decryptWithSecretKey(secret.id, secret.owner, secret.password);
+  const deserializedSecret: SerializableSecretModel = JSON.parse(serializedSecret);
+  return {
+    id: secret.id,
+    owner: secret.owner,
+    users: [], //esecret.users,
+    ...deserializedSecret,
+  };
+}
 
 export function summarize(secret: SecretModel, maxLength = 50) {
   const div = document.createElement('div');

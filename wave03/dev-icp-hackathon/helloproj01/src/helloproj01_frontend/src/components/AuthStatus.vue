@@ -5,13 +5,13 @@ import { onMounted } from 'vue';
 const authStore = useAuthStore();
 
 onMounted(() => {
-  authStore.initAuthClient();
+  authStore.initAuth();
 });
 </script>
 
 <template>
   <div>
-    <p>認証状態: {{ authStore.isAuthenticated ? 'ログイン済み' : '未ログイン' }}</p>
-    <button v-if="!authStore.isAuthenticated" @click="authStore.login">ログイン</button>
+    <p>Authentication status: {{ authStore.isAuthenticated ? 'logined' : 'no login' }}</p>
+    <button v-if="!authStore.isAuthenticated" @click="authStore.login">login</button>
   </div>
 </template>

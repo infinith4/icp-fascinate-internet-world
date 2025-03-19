@@ -1,12 +1,13 @@
 // import { writable } from 'svelte/store';
 import type { BackendActor } from '../libs/actor';
 // import type { Secret } from '../libs/backend';
+import type { Secret } from "../../../declarations/secrets_backend/secrets_backend.did.js";
 import type { CryptoService } from '../libs/crypto';
-import { type SecretModel, serialize } from '../libs/secret';
+import { type SecretModel, serialize, deserialize } from '../libs/secret';
 // import { auth } from './auth';
 // import { showError } from './notifications';
 
-// export const notesStore = writable<
+// export const secretstore = writable<
 //   | {
 //       state: 'uninitialized';
 //     }
@@ -24,43 +25,44 @@ import { type SecretModel, serialize } from '../libs/secret';
 
 // let notePollerHandle: ReturnType<typeof setInterval> | null;
 
-// async function decryptSecrets(
-//   notes: EncryptedSecret[],
-//   cryptoService: CryptoService
-// ): Promise<SecretModel[]> {
-//   // When notes are initially created, they do not have (and cannot have) any
-//   // (encrypted) content yet because the note ID, which is needed to retrieve
-//   // the note-specific encryption key, is not known yet before the note is
-//   // created because the note ID is a return value of the call to create a note.
-//   // The (encrypted) note content is stored in the backend only by a second call
-//   // to the backend that updates the note's conent directly after the note is
-//   // created. This means that there is a short period of time where the note
-//   // already exists but doesn't have any (encrypted) content yet.
-//   // To avoid decryption errors for these notes, we skip deserializing (and thus
-//   // decrypting) these notes here.
-//   const notes_with_content = notes.filter((note) => note.encrypted_text != "");
+export async function decryptSecrets(
+  secrets: Secret[],
+  cryptoService: CryptoService
+): Promise<SecretModel[]> {
+  // When notes are initially created, they do not have (and cannot have) any
+  // (encrypted) content yet because the note ID, which is needed to retrieve
+  // the note-specific encryption key, is not known yet before the note is
+  // created because the note ID is a return value of the call to create a note.
+  // The (encrypted) note content is stored in the backend only by a second call
+  // to the backend that updates the note's conent directly after the note is
+  // created. This means that there is a short period of time where the note
+  // already exists but doesn't have any (encrypted) content yet.
+  // To avoid decryption errors for these notes, we skip deserializing (and thus
+  // decrypting) these notes here.
+  const secrets_with_content = secrets.filter((secret) => secret.password != "");
 
-//   return await Promise.all(
-//     notes_with_content.map((encryptedSecret) => deserialize(encryptedSecret, cryptoService))
-//   );
-// }
+  return await Promise.all(
+    secrets_with_content.map((secret) => deserialize(secret, cryptoService))
+  );
+}
 
-// function updateSecrets(notes: SecretModel[]) {
-//   notesStore.set({
+// function updateSecrets(secrets: SecretModel[]) {
+//   secretsStore.set({
 //     state: 'loaded',
-//     list: notes,
+//     list: secrets,
 //   });
 // }
 
-// export async function refreshSecrets(
-//   actor: BackendActor,
-//   cryptoService: CryptoService
-// ) {
-//   const encryptedSecrets = await actor.get_notes();
+export async function refreshSecrets(
+  actor: BackendActor,
+  cryptoService: CryptoService
+) {
+  const secretsList = await actor.get_secrets();
 
-//   const notes = await decryptSecrets(encryptedSecrets, cryptoService);
-//   updateSecrets(notes);
-// }
+  const secrets = await decryptSecrets(secretsList, cryptoService);
+  return secrets;
+  //updateSecrets(secrets);
+}
 
 export async function addSecret(
   secret: SecretModel,

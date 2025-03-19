@@ -278,9 +278,9 @@ shared ({ caller = initializer }) actor class () {
     public shared ({ caller }) func encrypted_symmetric_key_for_secret(secret_id : SecretId, encryption_public_key : Blob) : async Text {
         let caller_text = Principal.toText(caller);
         let (?secret) = secretsById.get(secret_id) else Debug.trap("secret with id " # Nat.toText(secret_id) # "not found");
-        // if (not is_authorized(caller_text, secret)) {
-        //     Debug.trap("unauthorized");
-        // };
+        if (not is_authorized(caller_text, secret)) {
+            Debug.trap("unauthorized");
+        };
 
         Debug.print("encrypted_symmetric_key_for_caller: caller: " # debug_show (caller_text));
 
@@ -290,6 +290,7 @@ shared ({ caller = initializer }) actor class () {
             key_id = { curve = #bls12_381; name = "test_key_1" };
             encryption_public_key;
         });
+        Debug.print("encrypted_key: " # debug_show (encrypted_key));
         Hex.encode(Blob.toArray(encrypted_key));
 
         // let buf = Buffer.Buffer<Nat8>(32);

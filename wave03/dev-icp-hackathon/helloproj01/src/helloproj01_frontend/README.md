@@ -14,3 +14,4 @@ npm i --save @dfinity/auth-client
 ```
 
 
+npm i ic-vetkd-utils-wasm2js

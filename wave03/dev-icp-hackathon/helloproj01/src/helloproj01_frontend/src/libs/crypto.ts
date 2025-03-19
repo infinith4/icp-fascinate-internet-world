@@ -1,11 +1,12 @@
 import type { BackendActor } from './actor';
 import { get, set } from 'idb-keyval';
+import { useAuthStore } from '../stores/authStore';
 
 import * as agent from "@dfinity/agent";
 
 // Usage of the imported bindings only works if the respective .wasm was loaded, which is done in main.ts.
 // See also https://github.com/rollup/plugins/tree/master/packages/wasm#using-with-wasm-bindgen-and-wasm-pack
-import * as vetkd from "../../../../../vetkd_user_lib/ic_vetkd_utils.js";
+import * as vetkd from "ic-vetkd-utils-wasm2js";
 
 export class CryptoService {
   constructor(private actor: BackendActor) {
@@ -33,45 +34,56 @@ export class CryptoService {
     return iv_decoded + cipher_decoded;
   }
 
-  // // The function decrypts the given input data with the secret-id-specific secretKey.
-  // public async decryptWithsecretKey(secret_id: bigint, owner: string, data: string) {
-  //   await this.fetch_secret_key_if_needed(secret_id, owner);
-  //   const secret_key: CryptoKey = await get([secret_id.toString(), owner]);
+  // The function decrypts the given input data with the secret-id-specific secretKey.
+  public async decryptWithSecretKey(secret_id: bigint, owner: string, data: string) {
+    await this.fetch_secret_key_if_needed(secret_id, owner);
+    const secret_key = await this.getSecretKey(secret_id, owner);
+    if (data.length < 13) {
+      throw new Error('wrong encoding, too short to contain iv');
+    }
+    const iv_decoded = data.slice(0, 12);
+    const cipher_decoded = data.slice(12);
+    const iv_encoded = Uint8Array.from([...iv_decoded].map(ch => ch.charCodeAt(0))).buffer;
+    const ciphertext_encoded = Uint8Array.from([...cipher_decoded].map(ch => ch.charCodeAt(0))).buffer;
 
-  //   if (data.length < 13) {
-  //     throw new Error('wrong encoding, too short to contain iv');
-  //   }
-  //   const iv_decoded = data.slice(0, 12);
-  //   const cipher_decoded = data.slice(12);
-  //   const iv_encoded = Uint8Array.from([...iv_decoded].map(ch => ch.charCodeAt(0))).buffer;
-  //   const ciphertext_encoded = Uint8Array.from([...cipher_decoded].map(ch => ch.charCodeAt(0))).buffer;
-
-  //   let decrypted_data_encoded = await window.crypto.subtle.decrypt(
-  //     {
-  //       name: "AES-GCM",
-  //       iv: iv_encoded
-  //     },
-  //     secret_key,
-  //     ciphertext_encoded
-  //   );
-  //   const decrypted_data_decoded = String.fromCharCode(...new Uint8Array(decrypted_data_encoded));
-  //   return decrypted_data_decoded;
-  // }
+    let decrypted_data_encoded = await window.crypto.subtle.decrypt(
+      {
+        name: "AES-GCM",
+        iv: iv_encoded
+      },
+      secret_key,
+      ciphertext_encoded
+    );
+    const decrypted_data_decoded = String.fromCharCode(...new Uint8Array(decrypted_data_encoded));
+    return decrypted_data_decoded;
+  }
 
   private async fetch_secret_key_if_needed(secret_id: bigint, owner: string) {
+    console.log("fetch_secret_key_if_needed");
     if (!await get([secret_id.toString(), owner])) {
       const seed = window.crypto.getRandomValues(new Uint8Array(32));
+      console.log("TransportSecretKey");
       const tsk = new vetkd.TransportSecretKey(seed);
 
+      console.log("end TransportSecretKey");
       const ek_bytes_hex = await this.actor.encrypted_symmetric_key_for_secret(secret_id, tsk.public_key());
+      console.log("end encrypted_symmetric_key_for_secret");
       const pk_bytes_hex = await this.actor.symmetric_key_verification_key_for_secret();
+      console.log("end symmetric_key_verification_key_for_secret");
+      // const secret_id_bytes: Uint8Array = bigintTo128BitBigEndianUint8Array(secret_id);
+      // const owner_utf8: Uint8Array = new TextEncoder().encode(owner);
+      // let derivation_id = new Uint8Array(secret_id_bytes.length + owner_utf8.length);
+      // derivation_id.set(secret_id_bytes);
+      // derivation_id.set(owner_utf8, secret_id_bytes.length);
+      // Get the principal from the auth client
+      const authStore = useAuthStore();
+      if (!authStore.client) {
+        throw new Error("Auth client not initialized");
+      }
+      const derivation_id = authStore.client.getIdentity().getPrincipal().toUint8Array();
+      console.log("end derivation_id");
 
-      const secret_id_bytes: Uint8Array = bigintTo128BitBigEndianUint8Array(secret_id);
-      const owner_utf8: Uint8Array = new TextEncoder().encode(owner);
-      let derivation_id = new Uint8Array(secret_id_bytes.length + owner_utf8.length);
-      derivation_id.set(secret_id_bytes);
-      derivation_id.set(owner_utf8, secret_id_bytes.length);
-
+      //tsk.decrypt_and_hash でエラーになっている。index-B6gj0x33.js:13 invalid encrypted key: verification failed
       const aes_256_gcm_key_raw = tsk.decrypt_and_hash(
         hex_decode(ek_bytes_hex),
         hex_decode(pk_bytes_hex),
@@ -79,7 +91,12 @@ export class CryptoService {
         32,
         new TextEncoder().encode("aes-256-gcm")
       );
+      console.log("end decrypt_and_hash");
+      console.log("start importKey");
       const secret_key: CryptoKey = await window.crypto.subtle.importKey("raw", aes_256_gcm_key_raw, "AES-GCM", false, ["encrypt", "decrypt"]);
+      
+      console.log("end importKey");
+      console.log(secret_key);
       await set([secret_id.toString(), owner], secret_key)
     }
   }

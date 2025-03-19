@@ -32,6 +32,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from "vue";
 import { useAuthStore } from '../stores/authStore';
+import { CryptoService } from '../libs/crypto';
 // import { helloproj01_backend } from 'declarations/helloproj01_backend/index';
 // import { secrets_backend } from 'declarations/secrets_backend/secrets_backend.did.d.ts';
 import { decryptSecrets, refreshSecrets } from "../stores/secrets";
@@ -45,11 +46,13 @@ const authStore = useAuthStore();
 onMounted(() => {
 
   authStore.initAuth();
+  fetchPasswords();
 });
 
 const fetchPasswords = async () => {
   console.log("fetchPasswords")
   const authStore = useAuthStore();
+  console.log(authStore.actor);
   await refreshSecrets(authStore.actor!, authStore.crypto).then(async (response) => {
     console.log(response);
     // passwords.value = await Promise.all(

@@ -57,9 +57,11 @@ export async function refreshSecrets(
   actor: BackendActor,
   cryptoService: CryptoService
 ) {
+  console.log("refreshSecrets");
   const secretsList = await actor.get_secrets();
-
+  console.log("get_secrets");
   const secrets = await decryptSecrets(secretsList, cryptoService);
+  console.log("decryptSecrets");
   return secrets;
   //updateSecrets(secrets);
 }

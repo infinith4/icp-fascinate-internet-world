@@ -29,10 +29,10 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { ref, onMounted } from "vue";
 import { useAuthStore } from '../stores/authStore';
-import { helloproj01_backend } from 'declarations/helloproj01_backend/index';
+// import { helloproj01_backend } from 'declarations/helloproj01_backend/index';
 // import { secrets_backend } from 'declarations/secrets_backend/secrets_backend.did.d.ts';
 import { decryptSecrets, refreshSecrets } from "../stores/secrets";
 
@@ -46,18 +46,23 @@ onMounted(() => {
 
   authStore.initAuth();
 });
+
 const fetchPasswords = async () => {
-  await secrets_backend.refreshSecrets().then(async (response) => {
-    passwords.value = await Promise.all(
-      response.map(async (res) => {
-        // const responseDecryptPassword = await decryptPassword({
-        //   encrypted: res.encrypted,
-        //   iv: res.iv,
-        //   salt: res.salt,
-        // }, masterPassword);
-        // return { service_name: res.service_name, username: res.username, password: responseDecryptPassword };
-      })
-    );
+  console.log("fetchPasswords")
+  const authStore = useAuthStore();
+  await refreshSecrets(authStore.actor!, authStore.crypto).then(async (response) => {
+    console.log(response);
+    // passwords.value = await Promise.all(
+    //   response.map(async (res) => {
+    //     console.log("test")
+    //     // const responseDecryptPassword = await decryptPassword({
+    //     //   encrypted: res.encrypted,
+    //     //   iv: res.iv,
+    //     //   salt: res.salt,
+    //     // }, masterPassword);
+    //     // return { service_name: res.service_name, username: res.username, password: responseDecryptPassword };
+    //   })
+    // );
   });
 };
 
@@ -70,5 +75,5 @@ const fetchPasswords = async () => {
 //   }
 // };
 
-//onMounted(fetchPasswords);
+onMounted(fetchPasswords);
 </script>

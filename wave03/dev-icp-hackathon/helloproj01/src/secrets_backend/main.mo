@@ -171,22 +171,26 @@ shared ({ caller = initializer }) actor class () {
         //local ではコメントアウト: assert not Principal.isAnonymous(caller);
         let user = Principal.toText(caller);
 
+        Debug.print("get_secrets: caller: " # debug_show (caller));
         let owned_secrets = List.map(
             Option.get(secretIdsByOwner.get(user), List.nil()),
             func(nid : SecretId) : Secret {
                 expect(secretsById.get(nid), "missing secret with ID " # Nat.toText(nid));
             },
         );
+        Debug.print("get_secrets: caller: " # debug_show (caller));
         let shared_secrets = List.map(
             Option.get(secretIdsByUser.get(user), List.nil()),
             func(nid : SecretId) : Secret {
                 expect(secretsById.get(nid), "missing secret with ID " # Nat.toText(nid));
             },
         );
+        Debug.print("get_secrets: caller: " # debug_show (caller));
 
         let buf = Buffer.Buffer<Secret>(List.size(owned_secrets) + List.size(shared_secrets));
         buf.append(Buffer.fromArray(List.toArray(owned_secrets)));
         buf.append(Buffer.fromArray(List.toArray(shared_secrets)));
+        Debug.print("get_secrets: caller: " # debug_show (caller));
         Buffer.toArray(buf);
     };
 

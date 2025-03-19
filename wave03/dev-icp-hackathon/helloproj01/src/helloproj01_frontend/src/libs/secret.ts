@@ -1,4 +1,4 @@
-import type { Secret } from "../../../declarations/secrets_backend/secrets_backend.did.d";
+import type { Secret } from "../../../declarations/secrets_backend/secrets_backend.did.js";
 
 import type { CryptoService } from './crypto';
 import type { Principal } from '@dfinity/principal';

@@ -10,7 +10,7 @@ import {
 
 //import { ENCRYPTED_NOTES_CANISTER_ID, _SERVICE } from './backend';
 import { idlFactory } from './idlFactory';
-import type { _SERVICE } from "../../../declarations/secrets_backend/secrets_backend.did.d.ts";
+import type { _SERVICE } from "../../../declarations/secrets_backend/secrets_backend.did.js";
 // import { idlFactory } from "../../../declarations/vetkd_system_api/vetkd_system_api.did";
 
 export type BackendActor = ActorSubclass<_SERVICE>;
@@ -19,8 +19,9 @@ export function createActor(options?: {
   agentOptions?: HttpAgentOptions;
   actorOptions?: ActorConfig;
 }): BackendActor {
+  console.log("createActor")
   const hostOptions = {
-    host:'http://localhost:8000',
+    host:'http://localhost:4943',
   };
 
   if (!options) {

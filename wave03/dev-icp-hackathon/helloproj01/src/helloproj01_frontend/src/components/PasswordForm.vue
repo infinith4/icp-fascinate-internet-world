@@ -75,7 +75,8 @@ const addPassword = async (cryptoService: CryptoService) => {
   console.log(authStore.isAuthenticated);
   console.log(authStore.client!.getIdentity().getPrincipal());
   console.log(secretFromContent("test", [], authStore.client!.getIdentity().getPrincipal()));
-  
+  console.log(authStore.actor);
+
   await addSecret(
     secretFromContent("test", [], authStore.client!.getIdentity().getPrincipal()),
     authStore.actor!,

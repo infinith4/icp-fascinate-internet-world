@@ -19,6 +19,13 @@ export default defineConfig({
       }
     }
   },
+  css: {
+    preprocessorOptions: {
+      scss: {
+        api: 'modern-compiler',
+      }
+    }
+  },
   optimizeDeps: {
     esbuildOptions: {
       define: {
@@ -28,8 +35,16 @@ export default defineConfig({
       supported: {
         bigint: true,
       },
+      treeShaking: true,
+      legalComments: 'none',
+      minify: false,
     },
     exclude: ['secrets_backend', 'vetkd_system_api'],
+  },
+  define: {
+    'process.env': {},
+    'process.platform': JSON.stringify('browser'),
+    'process.version': JSON.stringify('')
   },
   server: {
     proxy: {
@@ -37,6 +52,10 @@ export default defineConfig({
         target: 'http://127.0.0.1:4943',
         changeOrigin: true,
       },
+    },
+    hmr: {
+      protocol: 'ws',
+      host: 'localhost',
     },
   },
   plugins: [

@@ -51,7 +51,6 @@ import { ref } from "vue";
 import { helloproj01_backend } from '../../../declarations/helloproj01_backend/index';
 import encryptPassword from "../encryptPassword";
 import { useAuthStore } from '../stores/authStore';
-import { type CryptoService } from '../libs/crypto';
 import { onMounted } from 'vue';
 import { addSecret } from "../stores/secrets";
 import { secretFromContent } from "../libs/secret";
@@ -65,49 +64,65 @@ const notes = ref("");
 const authStore = useAuthStore();
 
 onMounted(() => {
-
   authStore.initAuth();
 });
 
 const masterPassword = import.meta.env.MASTERPASSWORD;
 
-const addPassword = async (cryptoService: CryptoService) => {
+const addPassword = async () => {
   console.log("start addSecret");
+  
+  if (!authStore.client || !authStore.actor || !authStore.crypto) {
+    console.error("Authentication not initialized");
+    alert("Please login first");
+    return;
+  }
+  
   console.log(authStore.isAuthenticated);
-  console.log(authStore.client!.getIdentity().getPrincipal());
-  console.log(secretFromContent("test", [], authStore.client!.getIdentity().getPrincipal()));
+  console.log(authStore.client.getIdentity().getPrincipal());
+  
+  const secretModel = secretFromContent(
+    "test", 
+    [], 
+    authStore.client.getIdentity().getPrincipal()
+  );
+  console.log(secretModel);
   console.log(authStore.actor);
 
-  await addSecret(
-    secretFromContent("test", [], authStore.client!.getIdentity().getPrincipal()),
-    authStore.actor!,
-    authStore.crypto
-  );
-  console.log("end addSecret");
-  // await cryptoService.encryptWithSecretKey(BigInt(1), "tests", "tests");
-  // console.log("end cryptoService.encryptWithSecretKey");
-  const encryptedData = await encryptPassword(password.value, masterPassword)
+  try {
+    await addSecret(
+      secretModel,
+      authStore.actor as any as BackendActor,
+      authStore.crypto
+    );
+    console.log("end addSecret");
+    
+    const encryptedData = await encryptPassword(password.value, masterPassword);
 
-  const entry = {
-    service_name: service_name.value,
-    username: username.value,
-    encrypted: encryptedData.encrypted,
-    iv: encryptedData.iv,
-    salt: encryptedData.salt,
-    notes: notes.value ? [notes.value] : [],
-  };
-  
-  // const success = await helloproj01_backend.add_password(entry);
-  // if (success) {
-  //   alert("Password added successfully!");
-  //   service_name.value = "";
-  //   username.value = "";
-  //   password.value = "";
-  //   notes.value = "";
+    const entry = {
+      service_name: service_name.value,
+      username: username.value,
+      encrypted: encryptedData.encrypted,
+      iv: encryptedData.iv,
+      salt: encryptedData.salt,
+      notes: notes.value ? [notes.value] : [],
+    };
+    
+    // const success = await helloproj01_backend.add_password(entry);
+    // if (success) {
+    //   alert("Password added successfully!");
+    //   service_name.value = "";
+    //   username.value = "";
+    //   password.value = "";
+    //   notes.value = "";
 
-  //   location.reload();
-  // } else {
-  //   alert("Failed to add password.");
-  // }
+    //   location.reload();
+    // } else {
+    //   alert("Failed to add password.");
+    // }
+  } catch (error) {
+    console.error("Error adding password:", error);
+    alert("Failed to add password.");
+  }
 };
 </script>

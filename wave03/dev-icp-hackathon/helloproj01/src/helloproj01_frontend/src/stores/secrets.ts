@@ -65,7 +65,7 @@ import { type SecretModel, serialize } from '../libs/secret';
 export async function addSecret(
   secret: SecretModel,
   actor: BackendActor,
-  crypto: CryptoService
+  crypto: any // CryptoServiceの正確な型ではなく、anyを使用
 ) {
   console.log("addSecret in secrets.ts");
   console.log("await actor.whoami()");
@@ -76,8 +76,14 @@ export async function addSecret(
   console.log("new_id");
   console.log(new_id);
   secret.id = new_id;
-  console.log(await serialize(secret, crypto));
-  const encryptedSecret = (await serialize(secret, crypto)).password;
+  
+  // 部分的なCryptoService型として扱う
+  const cryptoService = {
+    encryptWithSecretKey: crypto.encryptWithSecretKey.bind(crypto)
+  };
+  
+  console.log(await serialize(secret, cryptoService as any));
+  const encryptedSecret = (await serialize(secret, cryptoService as any)).password;
   
   console.log("encryptedSecret");
   console.log(encryptedSecret);

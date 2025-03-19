@@ -18,6 +18,7 @@
   "dependencies": {
     "ic-vetkd-utils-wasm2js": "^0.1.0",
     "pinia": "^3.0.1",
+    "sass": "^1.86.0",
     "vetkeys-client-utils": "^0.1.1"
   }
 }

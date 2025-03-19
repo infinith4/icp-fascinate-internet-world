@@ -3,6 +3,11 @@ import type { Secret } from "../../../declarations/secrets_backend/secrets_backe
 import type { CryptoService } from './crypto';
 import type { Principal } from '@dfinity/principal';
 
+// 最小限のCryptoService型を定義
+export interface MinimalCryptoService {
+  encryptWithSecretKey(secret_id: bigint, owner: string, data: string): Promise<string>;
+}
+
 export interface SecretModel {
   id: bigint;
   title: string;
@@ -34,7 +39,7 @@ export function secretFromContent(content: string, tags: string[], self_principa
 
 export async function serialize(
   secret: SecretModel,
-  cryptoService: CryptoService
+  cryptoService: MinimalCryptoService
 ): Promise<Secret> {
   console.log("serialize");
   const serializableSecret: SerializableSecretModel = {

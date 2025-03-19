@@ -68,6 +68,10 @@ export async function addSecret(
   crypto: CryptoService
 ) {
   console.log("addSecret in secrets.ts");
+  console.log("await actor.whoami()");
+  console.log(await actor.whoami());
+  console.log("await actor.create_secret()");
+  console.log("await actor.create_secret()");
   const new_id: bigint = await actor.create_secret();
 
   console.log("new_id");
@@ -78,8 +82,6 @@ export async function addSecret(
   console.log("encryptedSecret");
   console.log(encryptedSecret);
   await actor.update_secret(new_id, encryptedSecret);
-  console.log("encryptedSecret");
-  console.log(encryptedSecret);
   console.log("done in secrets.ts")
 }
 // export async function updateSecret(

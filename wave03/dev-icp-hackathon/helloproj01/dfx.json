@@ -24,6 +24,7 @@
     "helloproj01_frontend": {
       "dependencies": [
         "helloproj01_backend",
+        "secrets_backend",
         "vetkd_system_api"
       ],
       "source": [

@@ -21,7 +21,7 @@ export function createActor(options?: {
 }): BackendActor {
   console.log("createActor")
   const hostOptions = {
-    host:'http://localhost:4943',
+    host:'http://localhost:4943', //deploy したときのURLを Legacy にしないと動かない
   };
 
   if (!options) {

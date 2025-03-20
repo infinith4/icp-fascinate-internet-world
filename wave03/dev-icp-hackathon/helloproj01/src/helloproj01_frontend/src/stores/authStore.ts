@@ -43,10 +43,16 @@ export const useAuthStore = defineStore('auth', {
     async login() {
       if (this.state !== 'anonymous' || !this.client) return;
 
+      // Safari detection
+      const isSafari = /^(?!.*chrome\/\d+)(?!.*chromium\/\d+).*safari\/\d+/i.test(navigator.userAgent);
+      const identityProvider = isSafari
+        ? `http://localhost:4943/?canisterId=be2us-64aaa-aaaaa-qaabq-cai`
+        : `http://be2us-64aaa-aaaaa-qaabq-cai.localhost:4943/`;
+
       this.client.login({
         maxTimeToLive: BigInt(1800) * BigInt(1_000_000_000),
-        identityProvider: "http://be2us-64aaa-aaaaa-qaabq-cai.localhost:4943/",
-        onSuccess: () => {this.authenticate( )},
+        identityProvider,
+        onSuccess: () => {this.authenticate()},
       });
     },
 

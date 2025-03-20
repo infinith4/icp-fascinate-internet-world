@@ -14,9 +14,9 @@
         </thead>
         <tbody>
           <tr v-for="(entry, index) in passwords" :key="index">
-            <td>{{ entry.service_name }}</td>
-            <td>{{ entry.username }}</td>
-            <td>{{ entry.password }}</td>
+            <td>{{ entry.title }}</td>
+            <!-- <td>{{ entry.username }}</td>
+            <td>{{ entry.password }}</td> -->
             <td>
               <button class="delete-btn" @click="deletePassword(index)">
                 Delete
@@ -36,37 +36,39 @@ import { CryptoService } from '../libs/crypto';
 // import { helloproj01_backend } from 'declarations/helloproj01_backend/index';
 // import { secrets_backend } from 'declarations/secrets_backend/secrets_backend.did.d.ts';
 import { decryptSecrets, refreshSecrets } from "../stores/secrets";
+import type { SecretModel } from "../libs/secret";
 
 // import decryptPassword from "../decryptPassword";
 // const masterPassword = process.env.MASTERPASSWORD;
-const passwords = ref([]);
+const passwords = ref<SecretModel[]>([]);
 
 const authStore = useAuthStore();
 
-onMounted(() => {
-
-  authStore.initAuth();
-  fetchPasswords();
-});
-
 const fetchPasswords = async () => {
   console.log("fetchPasswords")
-  const authStore = useAuthStore();
-  console.log(authStore.actor);
-  await refreshSecrets(authStore.actor!, authStore.crypto).then(async (response) => {
+  if (!authStore.isAuthenticated || !authStore.actor) {
+    console.log("Not authenticated or actor not initialized");
+    return;
+  }
+  console.log("authStore.actor");
+  console.log(await authStore.actor.whoami());
+  await refreshSecrets(authStore.actor, authStore.crypto).then(async (response) => {
     console.log(response);
-    // passwords.value = await Promise.all(
-    //   response.map(async (res) => {
-    //     console.log("test")
-    //     // const responseDecryptPassword = await decryptPassword({
-    //     //   encrypted: res.encrypted,
-    //     //   iv: res.iv,
-    //     //   salt: res.salt,
-    //     // }, masterPassword);
-    //     // return { service_name: res.service_name, username: res.username, password: responseDecryptPassword };
-    //   })
-    // );
+    passwords.value = response;
   });
+};
+
+onMounted(async () => {
+  await authStore.initAuth();
+  if (authStore.isAuthenticated) {
+    await fetchPasswords();
+  }
+});
+
+const deletePassword = async (index: number) => {
+  if (!authStore.actor) return;
+  // TODO: Implement delete functionality
+  console.log("Delete password at index:", index);
 };
 
 // const deletePassword = async (index) => {
@@ -78,5 +80,4 @@ const fetchPasswords = async () => {
 //   }
 // };
 
-onMounted(fetchPasswords);
 </script>

@@ -63,50 +63,75 @@ const notes = ref("");
 
 const authStore = useAuthStore();
 
-onMounted(() => {
+// 認証の初期化を行う関数
+const initializeAuth = async () => {
+  try {
+    await authStore.initAuth();
+    if (!authStore.isAuthenticated) {
+      await authStore.login();
+    }
+  } catch (error) {
+    console.error("Auth initialization failed:", error);
+  }
+};
 
-  authStore.initAuth();
+onMounted(async () => {
+  await initializeAuth();
 });
 
 const masterPassword = import.meta.env.MASTERPASSWORD;
 
-const addPassword = async (cryptoService: CryptoService) => {
-  console.log("start addSecret");
-  console.log(authStore.isAuthenticated);
-  console.log(authStore.client!.getIdentity().getPrincipal());
-  console.log(secretFromContent("test", [], authStore.client!.getIdentity().getPrincipal()));
-  console.log(authStore.actor);
+const addPassword = async () => {
+  try {
+    // 認証状態の再確認
+    if (!authStore.isAuthenticated || !authStore.actor || !authStore.client || !authStore.crypto) {
+      console.log("Trying to reinitialize auth...");
+      await initializeAuth();
+      
+      // 再初期化後も認証できていない場合
+      if (!authStore.isAuthenticated || !authStore.actor) {
+        throw new Error("Authentication failed. Please try logging in again.");
+      }
+    }
 
-  await addSecret(
-    secretFromContent("test", [], authStore.client!.getIdentity().getPrincipal()),
-    authStore.actor!,
-    authStore.crypto
-  );
-  console.log("end addSecret");
-  // await cryptoService.encryptWithSecretKey(BigInt(1), "tests", "tests");
-  // console.log("end cryptoService.encryptWithSecretKey");
-  const encryptedData = await encryptPassword(password.value, masterPassword)
+    // whoamiを呼び出す前に必ずactorが存在することを確認
+    if (!authStore.actor) {
+      throw new Error("Actor not initialized");
+    }
 
-  const entry = {
-    service_name: service_name.value,
-    username: username.value,
-    encrypted: encryptedData.encrypted,
-    iv: encryptedData.iv,
-    salt: encryptedData.salt,
-    notes: notes.value ? [notes.value] : [],
-  };
-  
-  // const success = await helloproj01_backend.add_password(entry);
-  // if (success) {
-  //   alert("Password added successfully!");
-  //   service_name.value = "";
-  //   username.value = "";
-  //   password.value = "";
-  //   notes.value = "";
+    // console.log("Calling whoami...");
+    // const whoami = await authStore.actor.whoami();
+    // console.log("whoami result:", whoami);
 
-  //   location.reload();
-  // } else {
-  //   alert("Failed to add password.");
-  // }
+    const principal = authStore.client!.getIdentity().getPrincipal();
+    const secretModel = secretFromContent("test", [], principal);
+    
+    await addSecret(
+      secretModel,
+      authStore.actor as any,
+      authStore.crypto as any
+    );
+
+    const encryptedData = await encryptPassword(password.value, masterPassword);
+    const entry = {
+      service_name: service_name.value,
+      username: username.value,
+      encrypted: encryptedData.encrypted,
+      iv: encryptedData.iv,
+      salt: encryptedData.salt,
+      notes: notes.value ? [notes.value] : [],
+    };
+    
+    // 成功メッセージとフォームのリセット
+    alert("Password added successfully!");
+    service_name.value = "";
+    username.value = "";
+    password.value = "";
+    notes.value = "";
+    
+  } catch (error) {
+    console.error("Error in addPassword:", error);
+    alert("Failed to add password: " + (error as Error).message);
+  }
 };
 </script>

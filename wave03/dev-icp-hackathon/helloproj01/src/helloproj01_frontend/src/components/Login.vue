@@ -11,7 +11,7 @@ const login = async () => {
   console.log("----------------------------authclient");
   
   authClient.login({
-    identityProvider: "http://bkyz2-fmaaa-aaaaa-qaaaq-cai.localhost:4943/",
+    identityProvider: "http://be2us-64aaa-aaaaa-qaabq-cai.localhost:4943/", //IIのCanister id を指定
     //identityProvider: "http://127.0.0.1:4943/?canisterId=be2us-64aaa-aaaaa-qaabq-cai",
     onSuccess: async () => {
       console.log("authClient.getIdentity()");

@@ -1,5 +1,6 @@
 [workspace]
 members = [
-    "src/helloproj01_backend"
+    "src/helloproj01_backend",
+    "src/vetkd_system_api"
 ]
 resolver = "2"

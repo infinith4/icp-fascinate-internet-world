@@ -123,8 +123,40 @@ Success! The dfx server is running in the background.
 ### Local Canister実行環境へのdeploy
 
 
+vetkd のsystem api のDeploy
 
-innternet identity のCanister id を適当な以下のIDでDeployする。
+ちょっとわからないが、本番でローンチされていないようなのでsystem api をそのまま利用する。
+
+dfx canister create vetkd_system_api --specified-id s55qq-oqaaa-aaaaa-aaakq-cai
+
+
+dfx deploy vetkd_system_api --specified-id s55qq-oqaaa-aaaaa-aaakq-cai
+
+
+dfx canister delete vetkd_system_api
+
+
+```
+URLs:
+  Frontend canister via browser:
+    helloproj01_frontend:
+      - http://bd3sg-teaaa-aaaaa-qaaba-cai.localhost:4943/ (Recommended)
+      - http://127.0.0.1:4943/?canisterId=bd3sg-teaaa-aaaaa-qaaba-cai (Legacy)
+    internet_identity:
+      - http://be2us-64aaa-aaaaa-qaabq-cai.localhost:4943/ (Recommended)
+      - http://127.0.0.1:4943/?canisterId=be2us-64aaa-aaaaa-qaabq-cai (Legacy)
+  Backend canister via Candid interface:
+    helloproj01_backend: http://127.0.0.1:4943/?canisterId=b77ix-eeaaa-aaaaa-qaada-cai&id=bkyz2-fmaaa-aaaaa-qaaaq-cai
+    internet_identity: http://127.0.0.1:4943/?canisterId=b77ix-eeaaa-aaaaa-qaada-cai&id=be2us-64aaa-aaaaa-qaabq-cai
+    secrets_backend: http://127.0.0.1:4943/?canisterId=b77ix-eeaaa-aaaaa-qaada-cai&id=br5f7-7uaaa-aaaaa-qaaca-cai
+    vetkd_system_api: http://127.0.0.1:4943/?canisterId=b77ix-eeaaa-aaaaa-qaada-cai&id=bw4dl-smaaa-aaaaa-qaacq-cai
+```
+
+
+cargo install cargo-audit
+
+
+普通に deploy すると適当なIDが生成されてしまうので、internet identity のCanister id を適当な以下のIDでDeployする。
 
 dfx deploy internet_identity --specified-id bkyz2-fmaaa-aaaaa-qaaaq-cais
 
@@ -136,8 +168,34 @@ authClient.login({
 ```
 
 
+https://internetcomputer.org/docs/tutorials/developer-liftoff/level-2/2.3-third-party-canisters
+
+
+まず、プロジェクトのディレクトリにある dfx.json ファイルを開きます。
+dependencies_backend キャニスターがメインネット上の internet_identity キャニスター (rdmx6-jaaaa-aaaaa-aaadq-cai) に依存するように構成する必要があります。
+
+このシリーズでは、後のチュートリアルでインターネット ID についてさらに詳しく説明しますが、今は、サードパーティのキャニスターの使用方法を示すために使用します。dfx.json ファイルを編集して、次の構成を反映します。
+
+
+
+canister を追加したときは helloproj01/src/declarations は削除するとdeployしたときに生成される。
+
+canister を追加するときは dfx.json のcanisters に記載する。
+
 ```
-dfx deploy
+"canisters": {
+    "encrypted_passwords_motoko": {
+      "main": "src/encrypted_passwords_motoko/main.mo",
+      "type": "motoko"
+    }
+  }
+```
+
+
+特定のcanister をdeploy したいとき
+
+```
+dfx deploy secrets_backend
 ```
 
 
@@ -151,6 +209,19 @@ URLs:
       - http://bd3sg-teaaa-aaaaa-qaaba-cai.localhost:4943/
   Backend canister via Candid interface:
     helloproj01_backend: http://127.0.0.1:4943/?canisterId=be2us-64aaa-aaaaa-qaabq-cai&id=bkyz2-fmaaa-aaaaa-qaaaq-cai
+```
+
+
+
+dfx deploy secrets_backend
+
+
+## Step 8: Update the generated canister interface bindings:
+
+```sh
+dfx generate "secrets_backend"
+dfx generate "helloproj01_backend"
+dfx generate "vetkd_system_api"
 ```
 
 
@@ -181,4 +252,8 @@ cargo test --package helloproj01_backend --test integration_test -- test_delete_
 
 
 dfx deploy internet_identity --argument '(null)'
+
+今後の構想
+
+web3 <- -> web2 : の連携し、internet identity でログインしたらOauth みたいに他のサービスにログインできるようにしたい
 

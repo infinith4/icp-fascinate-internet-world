@@ -1,4 +1,5 @@
 async function encryptPassword(password, masterPassword) {
+
     const encoder = new TextEncoder();
 
     // 1. 128-bit Salt を生成（鍵導出用）

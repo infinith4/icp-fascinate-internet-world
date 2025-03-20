@@ -2,7 +2,7 @@
   <div v-if="authStore.isAuthenticated">
     <div class="password-list">
       <h3 class="title">Stored Passwords</h3>
-      <p v-if="passwords.length === 0" class="empty-message">No passwords stored yet.</p>
+      <p v-if="secretsList.length === 0" class="empty-message">No passwords stored yet.</p>
       <table v-else class="table">
         <thead>
           <tr>
@@ -13,10 +13,10 @@
           </tr>
         </thead>
         <tbody>
-          <tr v-for="(entry, index) in passwords" :key="index">
-            <td>{{ entry.title }}</td>
-            <!-- <td>{{ entry.username }}</td>
-            <td>{{ entry.password }}</td> -->
+          <tr v-for="(secret, index) in secretsList" :key="index">
+            <td>{{ secret.serviceName }}</td>
+            <td>{{ secret.userName }}</td>
+            <td>{{ secret.password }}</td>
             <td>
               <button class="delete-btn" @click="deletePassword(index)">
                 Delete
@@ -40,7 +40,7 @@ import type { SecretModel } from "../libs/secret";
 
 // import decryptPassword from "../decryptPassword";
 // const masterPassword = process.env.MASTERPASSWORD;
-const passwords = ref<SecretModel[]>([]);
+const secretsList = ref<SecretModel[]>([]);
 
 const authStore = useAuthStore();
 
@@ -53,8 +53,19 @@ const fetchPasswords = async () => {
   console.log("authStore.actor");
   console.log(await authStore.actor.whoami());
   await refreshSecrets(authStore.actor, authStore.crypto).then(async (response) => {
+    console.log("response");
     console.log(response);
-    passwords.value = response;
+    secretsList.value = response.map(secret => ({
+      id: BigInt(secret.id),
+      serviceName: secret.serviceName,
+      userName: secret.userName,
+      password: secret.password,
+      createdAt: secret.createdAt,
+      updatedAt: secret.updatedAt,
+      owner: secret.owner,
+      tags: secret.tags,
+      users: []
+    }));
   });
 };
 

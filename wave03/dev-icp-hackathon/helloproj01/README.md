@@ -153,3 +153,4 @@ URLs:
   Backend canister via Candid interface:
     helloproj01_backend: http://127.0.0.1:4943/?canisterId=be2us-64aaa-aaaaa-qaabq-cai&id=bkyz2-fmaaa-aaaaa-qaaaq-cai
     internet_identity: http://127.0.0.1:4943/?canisterId=be2us-64aaa-aaaaa-qaabq-cai&id=br5f7-7uaaa-aaaaa-qaaca-cai
+

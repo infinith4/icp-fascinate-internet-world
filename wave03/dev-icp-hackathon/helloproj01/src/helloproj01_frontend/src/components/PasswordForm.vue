@@ -54,7 +54,7 @@ import { useAuthStore } from '../stores/authStore';
 import { CryptoService } from '../libs/crypto';
 import { onMounted } from 'vue';
 import { addSecret } from "../stores/secrets";
-import { secretFromContent } from "../libs/secret";
+import { createSecretModel } from "../libs/secret";
 
 const service_name = ref("");
 const username = ref("");
@@ -104,7 +104,7 @@ const addPassword = async () => {
     // console.log("whoami result:", whoami);
 
     const principal = authStore.client!.getIdentity().getPrincipal();
-    const secretModel = secretFromContent("test", [], principal);
+    const secretModel = createSecretModel(service_name.value, username.value, password.value, [], principal);
     
     await addSecret(
       secretModel,

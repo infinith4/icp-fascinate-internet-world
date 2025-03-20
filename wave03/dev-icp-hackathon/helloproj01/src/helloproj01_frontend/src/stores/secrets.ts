@@ -62,6 +62,7 @@ export async function refreshSecrets(
   console.log("refreshSecrets");
   const secretsList = await actor.get_secrets();
   console.log("get_secrets");
+  console.log(secretsList);
   const secrets = await decryptSecrets(secretsList, cryptoService);
   console.log("decryptSecrets");
   return secrets;
@@ -76,7 +77,6 @@ export async function addSecret(
   console.log("addSecret in secrets.ts");
   console.log("await actor.whoami()");
   console.log(await actor.whoami());
-  console.log("await actor.create_secret()");
   console.log("await actor.create_secret()");
   const new_id: bigint = await actor.create_secret();
 

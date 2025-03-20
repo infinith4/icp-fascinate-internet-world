@@ -5,8 +5,9 @@ import type { Principal } from '@dfinity/principal';
 
 export interface SecretModel {
   id: bigint;
-  title: string;
-  content: string;
+  serviceName: string;
+  userName: string;
+  password: string;
   createdAt: number;
   updatedAt: number;
   tags: Array<string>;
@@ -16,14 +17,15 @@ export interface SecretModel {
 
 type SerializableSecretModel = Omit<SecretModel, 'id' | 'owner' | 'users'>;
 
-export function secretFromContent(content: string, tags: string[], self_principal: Principal): SecretModel {
-  const title = extractTitle(content);
+//Front 側の入力をSecretModelに変換
+export function createSecretModel(serviceName: string, userName: string, password: string, tags: string[], self_principal: Principal): SecretModel {
   const creationTime = Date.now();
 
   return {
     id: BigInt(0),
-    title,
-    content,
+    serviceName,
+    userName,
+    password,
     createdAt: creationTime,
     updatedAt: creationTime,
     tags,
@@ -37,8 +39,9 @@ export async function serialize(
   cryptoService: CryptoService
 ): Promise<Secret> {
   const serializableSecret: SerializableSecretModel = {
-    title: secret.title,
-    content: secret.content,
+    serviceName: secret.serviceName,
+    userName: secret.userName,
+    password: secret.password,
     createdAt: secret.createdAt,
     updatedAt: secret.updatedAt,
     tags: secret.tags,
@@ -50,59 +53,65 @@ export async function serialize(
   );
   return {
     id: secret.id,
-    title: secret.title,
+    serviceName: secret.serviceName,
+    userName: secret.userName,
     password: encryptedSecret,
+    created: BigInt(secret.createdAt),
+    updated: BigInt(secret.updatedAt),
     owner: secret.owner,
     //users: secret.users,
   };
 }
 
+//deserialize secret
 export async function deserialize(
   secret: Secret,
   cryptoService: CryptoService
 ): Promise<SecretModel> {
   const serializedSecret = await cryptoService.decryptWithSecretKey(secret.id, secret.owner, secret.password);
+  console.log("serializedSecret");
+  console.log(serializedSecret);
   const deserializedSecret: SerializableSecretModel = JSON.parse(serializedSecret);
   return {
     id: secret.id,
     owner: secret.owner,
-    users: [], //esecret.users,
+    users: [],
     ...deserializedSecret,
   };
 }
 
-export function summarize(secret: SecretModel, maxLength = 50) {
-  const div = document.createElement('div');
-  div.innerHTML = secret.content;
+// export function summarize(secret: SecretModel, maxLength = 50) {
+//   const div = document.createElement('div');
+//   div.innerHTML = secret.content;
 
-  let text = div.innerText;
-  const title = extractTitleFromDomEl(div);
-  if (title) {
-    text = text.replace(title, '');
-  }
+//   let text = div.innerText;
+//   const title = extractTitleFromDomEl(div);
+//   if (title) {
+//     text = text.replace(title, '');
+//   }
 
-  return text.slice(0, maxLength) + (text.length > maxLength ? '...' : '');
-}
+//   return text.slice(0, maxLength) + (text.length > maxLength ? '...' : '');
+// }
 
-function extractTitleFromDomEl(el: HTMLElement) {
-  const title = el.querySelector('h1');
-  if (title) {
-    return title.innerText;
-  }
+// function extractTitleFromDomEl(el: HTMLElement) {
+//   const title = el.querySelector('h1');
+//   if (title) {
+//     return title.innerText;
+//   }
 
-  const blockElements = el.querySelectorAll(
-    'h1,h2,p,li'
-  ) as NodeListOf<HTMLElement>;
-  for (const el of blockElements) {
-    if (el.innerText?.trim().length > 0) {
-      return el.innerText.trim();
-    }
-  }
-  return '';
-}
+//   const blockElements = el.querySelectorAll(
+//     'h1,h2,p,li'
+//   ) as NodeListOf<HTMLElement>;
+//   for (const el of blockElements) {
+//     if (el.innerText?.trim().length > 0) {
+//       return el.innerText.trim();
+//     }
+//   }
+//   return '';
+// }
 
-export function extractTitle(html: string) {
-  const div = document.createElement('div');
-  div.innerHTML = html;
-  return extractTitleFromDomEl(div);
-}
+// export function extractTitle(html: string) {
+//   const div = document.createElement('div');
+//   div.innerHTML = html;
+//   return extractTitleFromDomEl(div);
+// }

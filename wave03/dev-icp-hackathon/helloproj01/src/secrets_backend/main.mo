@@ -46,10 +46,11 @@ shared ({ caller = initializer }) actor class () {
 
     type Secret = {
         id: Nat;
-        title: Text;
+        serviceName: Text;
+        userName: Text;
         password: Text;
-        // created: Int;
-        // updated: Int;
+        created: Int;
+        updated: Int;
         owner : PrincipalName;
         // users : [PrincipalName];
     };
@@ -129,8 +130,11 @@ shared ({ caller = initializer }) actor class () {
         // };
         let newSecret : Secret = {
             id = nextSecretId;
-            title = "";
+            serviceName = "";
+            userName = "";
             password = "";
+            created = 0;
+            updated = 0;
             owner = owner;
             //users = [];
         };

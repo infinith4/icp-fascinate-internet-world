@@ -68,9 +68,8 @@ export async function deserialize(
   secret: Secret,
   cryptoService: CryptoService
 ): Promise<SecretModel> {
+  //password を復号してpassword,createdAt, updatedAt, username, servicenameを取得する
   const serializedSecret = await cryptoService.decryptWithSecretKey(secret.id, secret.owner, secret.password);
-  console.log("serializedSecret");
-  console.log(serializedSecret);
   const deserializedSecret: SerializableSecretModel = JSON.parse(serializedSecret);
   return {
     id: secret.id,

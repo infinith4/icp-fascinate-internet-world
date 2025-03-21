@@ -24,7 +24,8 @@
 				"vadimcn.vscode-lldb",
 				"llvm-vs-code-extensions.lldb-dap",
 				"ms-vscode.cpptools",
-				"webfreak.debug"
+				"webfreak.debug",
+				"RooVeterinaryInc.roo-cline"
 			]
 		}
 	},

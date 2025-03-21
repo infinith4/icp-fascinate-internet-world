@@ -1,69 +1,95 @@
 <template>
   <div v-if="authStore.isAuthenticated">
-    <form @submit.prevent="addPassword" class="password-form">
-      <div class="form-group">
-        <label for="service-name">Service Name</label>
-        <input 
-          id="service-name"
-          v-model="service_name" 
-          placeholder="Enter service name" 
-          required 
-        />
-      </div>
+    <v-form @submit.prevent="addPassword">
+      <v-container>
+        <v-row>
+          <v-col cols="12">
+            <v-text-field
+              v-model="service_name"
+              label="サービス名"
+              required
+              prepend-icon="mdi-domain"
+              variant="outlined"
+              density="comfortable"
+            ></v-text-field>
+          </v-col>
 
-      <div class="form-group">
-        <label for="username">Username</label>
-        <input 
-          id="username"
-          v-model="username" 
-          placeholder="Enter username" 
-          required 
-        />
-      </div>
+          <v-col cols="12">
+            <v-text-field
+              v-model="username"
+              label="ユーザー名"
+              required
+              prepend-icon="mdi-account"
+              variant="outlined"
+              density="comfortable"
+            ></v-text-field>
+          </v-col>
 
-      <div class="form-group">
-        <label for="password">Password</label>
-        <input 
-          id="password"
-          v-model="password" 
-          type="password" 
-          placeholder="Enter password" 
-          required 
-        />
-      </div>
+          <v-col cols="12">
+            <v-text-field
+              v-model="password"
+              label="パスワード"
+              type="password"
+              required
+              prepend-icon="mdi-lock"
+              variant="outlined"
+              density="comfortable"
+            ></v-text-field>
+          </v-col>
 
-      <div class="form-group">
-        <label for="notes">Notes</label>
-        <input 
-          id="notes"
-          v-model="notes" 
-          placeholder="Optional notes" 
-        />
-      </div>
+          <v-col cols="12">
+            <v-textarea
+              v-model="notes"
+              label="メモ"
+              prepend-icon="mdi-note-text"
+              variant="outlined"
+              density="comfortable"
+              rows="3"
+            ></v-textarea>
+          </v-col>
+        </v-row>
 
-      <button type="submit" class="submit-btn">Add Password</button>
-    </form>
+        <v-row>
+          <v-col cols="12" class="d-flex justify-end">
+            <v-btn
+              variant="text"
+              class="me-4"
+              @click="$emit('close')"
+            >
+              キャンセル
+            </v-btn>
+            <v-btn
+              color="primary"
+              type="submit"
+              :loading="loading"
+            >
+              保存
+            </v-btn>
+          </v-col>
+        </v-row>
+      </v-container>
+    </v-form>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref } from "vue";
-import { helloproj01_backend } from '../../../declarations/helloproj01_backend/index';
-import encryptPassword from "../encryptPassword";
 import { useAuthStore } from '../stores/authStore';
-import { CryptoService } from '../libs/crypto';
-import { onMounted } from 'vue';
 import { addSecret } from "../stores/secrets";
 import { createSecretModel } from "../libs/secret";
+
+const emit = defineEmits<{
+  (e: 'close'): void
+}>();
 
 const service_name = ref("");
 const username = ref("");
 const password = ref("");
 const notes = ref("");
+const loading = ref(false);
 
 const authStore = useAuthStore();
 
-// 認証の初期化を行う関数
 const initializeAuth = async () => {
   try {
     await authStore.initAuth();
@@ -71,67 +97,48 @@ const initializeAuth = async () => {
       await authStore.login();
     }
   } catch (error) {
-    console.error("Auth initialization failed:", error);
+    console.error("認証の初期化に失敗:", error);
   }
 };
 
-onMounted(async () => {
-  await initializeAuth();
-});
-
-const masterPassword = import.meta.env.MASTERPASSWORD;
-
 const addPassword = async () => {
   try {
-    // 認証状態の再確認
+    loading.value = true;
+
     if (!authStore.isAuthenticated || !authStore.actor || !authStore.client || !authStore.crypto) {
-      console.log("Trying to reinitialize auth...");
       await initializeAuth();
       
-      // 再初期化後も認証できていない場合
       if (!authStore.isAuthenticated || !authStore.actor) {
-        throw new Error("Authentication failed. Please try logging in again.");
+        throw new Error("認証に失敗しました。再度ログインしてください。");
       }
     }
 
-    // whoamiを呼び出す前に必ずactorが存在することを確認
-    if (!authStore.actor) {
-      throw new Error("Actor not initialized");
-    }
-
-    // console.log("Calling whoami...");
-    // const whoami = await authStore.actor.whoami();
-    // console.log("whoami result:", whoami);
-
     const principal = authStore.client!.getIdentity().getPrincipal();
-    const secretModel = createSecretModel(service_name.value, username.value, password.value, [], principal);
+    const secretModel = createSecretModel(
+      service_name.value,
+      username.value,
+      password.value,
+      notes.value ? [notes.value] : [],
+      principal
+    );
     
     await addSecret(
       secretModel,
       authStore.actor as any,
       authStore.crypto as any
     );
-
-    const encryptedData = await encryptPassword(password.value, masterPassword);
-    const entry = {
-      service_name: service_name.value,
-      username: username.value,
-      encrypted: encryptedData.encrypted,
-      iv: encryptedData.iv,
-      salt: encryptedData.salt,
-      notes: notes.value ? [notes.value] : [],
-    };
     
-    // 成功メッセージとフォームのリセット
-    alert("Password added successfully!");
     service_name.value = "";
     username.value = "";
     password.value = "";
     notes.value = "";
     
+    emit('close');
   } catch (error) {
-    console.error("Error in addPassword:", error);
-    alert("Failed to add password: " + (error as Error).message);
+    console.error("パスワードの追加に失敗:", error);
+    alert("パスワードの追加に失敗しました: " + (error as Error).message);
+  } finally {
+    loading.value = false;
   }
 };
 </script>

@@ -155,46 +155,26 @@ shared ({ caller = initializer }) actor class (vetkdSystemApiCanisterId: Princip
         newSecret.id;
     };
 
-    // Returns (a future of) this [caller]'s secrets.
-    //
-    // --- Queries vs. Updates ---
-    // Secret that this method is declared as an *update* call (see `shared`) rather than *query*.
-    //
-    // While queries are significantly faster than updates, they are not certified by the IC.
-    // Thus, we avoid using queries throughout this dapp, ensuring that the result of our
-    // functions gets through consensus. Otherwise, this function could e.g. omit some secrets
-    // if it got executed by a malicious node. (To make the dapp more efficient, one could
-    // use an approach in which both queries and updates are combined.)
-    // See https://internetcomputer.org/docs/current/concepts/canisters-code#query-and-update-methods
-    //
-    // Returns:
-    //      Future of array of Secret
-    // Traps:
-    //      [caller] is the anonymous identity
     public shared ({ caller }) func get_secrets() : async [Secret] {
-        //local ではコメントアウト: assert not Principal.isAnonymous(caller);
+        assert not Principal.isAnonymous(caller);  //Backend candid ui ではFront側でログインしていないとAnonymousになるのでエラーになる
         let user = Principal.toText(caller);
 
-        Debug.print("get_secrets: caller: " # debug_show (caller));
         let owned_secrets = List.map(
             Option.get(secretIdsByOwner.get(user), List.nil()),
             func(nid : SecretId) : Secret {
                 expect(secretsById.get(nid), "missing secret with ID " # Nat.toText(nid));
             },
         );
-        Debug.print("get_secrets: caller: " # debug_show (caller));
         let shared_secrets = List.map(
             Option.get(secretIdsByUser.get(user), List.nil()),
             func(nid : SecretId) : Secret {
                 expect(secretsById.get(nid), "missing secret with ID " # Nat.toText(nid));
             },
         );
-        Debug.print("get_secrets: caller: " # debug_show (caller));
 
         let buf = Buffer.Buffer<Secret>(List.size(owned_secrets) + List.size(shared_secrets));
         buf.append(Buffer.fromArray(List.toArray(owned_secrets)));
         buf.append(Buffer.fromArray(List.toArray(shared_secrets)));
-        Debug.print("get_secrets: caller: " # debug_show (caller));
         Buffer.toArray(buf);
     };
 
@@ -208,7 +188,7 @@ shared ({ caller = initializer }) actor class (vetkdSystemApiCanisterId: Princip
     //     [caller] is not the secret's owner and not a user with whom the secret is shared
     //     [password] exceeds [MAX_SECRET_CHARS]
     public shared ({ caller }) func update_secret(id : SecretId, password : Text) : async () {
-        //local ではコメントアウト: assert not Principal.isAnonymous(caller);
+        assert not Principal.isAnonymous(caller);  //Backend candid ui ではFront側でログインしていないとAnonymousになるのでエラーになる
         let caller_text = Principal.toText(caller);
         let (?secret_to_update) = secretsById.get(id) else Debug.trap("secret with id " # Nat.toText(id) # "not found");
         if (not is_authorized(caller_text, secret_to_update)) {
@@ -216,6 +196,39 @@ shared ({ caller = initializer }) actor class (vetkdSystemApiCanisterId: Princip
         };
         assert secret_to_update.password.size() <= MAX_SECRET_CHARS;
         secretsById.put(id, { secret_to_update with password });
+    };
+
+    // シークレットを削除する関数
+    public shared ({ caller }) func delete_secret(id : SecretId) : async () {
+        assert not Principal.isAnonymous(caller);
+        let caller_text = Principal.toText(caller);
+        
+        // シークレットの存在確認
+        let (?secret_to_delete) = secretsById.get(id) else Debug.trap("secret with id " # Nat.toText(id) # "not found");
+        
+        // 所有者のみ削除可能
+        if (caller_text != secret_to_delete.owner) {
+            Debug.trap("unauthorized: only owner can delete secret");
+        };
+
+        // secretsByIdから削除
+        secretsById.delete(id);
+
+        // secretIdsByOwnerから削除
+        switch (secretIdsByOwner.get(caller_text)) {
+            case (?owner_secrets) {
+                secretIdsByOwner.put(
+                    caller_text,
+                    List.filter(
+                        owner_secrets,
+                        func(secret_id : SecretId) : Bool { secret_id != id }
+                    )
+                );
+            };
+            case null {
+                // 所有者のリストが見つからない場合は何もしない
+            };
+        };
     };
 
     // Shares the secret with ID [secret_id] with the [user].
@@ -228,11 +241,7 @@ shared ({ caller = initializer }) actor class (vetkdSystemApiCanisterId: Princip
     //     secret with ID [id] does not exist
     //     [caller] is not the secret's owner
     public shared ({ caller }) func add_user(secret_id : SecretId, user : PrincipalName) : async () {
-        //local ではコメントアウト: 
-        // if (Principal.isAnonymous(caller)) {
-        //     throw Debug.trap("Authentication required. Please login first.");
-        // };
-        //local ではコメントアウト: assert not Principal.isAnonymous(caller);
+        assert not Principal.isAnonymous(caller);  //Backend candid ui ではFront側でログインしていないとAnonymousになるのでエラーになる
         let caller_text = Principal.toText(caller);
         let (?secret) = secretsById.get(secret_id) else Debug.trap("secret with id " # Nat.toText(secret_id) # "not found");
         if (caller_text != secret.owner) {
@@ -271,9 +280,7 @@ shared ({ caller = initializer }) actor class (vetkdSystemApiCanisterId: Princip
             encryption_public_key : Blob;
         }) -> async ({ encrypted_key : Blob });
     };
-    
-    //const vetkdSystemApiCanisterId = 
-    //TODO: 環境変数から読み込む
+    //NOTE: motoko は環境変数からCanisterIDを取得できないので、deploy 時に引数で渡す
     let vetkd_system_api : VETKD_SYSTEM_API = actor (Principal.toText(vetkdSystemApiCanisterId));
 
     public shared ({ caller }) func symmetric_key_verification_key_for_secret() : async Text {
@@ -300,7 +307,6 @@ shared ({ caller = initializer }) actor class (vetkdSystemApiCanisterId: Princip
             key_id = { curve = #bls12_381; name = "test_key_1" };
             encryption_public_key;
         });
-        Debug.print("encrypted_key: " # debug_show (encrypted_key));
         Hex.encode(Blob.toArray(encrypted_key));
 
         // let buf = Buffer.Buffer<Nat8>(32);

@@ -3,6 +3,7 @@ import { defineConfig } from 'vite';
 import environment from 'vite-plugin-environment';
 import vue from '@vitejs/plugin-vue';
 import dotenv from 'dotenv';
+import vuetify from 'vite-plugin-vuetify'
 
 dotenv.config({ path: '../../.env' });
 
@@ -28,11 +29,12 @@ export default defineConfig(({mode}) => ({
   } : {
     headers: {
       "Content-Security-Policy":
-        "default-src 'self' https://ic0.app; connect-src 'self' https://ic0.app; script-src 'self' 'unsafe-inline' 'unsafe-eval';",
+        "default-src 'self' https://ic0.app; connect-src 'self' https://ic0.app; connect-src 'self' http://localhost:* https://icp0.io https://*.icp0.app https://icp-api.app https://ic0.app https://*.ic0.app; script-src 'self' 'unsafe-inline' 'unsafe-eval';",
     },
   },
   plugins: [
     vue(),
+    vuetify(),
     environment('all', { prefix: 'CANISTER_' }),
     environment('all', { prefix: 'DFX_' }),
     environment('all', { prefix: 'MASTERPASSWORD' }),

@@ -1,21 +1,20 @@
-<script setup>
+<script setup >
 import { ref, onMounted } from 'vue';
 import { AuthClient } from '@dfinity/auth-client';
-import { getidentityProvider } from '../stores/authStore'
+import { getIdentityProvider } from '../stores/authStore'
+
+//vuetify
+import { mdiAccount, mdiDelete, mdiPencil, mdiShareVariant } from '@mdi/js'
+
 const identity = ref(null);
 const principal = ref(null);
 let authClient;
 
 const login = async () => {
-  authClient = await AuthClient.create();
-  console.log("----------------------------authclient");
-  
+  authClient = await AuthClient.create();  
   authClient.login({
-    identityProvider: getidentityProvider(), //IIのCanister id を指定
-    //identityProvider: "http://127.0.0.1:4943/?canisterId=be2us-64aaa-aaaaa-qaabq-cai",
+    identityProvider: getIdentityProvider(), //IIのCanister id を指定
     onSuccess: async () => {
-      console.log("authClient.getIdentity()");
-      console.log(authClient.getIdentity());
       identity.value = authClient.getIdentity();
       principal.value = identity.value.getPrincipal().toString();
     },
@@ -41,11 +40,22 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div>
-    <button @click="login" v-if="!identity">Login with Internet Identity</button>
-    <div v-if="identity">
-      <p>Logged in as: {{ principal }}</p>
-      <button @click="logout">Logout</button>
-    </div>
+  <div class="d-flex justify-space-around">
+    <v-icon icon="md:home"></v-icon>
+    
+    <v-icon icon="md:event"></v-icon>
+    <v-icon icon="md:info"></v-icon>
+    <v-icon icon="md:folder_open"></v-icon>
+    <v-icon icon="md:widgets"></v-icon>
+    <v-icon icon="md:gavel"></v-icon>
+  </div>
+  <v-icon :icon="`mdiSvg:${mdiAccount}`"></v-icon>
+  <v-btn ariant="tonal" @click="login" v-if="!identity">ログイン<v-icon
+          icon="mdi-checkbox-marked-circle"
+          end
+        ></v-icon></v-btn>
+  <div v-if="identity">
+    <p>Debug::Logged in as: {{ principal }}</p>
+    <v-btn append-icon="$vuetify" variant="tonal"  @click="logout">Logout</v-btn>
   </div>
 </template>

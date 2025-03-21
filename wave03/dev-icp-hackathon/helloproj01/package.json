@@ -16,6 +16,8 @@
     "src/helloproj01_frontend"
   ],
   "dependencies": {
+    "@mdi/font": "^7.4.47",
+    "@mdi/js": "^7.4.47",
     "pinia": "^3.0.1"
   }
 }

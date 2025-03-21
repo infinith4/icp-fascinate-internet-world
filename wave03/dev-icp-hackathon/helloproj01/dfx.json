@@ -25,13 +25,15 @@
       "dependencies": [
         "helloproj01_backend",
         "secrets_backend",
-        "vetkd_system_api"
+        "vetkd_system_api",
+        "internet_identity"
       ],
       "source": [
         "src/helloproj01_frontend/dist"
       ],
       "type": "assets",
-      "workspace": "helloproj01_frontend"
+      "workspace": "helloproj01_frontend",
+      "csp": "default-src 'self'; connect-src 'self' https://ic0.app;"
     },
     "internet_identity": {
       "candid": "https://github.com/dfinity/internet-identity/releases/latest/download/internet_identity.did",

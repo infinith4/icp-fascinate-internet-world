@@ -6,7 +6,7 @@ import dotenv from 'dotenv';
 
 dotenv.config({ path: '../../.env' });
 
-export default defineConfig({
+export default defineConfig(({mode}) => ({
   build: {
     emptyOutDir: true,
   },
@@ -18,12 +18,17 @@ export default defineConfig({
     },
     exclude: ['secrets_backend', 'vetkd_system_api'],
   },
-  server: {
+  server: mode === 'development' ? {
     proxy: {
       '/api': {
         target: 'http://127.0.0.1:4943',
         changeOrigin: true,
       },
+    },
+  } : {
+    headers: {
+      "Content-Security-Policy":
+        "default-src 'self' https://ic0.app; connect-src 'self' https://ic0.app; script-src 'self' 'unsafe-inline' 'unsafe-eval';",
     },
   },
   plugins: [
@@ -40,4 +45,4 @@ export default defineConfig({
     dedupe: ['@dfinity/agent'],
     extensions: ['.js', '.ts', '.vue', '.did.js', '.did']
   }
-});
+}));

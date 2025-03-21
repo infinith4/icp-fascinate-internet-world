@@ -4,6 +4,8 @@ import { AuthClient } from '@dfinity/auth-client';
 import { CryptoService } from '../libs/crypto';
 import type { JsonnableDelegationChain } from '@dfinity/identity/lib/cjs/identity/delegation';
 
+// import 'dotenv/config'
+
 export type AuthState =
   | 'initializing-auth'
   | 'anonymous'
@@ -43,11 +45,7 @@ export const useAuthStore = defineStore('auth', {
     async login() {
       if (this.state !== 'anonymous' || !this.client) return;
 
-      // Safari detection
-      const isSafari = /^(?!.*chrome\/\d+)(?!.*chromium\/\d+).*safari\/\d+/i.test(navigator.userAgent);
-      const identityProvider = isSafari
-        ? `http://localhost:4943/?canisterId=be2us-64aaa-aaaaa-qaabq-cai`
-        : `http://be2us-64aaa-aaaaa-qaabq-cai.localhost:4943/`;
+      const identityProvider = getidentityProvider();
 
       this.client.login({
         maxTimeToLive: BigInt(1800) * BigInt(1_000_000_000),
@@ -55,6 +53,8 @@ export const useAuthStore = defineStore('auth', {
         onSuccess: () => {this.authenticate()},
       });
     },
+
+   
 
     async logout() {
       if (this.state !== 'initialized' || !this.client) return;
@@ -112,6 +112,19 @@ export const useAuthStore = defineStore('auth', {
     }
   }
 });
+
+export function getidentityProvider(): string {
+  console.log("getidentityProvider")
+  console.log(process.env.DFX_NETWORK);
+  if(process.env.DFX_NETWORK === "local") {// Safari detection
+    const isSafari = /^(?!.*chrome\/\d+)(?!.*chromium\/\d+).*safari\/\d+/i.test(navigator.userAgent);        
+    return isSafari ? `http://localhost:4943/?canisterId=${process.env.CANISTER_ID_INTERNET_IDENTITY}` : `http://${process.env.CANISTER_ID_INTERNET_IDENTITY}.localhost:4943`;
+  } else if (process.env.DFX_NETWORK === "ic") {
+    return `https://identity.ic0.app/#authorize`;  //NOTE: 本番環境は必ずこのURLでなければならない
+  } else {
+    return `https://${process.env.CANISTER_ID_INTERNET_IDENTITY}.dfinity.network`;
+  }
+}
 
 // 初期化は通常 main.ts または App.vue の setup で行う
 // ここでは参考として示す

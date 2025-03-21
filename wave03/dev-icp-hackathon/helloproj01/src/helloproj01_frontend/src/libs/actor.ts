@@ -21,7 +21,9 @@ export function createActor(options?: {
 }): BackendActor {
   console.log("createActor")
   const hostOptions = {
-    host:'http://localhost:4943', //deploy したときのURLを Legacy にしないと動かない
+     //deploy したときのURLを Legacy にしないと動かない
+    host: (process.env.DFX_NETWORK === "ic" ||
+           process.env.DFX_NETWORK === "playground") ? `https://${process.env.CANISTER_ID_SECRETS_BACKEND}.raw.ic0.app` : 'http://localhost:4943',
   };
 
   if (!options) {
@@ -34,10 +36,10 @@ export function createActor(options?: {
     options.agentOptions.host = hostOptions.host;
   }
 
-  const agent = new HttpAgent({ ...options.agentOptions });
+  const agent = HttpAgent.createSync(options.agentOptions);
   // Fetch root key for certificate validation during development
-  if (true) {
-    console.log(`Dev environment - fetching root key...`);
+  if (process.env.DFX_NETWORK !== "ic") {
+    console.log(`process.env.DFX_NETWORK: ${process.env.DFX_NETWORK}; Dev environment - fetching root key...`);
 
     agent.fetchRootKey().catch((err) => {
       console.warn(
@@ -50,7 +52,7 @@ export function createActor(options?: {
   // Creates an actor with using the candid interface and the HttpAgent
   return Actor.createActor(idlFactory, {
     agent,
-    canisterId: "br5f7-7uaaa-aaaaa-qaaca-cai",
+    canisterId: process.env.CANISTER_ID_SECRETS_BACKEND!,
     ...options?.actorOptions,
   });
 }

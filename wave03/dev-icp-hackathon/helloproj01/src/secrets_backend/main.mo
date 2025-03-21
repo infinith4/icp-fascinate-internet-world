@@ -19,7 +19,7 @@ import Hex "./utils/Hex";
 
 // Declare a shared actor class
 // Bind the caller and the initializer
-shared ({ caller = initializer }) actor class () {
+shared ({ caller = initializer }) actor class (vetkdSystemApiCanisterId: Principal) {
 
     // Currently, a single canister smart contract is limited to 4 GB of heap size.
     // For the current limits see https://internetcomputer.org/docs/current/developer-docs/production/resource-limits.
@@ -271,8 +271,10 @@ shared ({ caller = initializer }) actor class () {
             encryption_public_key : Blob;
         }) -> async ({ encrypted_key : Blob });
     };
-
-    let vetkd_system_api : VETKD_SYSTEM_API = actor ("s55qq-oqaaa-aaaaa-aaakq-cai");
+    
+    //const vetkdSystemApiCanisterId = 
+    //TODO: 環境変数から読み込む
+    let vetkd_system_api : VETKD_SYSTEM_API = actor (Principal.toText(vetkdSystemApiCanisterId));
 
     public shared ({ caller }) func symmetric_key_verification_key_for_secret() : async Text {
         let { public_key } = await vetkd_system_api.vetkd_public_key({

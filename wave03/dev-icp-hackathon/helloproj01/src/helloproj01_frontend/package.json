@@ -11,6 +11,7 @@
     "format": "prettier --write \"src/**/*.{json,js,jsx,ts,tsx,css,scss}\""
   },
   "devDependencies": {
+    "@types/node": "^22.13.10",
     "@vitejs/plugin-vue": "^5.2.3",
     "@vue/tsconfig": "^0.4.0",
     "dotenv": "^16.3.1",

@@ -1,7 +1,7 @@
 <script setup>
 import { ref, onMounted } from 'vue';
 import { AuthClient } from '@dfinity/auth-client';
-
+import { getidentityProvider } from '../stores/authStore'
 const identity = ref(null);
 const principal = ref(null);
 let authClient;
@@ -11,7 +11,7 @@ const login = async () => {
   console.log("----------------------------authclient");
   
   authClient.login({
-    identityProvider: "http://be2us-64aaa-aaaaa-qaabq-cai.localhost:4943/", //IIのCanister id を指定
+    identityProvider: getidentityProvider(), //IIのCanister id を指定
     //identityProvider: "http://127.0.0.1:4943/?canisterId=be2us-64aaa-aaaaa-qaabq-cai",
     onSuccess: async () => {
       console.log("authClient.getIdentity()");

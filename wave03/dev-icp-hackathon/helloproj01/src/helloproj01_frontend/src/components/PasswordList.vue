@@ -11,6 +11,7 @@
         <v-table v-else density="compact">
           <thead>
             <tr>
+              <th>ID</th>
               <th>サービス名</th>
               <th>ユーザー名</th>
               <th>削除</th>
@@ -18,15 +19,16 @@
           </thead>
           <tbody>
             <tr v-for="(secret, index) in filteredSecrets" :key="index">
-              <td>{{ secret.serviceName }}</td>
-              <td>{{ secret.userName }}</td>
+              <td><a href="#" @click="dialog = true">{{ secret.id }}</a></td>
+              <td><a href="#" @click.prevent="openNewPasswordForm">{{ secret.serviceName }}</a></td>
+              <td><a href="#" @click.prevent="openNewPasswordForm">{{ secret.userName }}</a></td>
               <td>
                 <v-btn
                   density="compact"
                   icon="mdi-delete"
                   variant="text"
                   color="error"
-                  @click="deletePassword(index)"
+                  @click="deletePassword(secret.id)"
                 ></v-btn>
               </td>
             </tr>
@@ -34,18 +36,46 @@
         </v-table>
       </v-card-text>
     </v-card>
+    <v-dialog v-model="dialog" persistent max-width="600px">
+      <v-card>
+        <v-card-title class="text-h6 bg-primary text-white pa-4">
+          パスワード更新
+          <v-btn
+            icon="mdi-close"
+            variant="text"
+            color="white"
+            class="float-right"
+            @click="dialog = false"
+          ></v-btn>
+        </v-card-title>
+        <v-card-text class="pa-4">
+          <PasswordForm @close="dialog = false" />
+        </v-card-text>
+      </v-card>
+    </v-dialog>
   </div>
+  
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted, computed } from "vue";
 import { useAuthStore } from '../stores/authStore';
-import { refreshSecrets } from "../stores/secrets";
+import { refreshSecrets, removeSecret } from "../stores/secrets";
 import type { SecretModel } from "../libs/secret";
+
+const dialog = ref(false);
 
 const props = defineProps<{
   searchQuery: string
 }>();
+
+const emit = defineEmits<{
+  (e: 'openDialog'): void
+}>();
+
+const openNewPasswordForm = () => {
+  emit('openDialog');
+};
 
 const secretsList = ref<SecretModel[]>([]);
 const authStore = useAuthStore();
@@ -91,9 +121,10 @@ onMounted(async () => {
   }
 });
 
-const deletePassword = async (index: number) => {
+const deletePassword = async (id: bigint) => {
   if (!authStore.actor) return;
-  // TODO: Implement delete functionality
-  console.log("Delete password at index:", index);
+  
+  await removeSecret(id, authStore.actor, authStore.crypto);
+  console.log("Delete password at id:", id);
 };
 </script>

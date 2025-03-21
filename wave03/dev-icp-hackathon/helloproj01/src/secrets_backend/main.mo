@@ -178,6 +178,22 @@ shared ({ caller = initializer }) actor class (vetkdSystemApiCanisterId: Princip
         Buffer.toArray(buf);
     };
 
+    //1件だけ取得する
+    public shared ({ caller }) func get_onesecret(id : SecretId) : async Secret {
+        assert not Principal.isAnonymous(caller);  //Backend candid ui ではFront側でログインしていないとAnonymousになるのでエラーになる
+        let caller_text = Principal.toText(caller);
+        
+        // シークレットの存在確認と取得
+        let (?secret) = secretsById.get(id) else Debug.trap("secret with id " # Nat.toText(id) # " not found");
+        
+        // アクセス権限の確認
+        if (not is_authorized(caller_text, secret)) {
+            Debug.trap("unauthorized: user does not have access to this secret");
+        };
+        
+        secret
+    };
+
     // Replaces the encrypted text of secret with ID [id] with [password].
     //
     // Returns:

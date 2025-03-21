@@ -58,8 +58,8 @@ const dialog = ref(false);
 
     <v-dialog v-model="dialog" persistent max-width="600px">
       <v-card>
-        <v-card-title class="text-h5 bg-primary text-white pa-4">
-          新規パスワードの追加
+        <v-card-title class="text-h6 bg-primary text-white pa-4">
+          新規パスワード作成
           <v-btn
             icon="mdi-close"
             variant="text"

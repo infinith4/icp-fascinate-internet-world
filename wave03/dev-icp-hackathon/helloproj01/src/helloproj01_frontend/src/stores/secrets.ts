@@ -57,8 +57,6 @@ export async function refreshSecrets(
   actor: BackendActor,
   cryptoService: CryptoService
 ) {
-  console.log("await actor.whoami()");
-  console.log(await actor.whoami());
   console.log("refreshSecrets");
   const secretsList = await actor.get_secrets();
   console.log("get_secrets");
@@ -90,6 +88,17 @@ export async function addSecret(
   await actor.update_secret(new_id, encryptedSecret);
   console.log("done in secrets.ts")
 }
+
+export async function removeSecret(
+  id: bigint,
+  actor: BackendActor,
+  crypto: CryptoService
+) {
+  console.log("await actor.delete_secret()");
+  await actor.delete_secret(id);
+  console.log("done in delete_secret")
+}
+
 // export async function updateSecret(
 //   note: SecretModel,
 //   actor: BackendActor,

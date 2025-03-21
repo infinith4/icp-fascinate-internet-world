@@ -52,13 +52,6 @@
         <v-row>
           <v-col cols="12" class="d-flex justify-end">
             <v-btn
-              variant="text"
-              class="me-4"
-              @click="$emit('close')"
-            >
-              キャンセル
-            </v-btn>
-            <v-btn
               color="primary"
               type="submit"
               :loading="loading"

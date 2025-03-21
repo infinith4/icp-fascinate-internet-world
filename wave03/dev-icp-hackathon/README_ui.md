@@ -14,6 +14,9 @@ infinity を表現する鍵穴になるようなシンプルなアイコンを�
 https://vuetifyjs.com/en/features/icon-fonts/#mdi-js-svg
 
 
+cd helloproj01/src/helloproj01_frontend
+npm run start
+
 
 
 

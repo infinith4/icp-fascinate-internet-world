@@ -40,22 +40,12 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div class="d-flex justify-space-around">
-    <v-icon icon="md:home"></v-icon>
+  <v-btn append-icon="mdi-logout" variant="outlined" @click="login" v-if="!identity">ログイン</v-btn>
+  <div v-if="identity" class="d-flex align-center">
     
-    <v-icon icon="md:event"></v-icon>
-    <v-icon icon="md:info"></v-icon>
-    <v-icon icon="md:folder_open"></v-icon>
-    <v-icon icon="md:widgets"></v-icon>
-    <v-icon icon="md:gavel"></v-icon>
-  </div>
-  <v-icon :icon="`mdiSvg:${mdiAccount}`"></v-icon>
-  <v-btn ariant="tonal" @click="login" v-if="!identity">ログイン<v-icon
-          icon="mdi-checkbox-marked-circle"
-          end
-        ></v-icon></v-btn>
-  <div v-if="identity">
-    <p>Debug::Logged in as: {{ principal }}</p>
-    <v-btn append-icon="$vuetify" variant="tonal"  @click="logout">Logout</v-btn>
+    <v-btn append-icon="mdi-account" variant="outlined">
+      <v-sheet class="text-truncate text-body-2" style="max-width: 80px;" >{{ principal }}</v-sheet>
+    </v-btn>
+    <v-sheet class="ma-2 pa-2"><v-btn append-icon="mdi-logout" variant="outlined" @click="logout">ログアウト</v-btn></v-sheet>
   </div>
 </template>

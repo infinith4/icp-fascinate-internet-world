@@ -19,18 +19,23 @@ import '@mdi/font/css/materialdesignicons.css' // この行を追加
 
 <template>
   <v-app>
-    <main>
-      <div class="d-flex justify-space-between ma-2 pa-2">
-        <v-btn color="primary">default</v-btn>
-      </div>
-      <h2>ICP Password Manager</h2>
-      <AuthStatus />
+    <v-app-bar color="white" density="compact">
+    <v-container class="d-flex align-center justify-space-between">
+      <v-avatar size="40">
+        <v-img src="../public/icpass.png" alt="Logo"></v-img>
+      </v-avatar>
+
+      <!-- 中央のタイトル -->
+      <v-toolbar-title>ICP Password Manager</v-toolbar-title>
       <Login />
+    </v-container>
+  </v-app-bar>
+    <v-main>
+      <AuthStatus />
         <div>
           <PasswordForm />
           <PasswordList />
         </div>
-      <img src="/logo2.svg" alt="DFINITY logo" />
-    </main>
+    </v-main>
   </v-app>
 </template>

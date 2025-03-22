@@ -1,5 +1,15 @@
 <template>
-  <div v-if="authStore.isAuthenticated">
+  <div v-if="authStore.isAuthenticated" class="position-relative">
+    <v-overlay
+      :model-value="loading"
+      class="align-center justify-center"
+      persistent
+    >
+      <v-progress-circular
+        indeterminate
+        color="primary"
+      ></v-progress-circular>
+    </v-overlay>
     <v-form @submit.prevent="addPassword">
       <v-container>
         <v-row>

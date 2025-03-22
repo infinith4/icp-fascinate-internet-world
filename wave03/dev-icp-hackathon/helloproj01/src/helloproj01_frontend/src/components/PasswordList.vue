@@ -8,26 +8,61 @@
         <p v-if="filteredSecrets.length === 0" class="text-subtitle-1 text-medium-emphasis">
           保管されているパスワードはありません
         </p>
-        <v-table v-else density="compact">
+        <v-table
+          v-else
+          density="compact"
+          hover
+          fixed-header
+        >
           <thead>
             <tr>
-              <th>ID</th>
-              <th>サービス名</th>
-              <th>ユーザー名</th>
-              <th>削除</th>
+              <th class="text text-subtitle-2 font-weight-bold">ID</th>
+              <th class="text text-subtitle-2 font-weight-bold">サービス名</th>
+              <th class="text text-subtitle-2 font-weight-bold">ユーザー名</th>
+              <th class="text text-subtitle-2 font-weight-bold">削除</th>
             </tr>
           </thead>
           <tbody>
-            <tr v-for="(secret, index) in filteredSecrets" :key="index">
-              <td><a href="#" @click.prevent="openEditForm(secret.id)">{{ secret.id }}</a></td>
-              <td><a href="#" @click.prevent="openEditForm(secret.id)">{{ secret.serviceName }}</a></td>
-              <td><a href="#" @click.prevent="openEditForm(secret.id)">{{ secret.userName }}</a></td>
+            <tr
+              v-for="(secret, index) in filteredSecrets"
+              :key="index"
+              :class="index % 2 === 0 ? 'bg-grey-lighten-5' : ''"
+            >
               <td>
                 <v-btn
+                  style="text-transform: none"
+                  variant="text"
+                  density="compact"
+                  class="text-primary"
+                  @click="openEditForm(secret.id)"
+                >{{ secret.id }}</v-btn>
+              </td>
+              <td>
+                <v-btn
+                  style="text-transform: none"
+                  variant="text"
+                  density="compact"
+                  class="text-primary"
+                  @click="openEditForm(secret.id)"
+                >{{ secret.serviceName }}</v-btn>
+              </td>
+              <td>
+                <v-btn
+                  style="text-transform: none"
+                  variant="text"
+                  density="compact"
+                  class="text-primary"
+                  @click="openEditForm(secret.id)"
+                >{{ secret.userName }}</v-btn>
+              </td>
+              <td>
+                <v-btn
+                  style="text-transform: none"
                   density="compact"
                   icon="mdi-delete"
                   variant="text"
                   color="error"
+                  size="small"
                   @click="deletePassword(secret.id)"
                 ></v-btn>
               </td>

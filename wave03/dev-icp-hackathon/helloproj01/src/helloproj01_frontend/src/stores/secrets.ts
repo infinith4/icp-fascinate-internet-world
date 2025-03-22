@@ -72,21 +72,10 @@ export async function addSecret(
   actor: BackendActor,
   crypto: CryptoService
 ) {
-  console.log("addSecret in secrets.ts");
-  console.log("await actor.whoami()");
-  console.log(await actor.whoami());
-  console.log("await actor.create_secret()");
   const new_id: bigint = await actor.create_secret();
-
-  console.log("new_id");
-  console.log(new_id);
   secret.id = new_id;
   const encryptedSecret = (await serialize(secret, crypto)).password;
-  
-  console.log("encryptedSecret");
-  console.log(encryptedSecret);
   await actor.update_secret(new_id, encryptedSecret);
-  console.log("done in secrets.ts")
 }
 
 export async function getOneSecret(

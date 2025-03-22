@@ -19,9 +19,9 @@
           </thead>
           <tbody>
             <tr v-for="(secret, index) in filteredSecrets" :key="index">
-              <td><a href="#" @click="dialog = true">{{ secret.id }}</a></td>
-              <td><a href="#" @click.prevent="openNewPasswordForm">{{ secret.serviceName }}</a></td>
-              <td><a href="#" @click.prevent="openNewPasswordForm">{{ secret.userName }}</a></td>
+              <td><a href="#" @click.prevent="openEditForm(secret.id)">{{ secret.id }}</a></td>
+              <td><a href="#" @click.prevent="openEditForm(secret.id)">{{ secret.serviceName }}</a></td>
+              <td><a href="#" @click.prevent="openEditForm(secret.id)">{{ secret.userName }}</a></td>
               <td>
                 <v-btn
                   density="compact"
@@ -49,7 +49,10 @@
           ></v-btn>
         </v-card-title>
         <v-card-text class="pa-4">
-          <PasswordForm @close="handleClose" />
+          <PasswordForm
+            :secretId="selectedSecretId"
+            @close="handleClose"
+          />
         </v-card-text>
       </v-card>
     </v-dialog>
@@ -64,6 +67,7 @@ import { refreshSecrets, removeSecret } from "../stores/secrets";
 import type { SecretModel } from "../libs/secret";
 import PasswordForm from "./PasswordForm.vue"
 const dialog = ref(false);
+const selectedSecretId = ref<bigint | undefined>();
 
 const props = defineProps<{
   searchQuery: string
@@ -73,7 +77,13 @@ const emit = defineEmits<{
   (e: 'openDialog'): void
 }>();
 
+const openEditForm = (id: bigint) => {
+  selectedSecretId.value = id;
+  dialog.value = true;
+};
+
 const openNewPasswordForm = () => {
+  selectedSecretId.value = undefined;
   emit('openDialog');
 };
 
@@ -123,6 +133,7 @@ onMounted(async () => {
 
 const handleClose = async () => {
   dialog.value = false;
+  selectedSecretId.value = undefined;
   await fetchPasswords();
 };
 

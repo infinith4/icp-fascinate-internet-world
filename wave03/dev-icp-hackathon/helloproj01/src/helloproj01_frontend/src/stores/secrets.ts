@@ -89,6 +89,33 @@ export async function addSecret(
   console.log("done in secrets.ts")
 }
 
+export async function getOneSecret(
+  id: bigint,
+  actor: BackendActor,
+  crypto: CryptoService
+): Promise<SecretModel | null> {
+  try {
+    const secret = await actor.get_onesecret(id);
+    if (secret.password === "") {
+      return null;
+    }
+    return await deserialize(secret, crypto);
+  } catch (error) {
+    console.error("Failed to get secret:", error);
+    return null;
+  }
+}
+
+export async function updateSecret(
+  id: bigint,
+  secret: SecretModel,
+  actor: BackendActor,
+  crypto: CryptoService
+) {
+  const encryptedSecret = (await serialize(secret, crypto)).password;
+  await actor.update_secret(id, encryptedSecret);
+}
+
 export async function removeSecret(
   id: bigint,
   actor: BackendActor,

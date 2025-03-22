@@ -62,7 +62,7 @@ import { ref, onMounted, computed } from "vue";
 import { useAuthStore } from '../stores/authStore';
 import { refreshSecrets, removeSecret } from "../stores/secrets";
 import type { SecretModel } from "../libs/secret";
-
+import PasswordForm from "./PasswordForm.vue"
 const dialog = ref(false);
 
 const props = defineProps<{

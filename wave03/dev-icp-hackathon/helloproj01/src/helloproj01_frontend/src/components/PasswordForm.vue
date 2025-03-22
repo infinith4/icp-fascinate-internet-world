@@ -11,6 +11,7 @@
               prepend-icon="mdi-domain"
               variant="outlined"
               density="comfortable"
+              :rules="[rules.required]"
             ></v-text-field>
           </v-col>
 
@@ -34,6 +35,7 @@
               prepend-icon="mdi-lock"
               variant="outlined"
               density="comfortable"
+              :rules="[rules.required]"
             ></v-text-field>
           </v-col>
 
@@ -74,6 +76,9 @@ import { createSecretModel } from "../libs/secret";
 const emit = defineEmits<{
   (e: 'close'): void
 }>();
+const rules = {
+  required: (value: string | null) => !!value || '入力必須です',
+}
 
 const service_name = ref("");
 const username = ref("");

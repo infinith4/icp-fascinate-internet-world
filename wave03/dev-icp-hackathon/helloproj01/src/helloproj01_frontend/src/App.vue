@@ -52,7 +52,7 @@ onMounted(async () => {
 
 <template>
   <v-app>
-    <Landing/>
+    <Landing v-if="!authStore.isAuthenticated"/>
     <div v-if="authStore.isAuthenticated">
       <v-app-bar color="white" density="compact">
         <v-container class="d-flex align-center justify-space-between">
@@ -72,7 +72,7 @@ onMounted(async () => {
           <v-list-item>
             <v-text-field
               v-model="searchQuery"
-              prepend-icon="mdi-magnify"
+              prepend-inner-icon="mdi-magnify"
               label="パスワードを検索"
               hide-details
               clearable

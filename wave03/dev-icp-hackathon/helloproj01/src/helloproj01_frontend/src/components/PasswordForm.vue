@@ -127,6 +127,7 @@ const addPassword = async () => {
     notes.value = "";
     
     emit('close');
+    
   } catch (error) {
     console.error("パスワードの追加に失敗:", error);
     alert("パスワードの追加に失敗しました: " + (error as Error).message);

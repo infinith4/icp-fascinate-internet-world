@@ -10,19 +10,6 @@ const identity = ref(null);
 const principal = ref(null);
 let authClient;
 
-const login = async () => {
-  authClient = await AuthClient.create();  
-  authClient.login({
-    identityProvider: getIdentityProvider(), //IIのCanister id を指定
-    onSuccess: async () => {
-      identity.value = authClient.getIdentity();
-      principal.value = identity.value.getPrincipal().toString();
-    },
-    onError: (err) => {
-      console.error("Login failed:", err);
-    }
-  });
-};
 
 const logout = async () => {
   await authClient.logout();
@@ -40,7 +27,6 @@ onMounted(async () => {
 </script>
 
 <template>
-  <v-btn append-icon="mdi-logout" variant="outlined" @click="login" v-if="!identity">ログイン</v-btn>
   <div v-if="identity" class="d-flex align-center">
     
     <v-btn append-icon="mdi-account" variant="outlined">

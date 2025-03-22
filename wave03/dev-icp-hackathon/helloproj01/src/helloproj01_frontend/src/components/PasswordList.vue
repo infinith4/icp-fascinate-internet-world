@@ -49,7 +49,7 @@
           ></v-btn>
         </v-card-title>
         <v-card-text class="pa-4">
-          <PasswordForm @close="dialog = false" />
+          <PasswordForm @close="handleClose" />
         </v-card-text>
       </v-card>
     </v-dialog>
@@ -91,13 +91,13 @@ const filteredSecrets = computed(() => {
 });
 
 const fetchPasswords = async () => {
-  if (!authStore.isAuthenticated || !authStore.actor) {
-    console.log("Not authenticated or actor not initialized");
+  if (!authStore.isAuthenticated || !authStore.actor || !authStore.crypto) {
+    console.log("Not authenticated, actor, or crypto not initialized");
     return;
   }
   
   try {
-    const response = await refreshSecrets(authStore.actor, authStore.crypto);
+    const response = await refreshSecrets(authStore.actor as any, authStore.crypto as any);
     secretsList.value = response.map(secret => ({
       id: BigInt(secret.id),
       serviceName: secret.serviceName,
@@ -121,10 +121,15 @@ onMounted(async () => {
   }
 });
 
+const handleClose = async () => {
+  dialog.value = false;
+  await fetchPasswords();
+};
+
 const deletePassword = async (id: bigint) => {
-  if (!authStore.actor) return;
+  if (!authStore.actor || !authStore.crypto) return;
   
-  await removeSecret(id, authStore.actor, authStore.crypto);
-  console.log("Delete password at id:", id);
+  await removeSecret(id, authStore.actor as any, authStore.crypto as any);
+  await fetchPasswords();
 };
 </script>

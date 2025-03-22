@@ -4,9 +4,6 @@ import { ref, onMounted } from 'vue';
 import { AuthClient } from '@dfinity/auth-client';
 import { getIdentityProvider } from '../stores/authStore'
 
-//vuetify
-import { mdiAccount, mdiDelete, mdiPencil, mdiShareVariant } from '@mdi/js'
-
 const identity = ref<any>(null);
 const principal = ref<string | null>(null);
 

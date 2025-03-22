@@ -182,6 +182,7 @@ const fetchPasswords = async () => {
     return;
   }
   
+  loading.value = true;
   try {
     const response = await refreshSecrets(authStore.actor as any, authStore.crypto as any);
     secretsList.value = response.map(secret => ({
@@ -197,6 +198,8 @@ const fetchPasswords = async () => {
     }));
   } catch (error) {
     console.error("Failed to fetch passwords:", error);
+  } finally {
+    loading.value = false;
   }
 };
 

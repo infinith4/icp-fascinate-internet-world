@@ -1,5 +1,15 @@
 <template>
-  <div v-if="authStore.isAuthenticated">
+  <div v-if="authStore.isAuthenticated" class="position-relative">
+    <v-overlay
+      :model-value="loading"
+      class="align-center justify-center"
+      persistent
+    >
+      <v-progress-circular
+        indeterminate
+        color="primary"
+      ></v-progress-circular>
+    </v-overlay>
     <v-card>
       <v-card-title class="text-h6">
         パスワード一覧
@@ -63,7 +73,7 @@
                   variant="text"
                   color="error"
                   size="small"
-                  @click="deletePassword(secret.id)"
+                  @click="confirmDelete(secret.id)"
                 ></v-btn>
               </td>
             </tr>
@@ -91,6 +101,34 @@
         </v-card-text>
       </v-card>
     </v-dialog>
+
+    <v-dialog v-model="deleteDialog" max-width="400px">
+      <v-card>
+        <v-card-title class="text-h6" color="error">
+          パスワードの削除
+        </v-card-title>
+        <v-card-text class="text-body-1">
+          このパスワードを削除してもよろしいですか？
+        </v-card-text>
+        <v-card-actions>
+          <v-spacer></v-spacer>
+          <v-btn
+            color="error"
+            variant="outlined"
+            @click="deletePassword"
+          >
+            削除
+          </v-btn>
+          <v-btn
+            color="grey-darken-2"
+            variant="outlined"
+            @click="deleteDialog = false"
+          >
+            キャンセル
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
   </div>
   
 </template>
@@ -102,7 +140,10 @@ import { refreshSecrets, removeSecret } from "../stores/secrets";
 import type { SecretModel } from "../libs/secret";
 import PasswordForm from "./PasswordForm.vue"
 const dialog = ref(false);
+const deleteDialog = ref(false);
 const selectedSecretId = ref<bigint | undefined>();
+const deleteTargetId = ref<bigint | undefined>();
+const loading = ref(false);
 
 const props = defineProps<{
   searchQuery: string
@@ -172,10 +213,25 @@ const handleClose = async () => {
   await fetchPasswords();
 };
 
-const deletePassword = async (id: bigint) => {
-  if (!authStore.actor || !authStore.crypto) return;
+const confirmDelete = (id: bigint) => {
+  deleteTargetId.value = id;
+  deleteDialog.value = true;
+};
+
+const deletePassword = async () => {
+  if (!authStore.actor || !authStore.crypto || !deleteTargetId.value) return;
   
-  await removeSecret(id, authStore.actor as any, authStore.crypto as any);
-  await fetchPasswords();
+  loading.value = true;
+  try {
+    await removeSecret(deleteTargetId.value, authStore.actor as any, authStore.crypto as any);
+    await fetchPasswords();
+    deleteDialog.value = false;
+    deleteTargetId.value = undefined;
+  } catch (error) {
+    console.error("パスワードの削除に失敗:", error);
+    alert("パスワードの削除に失敗しました: " + (error as Error).message);
+  } finally {
+    loading.value = false;
+  }
 };
 </script>

@@ -47,17 +47,23 @@ onMounted(async () => {
         </div>
       </v-col>
 
-      <!-- 右側2/3: ログインボタン -->
+      <!-- 右側2/3: 説明文とログインボタン -->
       <v-col cols="12" md="8" class="d-flex align-center justify-center">
-        <v-btn
-          append-icon="mdi-login"
-          variant="outlined"
-          size="large"
-          class="px-8"
-          @click="login"
-        >
-          ログイン
-        </v-btn>
+        <div class="d-flex flex-column align-center">
+          <p class="text-body-1 mb-4 text-center">
+            Internet Computer上で安全にパスワードを管理できます。<br>
+            Internet Identity でログインしてください。
+          </p>
+          <v-btn
+            append-icon="mdi-login"
+            variant="outlined"
+            size="large"
+            class="px-8"
+            @click="login"
+          >
+            ログイン
+          </v-btn>
+        </div>
       </v-col>
     </v-row>
   </v-container>

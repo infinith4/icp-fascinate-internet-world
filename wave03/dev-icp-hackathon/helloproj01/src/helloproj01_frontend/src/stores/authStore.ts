@@ -67,8 +67,10 @@ export const useAuthStore = defineStore('auth', {
     },
 
     async authenticate() {
+      console.log("authenticate");
       const client = this.client!;
       this.handleSessionTimeout();
+      console.log("handleSessionTimeout");
 
       try {
         const actor = createActor({
@@ -77,6 +79,7 @@ export const useAuthStore = defineStore('auth', {
           },
         });
 
+        console.log("actor");
         this.state = 'initializing-crypto';
         this.actor = actor;
         
@@ -87,6 +90,8 @@ export const useAuthStore = defineStore('auth', {
       } catch (e) {
         this.state = 'error';
         this.error = 'An error occurred';
+        console.error("Error", e);
+
       }
     },
 

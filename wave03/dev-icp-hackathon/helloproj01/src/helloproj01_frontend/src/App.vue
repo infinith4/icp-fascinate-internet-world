@@ -3,9 +3,8 @@ import PasswordForm from "./components/PasswordForm.vue";
 import PasswordList from "./components/PasswordList.vue";
 import Landing from "./components/Landing.vue";
 import Login from "./components/Login.vue";
-import '@mdi/font/css/materialdesignicons.css'
-
 import { ref, onMounted } from 'vue';
+
 import { AuthClient } from '@dfinity/auth-client';
 import { useAuthStore, getIdentityProvider } from './stores/authStore'
 
@@ -17,41 +16,43 @@ const searchQuery = ref('');
 const dialog = ref(false);
 const identity = ref(null);
 const principal = ref(null);
+const loading = ref(true);
 let authClient;
 const authStore = useAuthStore();
 
-const login = async () => {
-  authClient = await AuthClient.create();  
-  authClient.login({
-    identityProvider: getIdentityProvider(), //IIのCanister id を指定
-    onSuccess: async () => {
+onMounted(async () => {
+  try {
+    loading.value = true;
+    authClient = await AuthClient.create();
+    const isAuthenticated = await authClient.isAuthenticated();
+    
+    if (isAuthenticated) {
+      await authStore.initAuth();
       identity.value = authClient.getIdentity();
       principal.value = identity.value.getPrincipal().toString();
-    },
-    onError: (err) => {
-      console.error("Login failed:", err);
     }
-  });
-};
-
-const logout = async () => {
-  await authClient.logout();
-  identity.value = null;
-  principal.value = null;
-};
-
-onMounted(async () => {
-  authClient = await AuthClient.create();
-  await authStore.initAuth();
-  if (await authClient.isAuthenticated()) {
-    identity.value = authClient.getIdentity();
-    principal.value = identity.value.getPrincipal().toString();
+  } catch (error) {
+    console.error("認証状態の確認に失敗:", error);
+    window.location.href = '/';
+  } finally {
+    loading.value = false;
   }
 });
+
 </script>
 
 <template>
-  <v-app>
+  <v-app class="position-relative">
+    <v-overlay
+      :model-value="loading"
+      class="align-center justify-center"
+      persistent
+    >
+      <v-progress-circular
+        indeterminate
+        color="primary"
+      ></v-progress-circular>
+    </v-overlay>
     <Landing v-if="!authStore.isAuthenticated"/>
     <div v-if="authStore.isAuthenticated">
       <v-app-bar color="white" density="compact">
@@ -59,9 +60,9 @@ onMounted(async () => {
           <div class="d-flex align-center">
             <v-app-bar-nav-icon @click="drawer = !drawer"></v-app-bar-nav-icon>
             <v-avatar size="40" class="ml-2">
-              <v-img src="../public/icpass.png" alt="Logo"></v-img>
+              <v-img src="../icpass.png" alt="Logo"></v-img>
             </v-avatar>
-            <v-toolbar-title class="ml-2">ICP Password Manager</v-toolbar-title>
+            <v-toolbar-title class="ml-2">Password Manager</v-toolbar-title>
           </div>
           <Login />
         </v-container>

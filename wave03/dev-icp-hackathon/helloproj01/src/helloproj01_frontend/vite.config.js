@@ -29,7 +29,7 @@ export default defineConfig(({mode}) => ({
   } : {
     headers: {
       "Content-Security-Policy":
-        "default-src 'self' https://ic0.app; connect-src 'self' https://ic0.app; connect-src 'self' http://localhost:* https://icp0.io https://*.icp0.app https://icp-api.app https://ic0.app https://*.ic0.app; script-src 'self' 'unsafe-inline' 'unsafe-eval';",
+        "default-src 'self' https://ic0.app; font-src * data:; connect-src 'self' http://localhost:* https://icp0.io https://*.icp0.app https://icp-api.app https://ic0.app https://*.ic0.app; script-src 'self' 'unsafe-inline' 'unsafe-eval';",
     },
   },
   plugins: [

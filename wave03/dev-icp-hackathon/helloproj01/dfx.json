@@ -33,7 +33,7 @@
       ],
       "type": "assets",
       "workspace": "helloproj01_frontend",
-      "csp": "default-src 'self'; connect-src 'self' https://ic0.app;"
+      "csp": "default-src 'self'; connect-src 'self' http://localhost:* https://ic0.app https://*.raw.ic0.app https://ic0.io https://*.raw.ic0.io; font-src 'self' data: http://localhost:* https://*.ic0.app; style-src 'self' 'unsafe-inline';"
     },
     "internet_identity": {
       "candid": "https://github.com/dfinity/internet-identity/releases/latest/download/internet_identity.did",

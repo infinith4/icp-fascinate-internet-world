@@ -45,7 +45,7 @@ export const useAuthStore = defineStore('auth', {
     async login() {
       if (this.state !== 'anonymous' || !this.client) return;
 
-      const identityProvider = getidentityProvider();
+      const identityProvider = getIdentityProvider();
 
       this.client.login({
         maxTimeToLive: BigInt(1800) * BigInt(1_000_000_000),
@@ -67,8 +67,10 @@ export const useAuthStore = defineStore('auth', {
     },
 
     async authenticate() {
+      console.log("authenticate");
       const client = this.client!;
       this.handleSessionTimeout();
+      console.log("handleSessionTimeout");
 
       try {
         const actor = createActor({
@@ -77,6 +79,7 @@ export const useAuthStore = defineStore('auth', {
           },
         });
 
+        console.log("actor");
         this.state = 'initializing-crypto';
         this.actor = actor;
         
@@ -87,6 +90,8 @@ export const useAuthStore = defineStore('auth', {
       } catch (e) {
         this.state = 'error';
         this.error = 'An error occurred';
+        console.error("Error", e);
+
       }
     },
 
@@ -113,9 +118,7 @@ export const useAuthStore = defineStore('auth', {
   }
 });
 
-export function getidentityProvider(): string {
-  console.log("getidentityProvider")
-  console.log(process.env.DFX_NETWORK);
+export function getIdentityProvider(): string {
   if(process.env.DFX_NETWORK === "local") {// Safari detection
     const isSafari = /^(?!.*chrome\/\d+)(?!.*chromium\/\d+).*safari\/\d+/i.test(navigator.userAgent);        
     return isSafari ? `http://localhost:4943/?canisterId=${process.env.CANISTER_ID_INTERNET_IDENTITY}` : `http://${process.env.CANISTER_ID_INTERNET_IDENTITY}.localhost:4943`;

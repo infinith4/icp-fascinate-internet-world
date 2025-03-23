@@ -14,8 +14,5 @@
   "type": "module",
   "workspaces": [
     "src/helloproj01_frontend"
-  ],
-  "dependencies": {
-    "pinia": "^3.0.1"
-  }
+  ]
 }

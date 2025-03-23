@@ -141,11 +141,17 @@ dfx deploy secrets_backend --network=ic --argument '(principal "nh62n-iyaaa-aaaa
 
 dfx canister delete helloproj01_frontend --network=local 
 
-dfx canister delete helloproj01_frontend --network=local 
+dfx canister delete secrets_backend --network=local 
+
+dfx canister delete helloproj01_backend --network=local 
 
 dfx canister delete helloproj01_frontend --network=local 
 
-dfx canister delete helloproj01_frontend --network=local 
+
+dfx deploy --network=local vetkd_system_api
+dfx deploy --network=local secrets_backend  --argument '(principal "s55qq-oqaaa-aaaaa-aaakq-cai")'
+dfx deploy --network=local helloproj01_backend
+dfx deploy --network=local helloproj01_frontend
 
 
 
@@ -182,13 +188,3 @@ headers: {
       "Access-Control-Allow-Origin": "*"
     }
 ```
-
-infinity を表現する鍵マークを真ん中になるようなシンプルなアイコンを作成してください。青、黄色を含む3色でお願いします。
-
-infinity を表現する鍵マークを真ん中になるようなシンプルなアイコンを作成してください。青、黄色を含む3色でお願いします。 web ページのアイコンとして利用したいです。
-
-infinity を表現する鍵マークを真ん中になるようなシンプルなアイコンを作成してください。青、黄色を含む5色でお願いします。 web ページのアイコンとして利用したいです。
-
-infinity を表現する鍵穴になるようなシンプルなアイコンを作成してください。青、黄色を含む5色でお願いします。 web ページのアイコンとして利用したいです。
-
-infinity を表現する鍵穴になるようなシンプルなアイコンを作成してください。青、黄色を含む5色でお願いします。 web ページのアイコンとして利用したいです。 アイコンは1つにして下さい。

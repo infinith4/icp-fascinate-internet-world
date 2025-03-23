@@ -57,8 +57,6 @@ export async function refreshSecrets(
   actor: BackendActor,
   cryptoService: CryptoService
 ) {
-  console.log("await actor.whoami()");
-  console.log(await actor.whoami());
   console.log("refreshSecrets");
   const secretsList = await actor.get_secrets();
   console.log("get_secrets");
@@ -74,22 +72,49 @@ export async function addSecret(
   actor: BackendActor,
   crypto: CryptoService
 ) {
-  console.log("addSecret in secrets.ts");
-  console.log("await actor.whoami()");
-  console.log(await actor.whoami());
-  console.log("await actor.create_secret()");
   const new_id: bigint = await actor.create_secret();
-
-  console.log("new_id");
-  console.log(new_id);
   secret.id = new_id;
   const encryptedSecret = (await serialize(secret, crypto)).password;
-  
-  console.log("encryptedSecret");
-  console.log(encryptedSecret);
   await actor.update_secret(new_id, encryptedSecret);
-  console.log("done in secrets.ts")
 }
+
+export async function getOneSecret(
+  id: bigint,
+  actor: BackendActor,
+  crypto: CryptoService
+): Promise<SecretModel | null> {
+  try {
+    const secret = await actor.get_onesecret(id);
+    if (secret.password === "") {
+      return null;
+    }
+    return await deserialize(secret, crypto);
+  } catch (error) {
+    console.error("Failed to get secret:", error);
+    return null;
+  }
+}
+
+export async function updateSecret(
+  id: bigint,
+  secret: SecretModel,
+  actor: BackendActor,
+  crypto: CryptoService
+) {
+  const encryptedSecret = (await serialize(secret, crypto)).password;
+  await actor.update_secret(id, encryptedSecret);
+}
+
+export async function removeSecret(
+  id: bigint,
+  actor: BackendActor,
+  crypto: CryptoService
+) {
+  console.log("await actor.delete_secret()");
+  await actor.delete_secret(id);
+  console.log("done in delete_secret")
+}
+
 // export async function updateSecret(
 //   note: SecretModel,
 //   actor: BackendActor,

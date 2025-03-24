@@ -38,27 +38,18 @@ export async function decryptSecrets(
   );
 }
 
-export async function refreshSecrets(
-  actor: BackendActor,
-  cryptoService: CryptoService
-) {
-  const secretsList = await actor.get_secrets();
-  const secrets = await decryptSecrets(secretsList, cryptoService);
-  const store = useSecretsStore();
-  store.secrets = secrets;
-  return secrets;
-}
-
 export async function addSecret(
   secret: SecretModel,
   actor: BackendActor,
   crypto: CryptoService
 ) {
+  const store = useSecretsStore();
   const new_id: bigint = await actor.create_secret();
   secret.id = new_id;
   const encryptedSecret = (await serialize(secret, crypto)).password;
   await actor.update_secret(new_id, encryptedSecret);
-  await refreshSecrets(actor, crypto);
+  console.log("addSecret. loadSecrets");
+  await store.loadSecrets(actor, crypto);
 }
 
 export async function getOneSecret(
@@ -84,9 +75,11 @@ export async function updateSecret(
   actor: BackendActor,
   crypto: CryptoService
 ) {
+  const store = useSecretsStore();
   const encryptedSecret = (await serialize(secret, crypto)).password;
   await actor.update_secret(id, encryptedSecret);
-  await refreshSecrets(actor, crypto);
+  console.log("updateSecret. loadSecrets");
+  await store.loadSecrets(actor, crypto);
 }
 
 export async function removeSecret(
@@ -94,6 +87,8 @@ export async function removeSecret(
   actor: BackendActor,
   crypto: CryptoService
 ) {
+  const store = useSecretsStore();
   await actor.delete_secret(id);
-  await refreshSecrets(actor, crypto);
+  console.log("removeSecret. loadSecrets");
+  await store.loadSecrets(actor, crypto);
 }

@@ -136,9 +136,10 @@
 <script setup lang="ts">
 import { ref, onMounted, computed } from "vue";
 import { useAuthStore } from '../stores/authStore';
-import { refreshSecrets, removeSecret } from "../stores/secrets";
+import { removeSecret, useSecretsStore } from "../stores/secrets";
 import type { SecretModel } from "../libs/secret";
 import PasswordForm from "./PasswordForm.vue"
+
 const dialog = ref(false);
 const deleteDialog = ref(false);
 const selectedSecretId = ref<bigint | undefined>();
@@ -163,14 +164,14 @@ const openNewPasswordForm = () => {
   emit('openDialog');
 };
 
-const secretsList = ref<SecretModel[]>([]);
 const authStore = useAuthStore();
+const secretsStore = useSecretsStore();
 
 const filteredSecrets = computed(() => {
-  if (!props.searchQuery) return secretsList.value;
+  if (!props.searchQuery) return secretsStore.secrets;
   
   const query = props.searchQuery.toLowerCase();
-  return secretsList.value.filter(secret =>
+  return secretsStore.secrets.filter(secret =>
     secret.serviceName.toLowerCase().includes(query) ||
     secret.userName.toLowerCase().includes(query)
   );
@@ -184,18 +185,7 @@ const fetchPasswords = async () => {
   
   loading.value = true;
   try {
-    const response = await refreshSecrets(authStore.actor as any, authStore.crypto as any);
-    secretsList.value = response.map(secret => ({
-      id: BigInt(secret.id),
-      serviceName: secret.serviceName,
-      userName: secret.userName,
-      password: secret.password,
-      createdAt: secret.createdAt,
-      updatedAt: secret.updatedAt,
-      owner: secret.owner,
-      tags: secret.tags,
-      users: []
-    }));
+    await secretsStore.loadSecrets(authStore.actor as any, authStore.crypto as any);
   } catch (error) {
     console.error("Failed to fetch passwords:", error);
   } finally {

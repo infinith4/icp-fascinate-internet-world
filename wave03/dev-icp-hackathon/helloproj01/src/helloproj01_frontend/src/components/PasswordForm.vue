@@ -10,7 +10,7 @@
         color="primary"
       ></v-progress-circular>
     </v-overlay>
-    <v-form @submit.prevent="addPassword">
+    <v-form @submit.prevent="addPassword" style="max-width: fit-content;">
       <v-container>
         <v-row>
           <v-col cols="12" v-if="props.secretId">
@@ -69,6 +69,7 @@
                 <v-icon
                   icon="mdi-content-copy"
                   @click="copyPassword"
+                  class="me-2"
                 ></v-icon>
                 <v-icon
                   icon="mdi-refresh"

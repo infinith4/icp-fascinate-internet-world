@@ -58,6 +58,7 @@ onMounted(async () => {
                   <v-btn
                     append-icon="mdi-content-copy"
                     @click="copyPrincipal"
+                    variant="text"
                   >
                     <v-tooltip
                       activator="parent"

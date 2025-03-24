@@ -31,6 +31,8 @@
               variant="outlined"
               density="comfortable"
               :rules="[rules.required]"
+              append-inner-icon="mdi-content-copy"
+              @click:append-inner="copyServiceName"
             ></v-text-field>
           </v-col>
 
@@ -42,6 +44,8 @@
               prepend-icon="mdi-account"
               variant="outlined"
               density="comfortable"
+              append-inner-icon="mdi-content-copy"
+              @click:append-inner="copyUserName"
             ></v-text-field>
           </v-col>
 
@@ -52,12 +56,27 @@
               :type="showPassword ? 'text' : 'password'"
               required
               prepend-icon="mdi-lock"
-              :append-inner-icon="showPassword ? 'mdi-eye-off' : 'mdi-eye'"
-              @click:append-inner="togglePassword"
               variant="outlined"
               density="comfortable"
               :rules="[rules.required]"
-            ></v-text-field>
+            >
+              <template v-slot:append-inner>
+                <v-icon
+                  @click="togglePassword"
+                  :icon="showPassword ? 'mdi-eye-off' : 'mdi-eye'"
+                  class="me-2"
+                ></v-icon>
+                <v-icon
+                  icon="mdi-content-copy"
+                  @click="copyPassword"
+                ></v-icon>
+                <v-icon
+                  icon="mdi-refresh"
+                  @click="generatePassword"
+                  class="me-2"
+                ></v-icon>
+              </template>
+            </v-text-field>
           </v-col>
 
           <v-col cols="12">
@@ -83,6 +102,14 @@
             </v-btn>
           </v-col>
         </v-row>
+
+        <v-snackbar
+          v-model="showCopySuccess"
+          color="success"
+          :timeout="2000"
+        >
+          コピーしました
+        </v-snackbar>
       </v-container>
     </v-form>
   </div>
@@ -91,9 +118,11 @@
 <script setup lang="ts">
 import { ref, onMounted } from "vue";
 import { useAuthStore } from '../stores/authStore';
+import { useSecretsStore } from '../stores/secrets';
 import { addSecret, getOneSecret, updateSecret } from "../stores/secrets";
 import { createSecretModel } from "../libs/secret";
 
+const showCopySuccess = ref(false);
 const props = defineProps<{
   secretId?: bigint
 }>();
@@ -114,9 +143,65 @@ const loading = ref(false);
 const showPassword = ref(false);
 
 const authStore = useAuthStore();
+const secretsStore = useSecretsStore();
 
 const togglePassword = () => {
   showPassword.value = !showPassword.value;
+};
+
+const generatePassword = () => {
+  const length = 16;
+  const charset = {
+    uppercase: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ',
+    lowercase: 'abcdefghijklmnopqrstuvwxyz',
+    numbers: '0123456789',
+    symbols: '!@#^&*$'
+  };
+
+  let result = '';
+  // 各文字種から最低1文字を確保
+  result += charset.uppercase.charAt(Math.floor(Math.random() * charset.uppercase.length));
+  result += charset.lowercase.charAt(Math.floor(Math.random() * charset.lowercase.length));
+  result += charset.numbers.charAt(Math.floor(Math.random() * charset.numbers.length));
+  result += charset.symbols.charAt(Math.floor(Math.random() * charset.symbols.length));
+
+  // 残りの文字をランダムに生成
+  const allChars = Object.values(charset).join('');
+  for (let i = result.length; i < length; i++) {
+    result += allChars.charAt(Math.floor(Math.random() * allChars.length));
+  }
+
+  // 文字列をシャッフル
+  result = result.split('').sort(() => Math.random() - 0.5).join('');
+  
+  password.value = result;
+};
+
+const copyServiceName = async () => {
+  try {
+    await navigator.clipboard.writeText(service_name.value);
+    showCopySuccess.value = true;
+  } catch (error) {
+    console.error('クリップボードへのコピーに失敗:', error);
+  }
+};
+
+const copyUserName = async () => {
+  try {
+    await navigator.clipboard.writeText(username.value);
+    showCopySuccess.value = true;
+  } catch (error) {
+    console.error('クリップボードへのコピーに失敗:', error);
+  }
+};
+
+const copyPassword = async () => {
+  try {
+    await navigator.clipboard.writeText(password.value);
+    showCopySuccess.value = true;
+  } catch (error) {
+    console.error('クリップボードへのコピーに失敗:', error);
+  }
 };
 
 onMounted(async () => {

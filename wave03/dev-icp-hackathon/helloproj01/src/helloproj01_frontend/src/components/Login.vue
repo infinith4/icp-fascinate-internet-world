@@ -14,6 +14,7 @@ let authClient;
 
 const copyPrincipal = async () => {
   try {
+    //setTimeout(async () => await navigator.clipboard.writeText(principal.value), 500);
     await navigator.clipboard.writeText(principal.value);
     showCopySuccess.value = true;
   } catch (error) {
@@ -49,14 +50,14 @@ onMounted(async () => {
         <v-card-title class="text-h6">アカウント情報</v-card-title>
         <v-card-text>
           <v-expansion-panels>
-            <v-expansion-panel allow="clipboard-read; clipboard-write *">
+            <v-expansion-panel>
               <v-expansion-panel-title>プリンシパルID</v-expansion-panel-title>
               <v-expansion-panel-text>
                 <div class="d-flex align-center">
                   <div class="text-body-1 flex-grow-1">{{ principal }}</div>
                   <v-btn
                     append-icon="mdi-content-copy"
-                    @click="copyPrincipal" allow="clipboard-read; clipboard-write *"
+                    @click="copyPrincipal"
                   >
                     <v-tooltip
                       activator="parent"

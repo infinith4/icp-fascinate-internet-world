@@ -58,8 +58,8 @@ onMounted(async () => {
     </v-overlay>
     <Landing v-if="!authStore.isAuthenticated"/>
     <div v-if="authStore.isAuthenticated">
-      <v-app-bar color="white" density="compact">
-        <v-container class="d-flex align-center justify-space-between">
+      <v-app-bar color="white" height="48">
+        <v-container class="d-flex align-center justify-space-between pa-0 h-100">
           <div class="d-flex align-center">
             <v-app-bar-nav-icon @click="drawer = !drawer"  :temporary="mobile" v-if="!mobile"></v-app-bar-nav-icon>
             <v-avatar size="40" class="ml-2">

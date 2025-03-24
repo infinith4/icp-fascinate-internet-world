@@ -42,7 +42,7 @@ onMounted(async () => {
       <v-col cols="12" md="4" class="d-flex align-center justify-center" :class="{'py-4': $vuetify.display.mobile}">
         <div class="d-flex align-center">
           <v-avatar size="40">
-            <v-img src="../icpass.png" alt="Logo"></v-img>
+            <v-img src="../icpass.png" alt="icpass" style="max-width:100%"></v-img>
           </v-avatar>
           <span class="text-h6 ml-4">Password Manager</span>
         </div>

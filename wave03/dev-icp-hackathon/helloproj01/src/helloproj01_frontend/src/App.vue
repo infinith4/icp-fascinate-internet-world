@@ -11,6 +11,9 @@ import { useAuthStore, getIdentityProvider } from './stores/authStore'
 //vuetify
 import { mdiAccount, mdiDelete, mdiPencil, mdiShareVariant } from '@mdi/js'
 
+import { useDisplay } from 'vuetify';
+const { mobile } = useDisplay();
+
 const drawer = ref(true);
 const searchQuery = ref('');
 const dialog = ref(false);
@@ -58,17 +61,22 @@ onMounted(async () => {
       <v-app-bar color="white" density="compact">
         <v-container class="d-flex align-center justify-space-between">
           <div class="d-flex align-center">
-            <v-app-bar-nav-icon @click="drawer = !drawer"></v-app-bar-nav-icon>
+            <v-app-bar-nav-icon @click="drawer = !drawer"  :temporary="mobile" v-if="!mobile"></v-app-bar-nav-icon>
             <v-avatar size="40" class="ml-2">
-              <v-img src="../icpass.png" alt="Logo"></v-img>
+              <v-img
+                src="../icpass.png"
+                alt="Logo"
+                cover
+                aspect-ratio="1"
+              ></v-img>
             </v-avatar>
-            <v-toolbar-title class="ml-2">Password Manager</v-toolbar-title>
+            <v-toolbar-title class="ml-2" :temporary="mobile" v-if="!mobile">Password Manager</v-toolbar-title>
           </div>
           <Login />
         </v-container>
       </v-app-bar>
 
-      <v-navigation-drawer v-model="drawer" permanent>
+      <v-navigation-drawer v-model="drawer" :temporary="mobile" v-if="!mobile">
         <v-list>
           <v-list-item>
             <v-text-field

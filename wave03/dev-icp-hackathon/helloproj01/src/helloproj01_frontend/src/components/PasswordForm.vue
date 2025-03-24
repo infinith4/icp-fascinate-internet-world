@@ -247,6 +247,13 @@ const addPassword = async () => {
         throw new Error("認証に失敗しました。再度ログインしてください。");
       }
     }
+    //必須項目チェック
+    if (!service_name.value) {
+      return;
+    }
+    if (!password.value) {
+      return;
+    }
 
     const principal = authStore.client!.getIdentity().getPrincipal();
     const secretModel = createSecretModel(

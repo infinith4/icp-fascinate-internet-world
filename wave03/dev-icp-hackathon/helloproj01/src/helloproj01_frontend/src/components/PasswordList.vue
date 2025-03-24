@@ -26,9 +26,9 @@
         >
           <thead>
             <tr>
-              <th class="text text-subtitle-2 font-weight-bold">ID</th>
+              <th class="text text-subtitle-2 font-weight-bold" :temporary="mobile" v-if="!mobile">ID</th>
               <th class="text text-subtitle-2 font-weight-bold">サービス名</th>
-              <th class="text text-subtitle-2 font-weight-bold">ユーザー名</th>
+              <th class="text text-subtitle-2 font-weight-bold" :temporary="mobile" v-if="!mobile">ユーザー名</th>
               <th class="text text-subtitle-2 font-weight-bold">削除</th>
             </tr>
           </thead>
@@ -38,7 +38,7 @@
               :key="index"
               :class="index % 2 === 0 ? 'bg-grey-lighten-5' : ''"
             >
-              <td>
+              <td :temporary="mobile" v-if="!mobile">
                 <v-btn
                   style="text-transform: none"
                   variant="text"
@@ -56,7 +56,7 @@
                   @click="openEditForm(secret.id)"
                 >{{ secret.serviceName }}</v-btn>
               </td>
-              <td>
+              <td :temporary="mobile" v-if="!mobile">
                 <v-btn
                   style="text-transform: none"
                   variant="text"
@@ -139,12 +139,14 @@ import { useAuthStore } from '../stores/authStore';
 import { removeSecret, useSecretsStore } from "../stores/secrets";
 import type { SecretModel } from "../libs/secret";
 import PasswordForm from "./PasswordForm.vue"
+import { useDisplay } from 'vuetify';
 
 const dialog = ref(false);
 const deleteDialog = ref(false);
 const selectedSecretId = ref<bigint | undefined>();
 const deleteTargetId = ref<bigint | undefined>();
 const loading = ref(false);
+const { mobile } = useDisplay();
 
 const props = defineProps<{
   searchQuery: string

@@ -1,0 +1,14 @@
+{
+  "icpassproj_backend": {
+    "ic": "mestl-4aaaa-aaaan-qzx2q-cai"
+  },
+  "icpassproj_frontend": {
+    "ic": "mnryx-kiaaa-aaaan-qzx3a-cai"
+  },
+  "secrets_backend": {
+    "ic": "mkq6d-hqaaa-aaaan-qzx3q-cai"
+  },
+  "vetkd_system_api": {
+    "ic": "nh62n-iyaaa-aaaan-qzx4a-cai"
+  }
+}

@@ -1,0 +1,6 @@
+[workspace]
+members = [
+    "src/icpassproj_backend",
+    "src/vetkd_system_api"
+]
+resolver = "2"

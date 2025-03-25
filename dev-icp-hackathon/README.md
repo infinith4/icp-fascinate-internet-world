@@ -169,3 +169,49 @@ ICPの仕組みを活用して開発した理由は以下の優位性を持ち�
 <img src="./contents/frontend_ui/frontend_09_dashboard_userprincipal.png" width="65%" alt="Landing">
 
 
+### スマホUI
+
+スマホ版のUIは以下の通り。
+
+1. ランディング画面を表示する。(ポップアップブロックがかかっている場合は有効化が必要)
+
+<img src="./contents/frontend_ui/mobile/IMG_5170.PNG" height="800px" alt="Landing">
+
+2. Internet Identity でログインする。
+
+<img src="./contents/frontend_ui/mobile/IMG_5171.PNG" height="800px" alt="Landing">
+
+3. ログイン中
+
+<img src="./contents/frontend_ui/mobile/IMG_5173.PNG" height="800px" alt="Landing">
+
+4. ダッシュボード画面が表示される。
+
+<img src="./contents/frontend_ui/mobile/IMG_5174.PNG" height="800px" alt="Landing">
+
+
+5. 新規作成する。
+
+<img src="./contents/frontend_ui/mobile/IMG_5175.PNG" height="800px" alt="Landing">
+
+6. パスワード一覧に表示される。
+
+<img src="./contents/frontend_ui/mobile/IMG_5176.PNG" height="800px" alt="Landing">
+
+7. パスワードを更新する。
+
+<img src="./contents/frontend_ui/mobile/IMG_5177.PNG" height="800px" alt="Landing">
+
+8. パスワード一覧が更新された。
+
+<img src="./contents/frontend_ui/mobile/IMG_5178.PNG" height="800px" alt="Landing">
+
+9. パスワードを削除する。
+
+<img src="./contents/frontend_ui/mobile/IMG_5180.PNG" height="800px" alt="Landing">
+
+10. ユーザのプリンシパルIDを表示する。
+
+<img src="./contents/frontend_ui/mobile/IMG_5181.PNG" height="800px" alt="Landing">
+
+

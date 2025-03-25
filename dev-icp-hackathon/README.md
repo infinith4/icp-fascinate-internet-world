@@ -1,259 +1,171 @@
 # ICP Password Manager
 
-## 前提条件
+Internet Identity と vetkey を利用したPassword Managerである。vetkey は [ic-vetkd-utils-wasm2js](https://www.npmjs.com/package/ic-vetkd-utils-wasm2js) や [vetkd-system-api](https://github.com/dfinity/examples/tree/master/rust/vetkd/src/system_api) を利用している。
 
-### devcontainer を利用する。
+## mainnet でのデモ環境
 
-1. wave03/dev-icp-hackathon 内をvscode または cursor で開く。
-2. devcontainerを開く。
+以下のURLからアクセスすることができる。
 
-以下の画面の「コンテナーで再度開く」をクリックする。
+https://mnryx-kiaaa-aaaan-qzx3a-cai.icp0.io/
 
-![devcon](./contents/devcontainer_スクリーンショット%202025-02-25%200.22.39.png)
+canister の情報は以下の通り。
 
-コンテナ起動後の環境に関しては以下の通り。
+| canister 名 | URL | 説明 |
+| --- | --- | ---- |
+| icpassproj_frontend | https://mnryx-kiaaa-aaaan-qzx3a-cai.icp0.io/ | Password Manager の Frontend canister |
+| icpassproj_backend | https://a4gq6-oaaaa-aaaab-qaa4q-cai.raw.icp0.io/?id=mestl-4aaaa-aaaan-qzx2q-cai | Password Manager の Backend canister |
+| secrets_backend | https://a4gq6-oaaaa-aaaab-qaa4q-cai.raw.icp0.io/?id=mkq6d-hqaaa-aaaan-qzx3q-cai | Password Manager の Backend canister. vetkd_system_api のcanister との通信によって文字列の暗号化、復号を行う。 |
+| vetkd_system_api | https://a4gq6-oaaaa-aaaab-qaa4q-cai.raw.icp0.io/?id=nh62n-iyaaa-aaaan-qzx4a-cai | https://github.com/dfinity/interface-spec/pull/158 で提案されているvetkd system api を利用している。 |
 
-```
-dfx --version
-```
 
-```
-dfx 0.25.0
-```
+## サービスコンセプト
 
-最新バージョンにアップデートする方法は以下の通り。
+Internet Identity と vetkey を利用したパスワードマネージャを提供する。
+これまでの特定のサービスが管理するパスワードマネージャやキー管理サービスを個人のデバイスに紐づくキー管理を行う。
 
-```
-dfxvm update
-```
+## 利用ユーザ想定（ターゲット）
 
-cargo のバージョン確認
+- Internet Identity でのログインをし、パスワード管理をしたいユーザ
+- セキュアにキー管理をしたいユーザ
+- パスワード入力が必要な既存のサービスでログインする際に自動入力したいユーザ
 
-curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+## メリット、特徴
 
-```
-cargo --version
-```
+### 主な特徴
 
-cargo 1.85.0 (d73d2caf9 2024-12-31)
+- Internet Identityとvetkeyによるセキュアなパスワードマネージャー
+- 3層構造のcanisterアーキテクチャ（フロントエンド、バックエンド、vetkd system api）
+- マルチプラットフォーム対応（PCブラウザ、モバイルブラウザ）
 
+### 機能面のメリット
 
-## playground へのDeploy方法
+- 直感的なパスワード管理（作成、更新、削除、検索）
+- 便利な補助機能（パスワードの自動生成、コピー、表示/非表示切替）
 
-playground へのDeploy 方法は以下の通り。
+### セキュリティ面のメリット
 
-```
-dfx deploy --playground
-```
+- Internet Identityによる安全な認証システム
+- vetkeyを使用したキー管理
+- バックエンドcanisterでの暗号化・復号処理による安全性確保
 
-playground へDeployしたcanisterのMethodをコマンドラインから実行することができる。
-例えば、playground へDeployした icpassproj_backend canister のMethod: greet をコールする方法は以下の通り。
 
-```
-dfx canister --network playground call icpassproj_backend greet '("everyone in playground")'
-```
+## ICPの仕組みで特徴的な利用箇所
 
-以下のURLが生成されるので、そちらにアクセスする。
+以下の機能を利用している。
 
-```
-Upgraded code for canister icpassproj_frontend, with canister ID 475h5-dyaaa-aaaab-qac4a-cai
-Deployed canisters.
-URLs:
-  Frontend canister via browser:
-    icpassproj_frontend: https://475h5-dyaaa-aaaab-qac4a-cai.icp0.io/
-  Backend canister via Candid interface:
-    icpassproj_backend: https://a4gq6-oaaaa-aaaab-qaa4q-cai.raw.icp0.io/?id=5stdt-mqaaa-aaaab-qac3q-cai
-```
+- Internet Identity
+- vetkey
+- frontend canister, backend canister, vetkd system api
 
-## Backend canister
 
-まずは、Backend canisterの場合は以下のように表示される。
+## なぜICPの仕組みを活用して開発したか、その優位性や理由
 
-add_password, get_passwords を実行した結果は以下のとおり。
+ICPの仕組みを活用して開発した理由は以下の優位性を持ち、Internet Identity による認証と 分散型システムの特徴である canister による耐障害性や可用性の面でキー管理に向いているため。
 
-![add_password, get_passwords を実行した結果](./contents/backend01_screencapture-a4gq6-oaaaa-aaaab-qaa4q-cai-raw-icp0-io-2025-02-25-00_01_24.png)
+### セキュリティ面での優位性
 
+- Internet Identityによる安全な認証システムの利用
+- 分散型の認証システムによる高いセキュリティ
+- デバイスに紐づく暗号化キーの安全な管理
+- キーの生成と管理をvetkeyで一元化
 
-次に update_password, get_passwords を実行した結果 を実行した結果は以下のとおり。
+### アーキテクチャ面での優位性
 
-![update_password, get_passwords を実行した結果](./contents/backend03_screencapture-a4gq6-oaaaa-aaaab-qaa4q-cai-raw-icp0-io-2025-02-25-00_03_37.png)
+- フロントエンド、バックエンド、暗号化処理の明確な役割分担
+- スマートコントラクトによる透明性の高いデータ管理
+- システムの可用性と耐障害性の向上
+- スケーラビリティ(canisterによる効率的なリソース管理)
 
-update_password でindex: 1 を指定して更新した結果が反映されていることが確認できる。
+### 運用面での優位性
 
+- 分散型インフラストラクチャ
+- 中央集権的なサーバー管理が不要
 
-![delete_password, get_passwords を実行した結果](./contents/backend04_screencapture-a4gq6-oaaaa-aaaab-qaa4q-cai-raw-icp0-io-2025-02-25-00_04_31.png)
+## 対応済みの箇所、今後の展望
 
-delete_password でindex: 1 を指定して更新した結果が反映されていることが確認できる。
+### 対応できているもの
 
-## Frontend canister
+- vetkey は現状公式に利用可能なものではないため、Draft のものを利用している。
+- 以下に記載の機能一覧に記載されている。
 
-次に Frontend canisterの場合は以下のように表示される。
+### 今後対応が必要なもの
 
-パスワードを入力し、Add Password をクリックする。
+- vetkey の公式利用可能となった場合に公式のものに置き換える。
+- 単にパスワードを保管するだけの機能のため、他のサービスでログインが必要な場合にキー情報から自動入力やOauth のような仕組みで自動でログインできるようにしたい。
+- vetkey の公式対応にもよるが、canister: vetkey system api にハードコードされているシークレット情報を別のcanisterで生成された値をセットし、生成元のcanisterを使い捨てするような仕組みとしたい。
+- ブラウザ以外にデスクトップアプリやスマホアプリに対応したい。
 
-![パスワード入力画面](./contents/frontend01_screencapture-475h5-dyaaa-aaaab-qac4a-cai-icp0-io-2025-02-24-23_55_56.png)
+## 機能一覧
 
+以下の機能を提供する。また、PCブラウザ, モバイルブラウザのUIに対応している。
 
-パスワード保存に成功した旨のアラートが表示される。
+| 機能名 | 説明 | 
+| --- | --- | 
+| ログイン | Internet Identity によるログインが可能である。 |
+| ユーザ情報の確認 | Internet Identity の Princial ID　の確認、コピーが可能である。 |
+| ログアウト | Internet Identity のログアウトが可能である。 |
+| パスワード一覧確認 | ユーザに紐づくパスワード一覧が確認可能である。 |
+| パスワード新規作成 | ユーザに紐づくパスワードの新規作成が可能である。サービス名`*`、ユーザ名、パスワード`*`、メモ の保存が可能。`*`は必須項目。 |
+| パスワード更新 | ユーザに紐づくパスワード一覧から新規作成時に保存したパスワードの更新が可能である。 |
+| 検索 | パスワード一覧でサービス名とユーザ名に部分一致する文字を検索可能である。 | 
 
-![アラート](./contents/frontend02_スクリーンショット%202025-02-24%2023.57.05.png)
+パスワードの新規作成と更新では、テキストボックス内のアイコンに以下の機能を持つ。
 
+| アイコン名 | 説明 |
+| --- | --- | 
+| コピーアイコン | クリップボードへのコピーが可能である。|
+| 目のアイコン | パスワードを表示・非表示が可能である。|
+| リフレッシュアイコン | パスワードの生成が可能である。 |
 
-保存結果が一覧に表示される。
+## 画面詳細
 
-![一覧](./contents/frontend03_screencapture-475h5-dyaaa-aaaab-qac4a-cai-icp0-io-2025-02-24-23_59_45.png)
+画面上で以下の機能を提供する。
 
+1. ログインしていない場合はトップ画面でログインを促される。
 
+<img src="./contents/frontend_ui/frontend_01_landing.png" width="65%" alt="Landing">
 
-## Local Canister実行環境の起動
+2. ログインボタンをクリックすると、新しいタブでInternet Identity によるログインをする。すでにInternet Identity のアカウントがある場合は所有の番号をクリックし、ログインをする。
 
-```
-dfx start --clean --background
-```
+<img src="./contents/frontend_ui/frontend_02_iilogin.png" width="65%" alt="Landing">
 
-```
-Running dfx start for version 0.25.0
-Using the default configuration for the local shared network.
-Initialized replica.
-Initialized HTTP gateway.
-Replica API running on 127.0.0.1:4943
-Success! The dfx server is running in the background.
-```
 
-### Local Canister実行環境へのdeploy
+3. ログイン中の表示。
 
+<img src="./contents/frontend_ui/frontend_02_iilogin02.png" width="65%" alt="Landing">
 
-vetkd のsystem api のDeploy
 
-ちょっとわからないが、本番でローンチされていないようなのでsystem api をそのまま利用する。
+4. ダッシュボード画面が表示される。ダッシュボード画面でユーザ情報確認、ログアウト、新規作成、検索、パスワード一覧確認、パスワード更新が可能である。
 
-dfx canister create vetkd_system_api --specified-id s55qq-oqaaa-aaaaa-aaakq-cai
+<img src="./contents/frontend_ui/frontend_03_dashboard.png" width="65%" alt="Landing">
 
+5. 新規作成ボタンをクリックすると新規作成のダイアログが表示される。
 
-dfx deploy vetkd_system_api --specified-id s55qq-oqaaa-aaaaa-aaakq-cai
+<img src="./contents/frontend_ui/frontend_04_dashboard_newpassword.png" width="65%" alt="Landing">
 
+6. 新規作成したパスワードが表示される。
 
-dfx canister delete vetkd_system_api
+<img src="./contents/frontend_ui/frontend_05_dashboard.png" width="65%" alt="Landing">
 
+7. 新規作成したパスワードを一覧でクリックするとパスワード更新ダイアログが表示される。
 
-```
-URLs:
-  Frontend canister via browser:
-    icpassproj_frontend:
-      - http://bd3sg-teaaa-aaaaa-qaaba-cai.localhost:4943/ (Recommended)
-      - http://127.0.0.1:4943/?canisterId=bd3sg-teaaa-aaaaa-qaaba-cai (Legacy)
-    internet_identity:
-      - http://be2us-64aaa-aaaaa-qaabq-cai.localhost:4943/ (Recommended)
-      - http://127.0.0.1:4943/?canisterId=be2us-64aaa-aaaaa-qaabq-cai (Legacy)
-  Backend canister via Candid interface:
-    icpassproj_backend: http://127.0.0.1:4943/?canisterId=b77ix-eeaaa-aaaaa-qaada-cai&id=bkyz2-fmaaa-aaaaa-qaaaq-cai
-    internet_identity: http://127.0.0.1:4943/?canisterId=b77ix-eeaaa-aaaaa-qaada-cai&id=be2us-64aaa-aaaaa-qaabq-cai
-    secrets_backend: http://127.0.0.1:4943/?canisterId=b77ix-eeaaa-aaaaa-qaada-cai&id=br5f7-7uaaa-aaaaa-qaaca-cai
-    vetkd_system_api: http://127.0.0.1:4943/?canisterId=b77ix-eeaaa-aaaaa-qaada-cai&id=bw4dl-smaaa-aaaaa-qaacq-cai
-```
+<img src="./contents/frontend_ui/frontend_06_dashboard_updatepassword.png" width="65%" alt="Landing">
 
+8. パスワード一覧で削除アイコンをクリックするとパスワード削除の確認ダイアログが表示される。
 
-cargo install cargo-audit
+<img src="./contents/frontend_ui/frontend_07_dashboard_deletepassword.png" width="65%" alt="Landing">
 
+9. パスワードの検索 に検索したい文字列を入力する。(サービス名またはユーザー名を検索することができる)
+ここでは`g`を入力すると、いずれにも該当するため表示されている。
 
-普通に deploy すると適当なIDが生成されてしまうので、internet identity のCanister id を適当な以下のIDでDeployする。
+<img src="./contents/frontend_ui/frontend_08_dashboard_search01.png" width="65%" alt="Landing">
 
-dfx deploy internet_identity --specified-id bkyz2-fmaaa-aaaaa-qaaaq-cais
+10. パスワードの検索 に`go`と入力する。ID: 16 に該当するため表示されている。
 
-Login.vue でIDが一致するように指定する。
+<img src="./contents/frontend_ui/frontend_08_dashboard_search02.png" width="65%" alt="Landing">
 
-```
-authClient.login({
-    identityProvider: "http://bkyz2-fmaaa-aaaaa-qaaaq-cai.localhost:4943/",
-```
+11. 画面上部のユーザーアイコンの箇所をクリックするとダイアログが表示され、Internet Identity の プリンシパルIDを確認することができ、コピーできる。
 
+<img src="./contents/frontend_ui/frontend_09_dashboard_userprincipal.png" width="65%" alt="Landing">
 
-https://internetcomputer.org/docs/tutorials/developer-liftoff/level-2/2.3-third-party-canisters
-
-
-まず、プロジェクトのディレクトリにある dfx.json ファイルを開きます。
-dependencies_backend キャニスターがメインネット上の internet_identity キャニスター (rdmx6-jaaaa-aaaaa-aaadq-cai) に依存するように構成する必要があります。
-
-このシリーズでは、後のチュートリアルでインターネット ID についてさらに詳しく説明しますが、今は、サードパーティのキャニスターの使用方法を示すために使用します。dfx.json ファイルを編集して、次の構成を反映します。
-
-
-
-canister を追加したときは icpassproj/src/declarations は削除するとdeployしたときに生成される。
-
-canister を追加するときは dfx.json のcanisters に記載する。
-
-```
-"canisters": {
-    "encrypted_passwords_motoko": {
-      "main": "src/encrypted_passwords_motoko/main.mo",
-      "type": "motoko"
-    }
-  }
-```
-
-
-特定のcanister をdeploy したいとき
-
-```
-dfx deploy secrets_backend
-```
-
-
-```
-Committing batch with 13 operations.
-Deployed canisters.
-URLs:
-  Frontend canister via browser
-    icpassproj_frontend:
-      - http://127.0.0.1:4943/?canisterId=bd3sg-teaaa-aaaaa-qaaba-cai
-      - http://bd3sg-teaaa-aaaaa-qaaba-cai.localhost:4943/
-  Backend canister via Candid interface:
-    icpassproj_backend: http://127.0.0.1:4943/?canisterId=be2us-64aaa-aaaaa-qaabq-cai&id=bkyz2-fmaaa-aaaaa-qaaaq-cai
-```
-
-
-
-dfx deploy secrets_backend
-
-
-## Step 8: Update the generated canister interface bindings:
-
-```sh
-dfx generate "secrets_backend"
-dfx generate "icpassproj_backend"
-dfx generate "vetkd_system_api"
-```
-
-
-## Backend側のテスト実行方法
-
-以下のディレクトリに移動する。
-
-```
-cd /src/icpassproj/src/icpassproj_backend
-```
-
-テストメソッドを全てテストを実行する方法は以下の通り。
-
-```
-cargo test --package icpassproj_backend --test integration_test -- --show-output
-```
-
-各テストメソッドごとにテストを実行する方法は以下の通り。
-
-```
-cargo test --package icpassproj_backend --test integration_test -- test_hello_world --exact --show-output
-cargo test --package icpassproj_backend --test integration_test -- test_add_password --exact --show-output
-cargo test --package icpassproj_backend --test integration_test -- test_get_passwords --exact --show-output
-cargo test --package icpassproj_backend --test integration_test -- test_update_password --exact --show-output
-cargo test --package icpassproj_backend --test integration_test -- test_delete_password --exact --show-output
-```
-
-
-
-dfx deploy internet_identity --argument '(null)'
-
-今後の構想
-
-web3 <- -> web2 : の連携し、internet identity でログインしたらOauth みたいに他のサービスにログインできるようにしたい
 

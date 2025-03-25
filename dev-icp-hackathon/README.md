@@ -58,7 +58,7 @@ Internet Identity と vetkey を利用したパスワードマネージャを提
 - frontend canister, backend canister, vetkd system api
 
 
-## なぜICPの仕組みを活用して開発したか、その優位性や理由
+## ICPの仕組みを活用して開発した理由とその優位性
 
 ICPの仕組みを活用して開発した理由は以下の優位性を持ち、Internet Identity による認証と 分散型システムの特徴である canister による耐障害性や可用性の面でキー管理に向いているため。
 

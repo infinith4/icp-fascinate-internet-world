@@ -123,50 +123,50 @@ ICPの仕組みを活用して開発した理由は以下の優位性を持ち�
 
 1. ログインしていない場合はトップ画面でログインを促される。
 
-<img src="./contents/frontend_ui/frontend_01_landing.png" width="65%" alt="Landing">
+<img src="./contents/frontend_ui/frontend_01_landing.png" width="80%" alt="Landing">
 
 2. ログインボタンをクリックすると、新しいタブでInternet Identity によるログインをする。すでにInternet Identity のアカウントがある場合は所有の番号をクリックし、ログインをする。
 
-<img src="./contents/frontend_ui/frontend_02_iilogin.png" width="65%" alt="Landing">
+<img src="./contents/frontend_ui/frontend_02_iilogin.png" width="80%" alt="Landing">
 
 
 3. ログイン中の表示。
 
-<img src="./contents/frontend_ui/frontend_02_iilogin02.png" width="65%" alt="Landing">
+<img src="./contents/frontend_ui/frontend_02_iilogin02.png" width="80%" alt="Landing">
 
 
 4. ダッシュボード画面が表示される。ダッシュボード画面でユーザ情報確認、ログアウト、新規作成、検索、パスワード一覧確認、パスワード更新が可能である。
 
-<img src="./contents/frontend_ui/frontend_03_dashboard.png" width="65%" alt="Landing">
+<img src="./contents/frontend_ui/frontend_03_dashboard.png" width="80%" alt="Landing">
 
 5. 新規作成ボタンをクリックすると新規作成のダイアログが表示される。
 
-<img src="./contents/frontend_ui/frontend_04_dashboard_newpassword.png" width="65%" alt="Landing">
+<img src="./contents/frontend_ui/frontend_04_dashboard_newpassword.png" width="80%" alt="Landing">
 
 6. 新規作成したパスワードが表示される。
 
-<img src="./contents/frontend_ui/frontend_05_dashboard.png" width="65%" alt="Landing">
+<img src="./contents/frontend_ui/frontend_05_dashboard.png" width="80%" alt="Landing">
 
 7. 新規作成したパスワードを一覧でクリックするとパスワード更新ダイアログが表示される。
 
-<img src="./contents/frontend_ui/frontend_06_dashboard_updatepassword.png" width="65%" alt="Landing">
+<img src="./contents/frontend_ui/frontend_06_dashboard_updatepassword.png" width="80%" alt="Landing">
 
 8. パスワード一覧で削除アイコンをクリックするとパスワード削除の確認ダイアログが表示される。
 
-<img src="./contents/frontend_ui/frontend_07_dashboard_deletepassword.png" width="65%" alt="Landing">
+<img src="./contents/frontend_ui/frontend_07_dashboard_deletepassword.png" width="80%" alt="Landing">
 
 9. パスワードの検索 に検索したい文字列を入力する。(サービス名またはユーザー名を検索することができる)
 ここでは`g`を入力すると、いずれにも該当するため表示されている。
 
-<img src="./contents/frontend_ui/frontend_08_dashboard_search01.png" width="65%" alt="Landing">
+<img src="./contents/frontend_ui/frontend_08_dashboard_search01.png" width="80%" alt="Landing">
 
 10. パスワードの検索 に`go`と入力する。ID: 16 に該当するため表示されている。
 
-<img src="./contents/frontend_ui/frontend_08_dashboard_search02.png" width="65%" alt="Landing">
+<img src="./contents/frontend_ui/frontend_08_dashboard_search02.png" width="80%" alt="Landing">
 
 11. 画面上部のユーザーアイコンの箇所をクリックするとダイアログが表示され、Internet Identity の プリンシパルIDを確認することができ、コピーできる。
 
-<img src="./contents/frontend_ui/frontend_09_dashboard_userprincipal.png" width="65%" alt="Landing">
+<img src="./contents/frontend_ui/frontend_09_dashboard_userprincipal.png" width="80%" alt="Landing">
 
 
 ### スマホUI
@@ -175,43 +175,43 @@ ICPの仕組みを活用して開発した理由は以下の優位性を持ち�
 
 1. ランディング画面を表示する。(ポップアップブロックがかかっている場合は有効化が必要)
 
-<img src="./contents/frontend_ui/mobile/IMG_5170.PNG" height="800px" alt="Landing">
+<img src="./contents/frontend_ui/mobile/IMG_5170.PNG" max-height="800px" alt="Landing">
 
 2. Internet Identity でログインする。
 
-<img src="./contents/frontend_ui/mobile/IMG_5171.PNG" height="800px" alt="Landing">
+<img src="./contents/frontend_ui/mobile/IMG_5171.PNG" max-height="800px" alt="Landing">
 
 3. ログイン中
 
-<img src="./contents/frontend_ui/mobile/IMG_5173.PNG" height="800px" alt="Landing">
+<img src="./contents/frontend_ui/mobile/IMG_5173.PNG" max-height="800px" alt="Landing">
 
 4. ダッシュボード画面が表示される。
 
-<img src="./contents/frontend_ui/mobile/IMG_5174.PNG" height="800px" alt="Landing">
+<img src="./contents/frontend_ui/mobile/IMG_5174.PNG" max-height="800px" alt="Landing">
 
 
 5. 新規作成する。
 
-<img src="./contents/frontend_ui/mobile/IMG_5175.PNG" height="800px" alt="Landing">
+<img src="./contents/frontend_ui/mobile/IMG_5175.PNG" max-height="800px" alt="Landing">
 
 6. パスワード一覧に表示される。
 
-<img src="./contents/frontend_ui/mobile/IMG_5176.PNG" height="800px" alt="Landing">
+<img src="./contents/frontend_ui/mobile/IMG_5176.PNG" max-height="800px" alt="Landing">
 
 7. パスワードを更新する。
 
-<img src="./contents/frontend_ui/mobile/IMG_5177.PNG" height="800px" alt="Landing">
+<img src="./contents/frontend_ui/mobile/IMG_5177.PNG" max-height="800px" alt="Landing">
 
 8. パスワード一覧が更新された。
 
-<img src="./contents/frontend_ui/mobile/IMG_5178.PNG" height="800px" alt="Landing">
+<img src="./contents/frontend_ui/mobile/IMG_5178.PNG" max-height="800px" alt="Landing">
 
 9. パスワードを削除する。
 
-<img src="./contents/frontend_ui/mobile/IMG_5180.PNG" height="800px" alt="Landing">
+<img src="./contents/frontend_ui/mobile/IMG_5180.PNG" max-height="800px" alt="Landing">
 
 10. ユーザのプリンシパルIDを表示する。
 
-<img src="./contents/frontend_ui/mobile/IMG_5181.PNG" height="800px" alt="Landing">
+<img src="./contents/frontend_ui/mobile/IMG_5181.PNG" max-height="800px" alt="Landing">
 
 

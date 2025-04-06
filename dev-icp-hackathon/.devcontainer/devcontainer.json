@@ -27,7 +27,9 @@
 				"webfreak.debug",
 				"RooVeterinaryInc.roo-cline",
 				"GitHub.copilot-chat",
-				"GitHub.copilot"
+				"GitHub.copilot",
+				"motoko-lsp-client.motoko-lsp-client",
+				"dfinity-foundation.motoko-viper"
 			]
 		}
 	},

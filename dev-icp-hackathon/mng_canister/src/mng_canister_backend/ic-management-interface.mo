@@ -27,9 +27,9 @@ module {
       module_hash : ?[Nat8];
     };
 
-    create_canister : shared { settings : ?canister_settings } -> async {
-      canister_id : canister_id;
-    };
+    create_canister : ({ settings : ?canister_settings }) -> async ({
+        canister_id : canister_id;
+    });
 
     delete_canister : shared { canister_id : canister_id } -> async ();
 

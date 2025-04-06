@@ -78,7 +78,7 @@ dfx canister deposit-cycles 1000000000000 bd3sg-teaaa-aaaaa-qaaba-cai
 具体的な例を示すと：
 
 # 1兆cycleを追加する場合
-dfx canister deposit-cycles 1000000000000 bd3sg-teaaa-aaaaa-qaaba-cai
+dfx canister deposit-cycles 1000000000000 aax3a-h4aaa-aaaaa-qaahq-cai
 
 
 Backend canister via Candid interface:
@@ -92,3 +92,24 @@ arg: asrmz-lmaaa-aaaaa-qaaeq-cai → Controller がないので、実行でき�
 
 arg: a3shf-5eaaa-aaaaa-qaafa-cai → 成功。
 また、create_canister で作成した、canister_id を指定して、canister_status の実行は成功する。
+
+
+dfx build canister_backend
+
+
+.dfx/local/canisters/canister_backend/canister_backend.wasm
+
+
+# WASMをhexに変換
+
+xxd -p .dfx/local/canisters/canister_backend/canister_backend.wasm | tr -d '\n' > wasm_hex_canister_backend.txt
+
+
+
+Call failed:
+Canister: aax3a-h4aaa-aaaaa-qaahq-cai
+Method: deployGreetCanister (update)
+"Request ID": "7da0a1f3293119be5259f67a94545234c726d93dee4d783e3017bf195e5b51e4"
+"Error code": "IC0406"
+"Reject code": "4"
+"Reject message": "Creating a canister requires a fee of 38_461_538_461 that is deducted from the canister's initial balance but only 0 cycles were received with the create_canister request.\nTry sending more cycles with the request. See documentation: https://internetcomputer.org/docs/current/references/execution-errors#create-canister-not-enough-cycles"

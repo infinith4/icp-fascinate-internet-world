@@ -36,16 +36,16 @@ URLs:
 › create_and_install_canister()
 (variant {Ok=principal "avqkn-guaaa-aaaaa-qaaea-cai"})
 
-
-http://127.0.0.1:4943/?canisterId=b77ix-eeaaa-aaaaa-qaada-cai&id=by6od-j4aaa-aaaaa-qaadq-cai
-http://127.0.0.1:4943/?canisterId=b77ix-eeaaa-aaaaa-qaada-cai&id=avqkn-guaaa-aaaaa-qaaea-cai
-
-http://127.0.0.1:4943/?canisterId=avqkn-guaaa-aaaaa-qaaea-cai
+http://localhost:4943/?canisterId=c2lt4-zmaaa-aaaaa-qaaiq-cai&id=c5kvi-uuaaa-aaaaa-qaaia-cai
 
 
-http://127.0.0.1:4943/?canisterId=b77ix-eeaaa-aaaaa-qaada-cai&id=asrmz-lmaaa-aaaaa-qaaeq-cai
+以下のように mng_canister で作成したCanister を mng_canister からGreet をコールできた。
 
-
-http://127.0.0.1:4943/?canisterId=b77ix-eeaaa-aaaaa-qaada-cai&id=ahw5u-keaaa-aaaaa-qaaha-cai
-
-http://localhost:4943/?canisterId=ajuq4-ruaaa-aaaaa-qaaga-cai&id=ahw5u-keaaa-aaaaa-qaaha-cai
+```
+› CreateAndInstallCanister()
+(variant {Ok=principal "cuj6u-c4aaa-aaaaa-qaajq-cai"})
+› CanisterStatus("cuj6u-c4aaa-aaaaa-qaajq-cai")
+(variant {Ok=record {controllers=vec {principal "c5kvi-uuaaa-aaaaa-qaaia-cai"}}})
+› CallGreet("cuj6u-c4aaa-aaaaa-qaajq-cai", "test")
+(variant {Ok="Hello, test!"})
+```

@@ -162,7 +162,7 @@ async fn CanisterStatus(canister_principal: String) -> Result<CanisterStatusResu
 }
 
 
-#[query]
+#[update]
 async fn CallGreet(canister_principal: String, greeting: String) -> Result<(String), String> {
     let canister_id = match Principal::from_text(canister_principal) {
         Ok(principal) => principal,
@@ -174,8 +174,8 @@ async fn CallGreet(canister_principal: String, greeting: String) -> Result<(Stri
     //     Err(e) => return Err(format!("Failed to encode arguments: {:?}", e)),
     // };
     // キャニスター間呼び出し
-    match ic_cdk::call(canister_id, "greet", (greeting,)).await {
+    match ic_cdk::call(canister_id, "Greet", (greeting,)).await {
         Ok((response,)) => Ok((response)),
-        Err((code, msg)) => Err(format!("Failed to call greet: code {:?}, message: {}", code, msg)),
+        Err((code, msg)) => Err(format!("Failed to call Greet: code {:?}, message: {}", code, msg)),
     }
 }

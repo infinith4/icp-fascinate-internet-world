@@ -44,3 +44,8 @@ http://127.0.0.1:4943/?canisterId=avqkn-guaaa-aaaaa-qaaea-cai
 
 
 http://127.0.0.1:4943/?canisterId=b77ix-eeaaa-aaaaa-qaada-cai&id=asrmz-lmaaa-aaaaa-qaaeq-cai
+
+
+http://127.0.0.1:4943/?canisterId=b77ix-eeaaa-aaaaa-qaada-cai&id=ahw5u-keaaa-aaaaa-qaaha-cai
+
+http://localhost:4943/?canisterId=ajuq4-ruaaa-aaaaa-qaaga-cai&id=ahw5u-keaaa-aaaaa-qaaha-cai

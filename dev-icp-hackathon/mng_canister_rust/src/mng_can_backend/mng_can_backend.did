@@ -1,3 +1,13 @@
+type CanisterStatusResult = record {
+    controllers: vec principal;
+};
+
 service : {
-    "create_and_install_canister": () -> (variant { Ok: principal; Err: text });
+    "CreateAndInstallCanister": () -> (variant { Ok: principal; Err: text });
+    "DepositCycles": (text) -> (variant { Ok; Err: text });
+    "StartCanister": (text) -> (variant { Ok; Err: text });
+    "StopCanister": (text) -> (variant { Ok; Err: text });
+    "DeleteCanister": (text) -> (variant { Ok; Err: text });
+    "CanisterStatus": (text) -> (variant { Ok: CanisterStatusResult; Err: text });
+    "CallGreet": (text, text) -> (variant { Ok: text; Err: text });
 }

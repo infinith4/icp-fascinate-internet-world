@@ -1,0 +1,3 @@
+service : {
+    "create_and_install_canister": () -> (variant { Ok: principal; Err: text });
+}

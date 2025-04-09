@@ -1,0 +1,22 @@
+{
+  "canisters": {
+    "greet_backend": {
+      "candid": "src/greet_backend/greet_backend.did",
+      "package": "greet_backend",
+      "type": "rust"
+    },
+    "mng_can_backend": {
+      "candid": "src/mng_can_backend/mng_can_backend.did",
+      "package": "mng_can_backend",
+      "type": "rust"
+    }
+  },
+  "defaults": {
+    "build": {
+      "args": "",
+      "packtool": ""
+    }
+  },
+  "output_env_file": ".env",
+  "version": 1
+}

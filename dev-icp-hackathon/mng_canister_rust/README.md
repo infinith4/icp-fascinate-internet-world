@@ -39,6 +39,8 @@ URLs:
 http://localhost:4943/?canisterId=c2lt4-zmaaa-aaaaa-qaaiq-cai&id=c5kvi-uuaaa-aaaaa-qaaia-cai
 
 
+https://zenn.dev/halifax/books/icpbook-rust/viewer/08_inter_canister_call
+
 以下のように mng_canister で作成したCanister を mng_canister からGreet をコールできた。
 
 ```

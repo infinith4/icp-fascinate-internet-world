@@ -4,6 +4,8 @@ dfx new streamingservice
 
 dfx start --clean
 
+dfx build
+
 scode ➜ /src $ dfx new streamingservice
 ✔ Select a backend language: · Rust
 ✔ Select a frontend framework: · React

@@ -1,16 +1,43 @@
 import React, { useState, useEffect } from 'react';
-import { Actor, HttpAgent } from '@dfinity/agent';
-import { createActor } from './declarations/video_streaming_backend';
+import { Actor, HttpAgent, ActorMethod } from '@dfinity/agent';
+import { _SERVICE } from '../../declarations/streamingservice_backend/streamingservice_backend.did';
+import { createActor } from '../../declarations/streamingservice_backend';
+
+type VideoInfo = {
+  id: string;
+  title: string;
+  description: string;
+};
+
+type VideoChunkResult = {
+  ok?: Uint8Array;
+  err?: string;
+};
+
+interface StreamingService extends _SERVICE {
+  get_video_list: ActorMethod<[], [string, string, string][]>;
+  create_video: ActorMethod<[string, string], string>;
+  upload_video_chunk: ActorMethod<[string, Uint8Array | number[], number], { ok: null } | { err: string }>;
+  get_video_chunk: ActorMethod<[string, number], { ok: number[] } | { err: string }>;
+}
 
 function App() {
-  const [videos, setVideos] = useState<{id: string, title: string, description: string}[]>([]);
+  const [videos, setVideos] = useState<VideoInfo[]>([]);
   const [currentVideo, setCurrentVideo] = useState<string | null>(null);
   const [videoPlayer, setVideoPlayer] = useState<HTMLVideoElement | null>(null);
+  const [loading, setLoading] = useState(false);
 
-  const agent = new HttpAgent();
-  const actor = createActor(process.env.REACT_APP_CANISTER_ID!, {
-    agent,
+  const agent = new HttpAgent({
+    host: 'http://localhost:4943',
+    callOptions: {
+      update: {
+        timeout: 300000, // 5 minutes
+      },
+    },
   });
+  const actor = createActor(import.meta.env.VITE_CANISTER_ID_STREAMINGSERVICE_BACKEND, {
+    agent,
+  }) as Actor & StreamingService;
 
   useEffect(() => {
     // Initialize video player
@@ -19,6 +46,9 @@ function App() {
     setVideoPlayer(player);
     document.body.appendChild(player);
 
+    // Load video list
+    loadVideos();
+
     return () => {
       if (player) {
         document.body.removeChild(player);
@@ -26,10 +56,24 @@ function App() {
     };
   }, []);
 
+  const loadVideos = async () => {
+    try {
+      const videoList = await actor.get_video_list();
+      setVideos(videoList.map(([id, title, description]: [string, string, string]) => ({
+        id,
+        title,
+        description
+      })));
+    } catch (error) {
+      console.error('Error loading videos:', error);
+    }
+  };
+
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
 
+    setLoading(true);
     const title = prompt('Enter video title:') || 'Untitled';
     const description = prompt('Enter video description:') || 'No description';
 
@@ -43,26 +87,35 @@ function App() {
       for (let i = 0; i < totalChunks; i++) {
         const chunk = file.slice(i * chunkSize, (i + 1) * chunkSize);
         const chunkBuffer = await chunk.arrayBuffer();
-        await actor.upload_video_chunk(videoId, Array.from(new Uint8Array(chunkBuffer)), i);
+        const result = await actor.upload_video_chunk(videoId, Array.from(new Uint8Array(chunkBuffer)), i);
+        if ('err' in result) {
+          throw new Error(result.err);
+        }
       }
 
-      setVideos([...videos, { id: videoId, title, description }]);
+      await loadVideos(); // Reload video list
     } catch (error) {
       console.error('Error uploading video:', error);
+    } finally {
+      setLoading(false);
     }
   };
 
   const playVideo = async (videoId: string) => {
     if (!videoPlayer) return;
 
+    setLoading(true);
     try {
       const chunks: Blob[] = [];
       let chunkIndex = 0;
       
       while (true) {
         try {
-          const chunk = await actor.get_video_chunk(videoId, chunkIndex);
-          chunks.push(new Blob([new Uint8Array(chunk)]));
+          const result = await actor.get_video_chunk(videoId, chunkIndex);
+          if ('err' in result) {
+            break;
+          }
+          chunks.push(new Blob([new Uint8Array(result.ok)]));
           chunkIndex++;
         } catch (error) {
           break;
@@ -74,6 +127,8 @@ function App() {
       setCurrentVideo(videoId);
     } catch (error) {
       console.error('Error playing video:', error);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -89,7 +144,9 @@ function App() {
             type="file"
             accept="video/*"
             onChange={handleFileUpload}
+            disabled={loading}
           />
+          {loading && <p>Loading...</p>}
         </div>
 
         <div className="video-list">
@@ -99,7 +156,10 @@ function App() {
               <li key={video.id}>
                 <h3>{video.title}</h3>
                 <p>{video.description}</p>
-                <button onClick={() => playVideo(video.id)}>
+                <button 
+                  onClick={() => playVideo(video.id)}
+                  disabled={loading}
+                >
                   {currentVideo === video.id ? 'Playing...' : 'Play'}
                 </button>
               </li>
@@ -111,4 +171,4 @@ function App() {
   );
 }
 
-export default App; 
+export default App;

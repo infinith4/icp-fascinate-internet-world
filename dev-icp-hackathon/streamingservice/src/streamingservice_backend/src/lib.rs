@@ -1,4 +1,3 @@
-
 use ic_cdk_macros::*;
 use candid::{CandidType, Deserialize};
 use std::cell::RefCell;
@@ -79,5 +78,15 @@ fn get_video_info(video_id: String) -> Result<(String, String), String> {
         } else {
             Err("Video not found".to_string())
         }
+    })
+}
+
+#[query]
+fn get_video_list() -> Vec<(String, String, String)> {
+    VIDEOS.with(|videos| {
+        let videos = videos.borrow();
+        videos.iter()
+            .map(|(id, video)| (id.clone(), video.title.clone(), video.description.clone()))
+            .collect()
     })
 } 

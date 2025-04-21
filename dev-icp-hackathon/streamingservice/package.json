@@ -14,5 +14,8 @@
   "type": "module",
   "workspaces": [
     "src/streamingservice_frontend"
-  ]
+  ],
+  "devDependencies": {
+    "@types/node": "^22.14.1"
+  }
 }

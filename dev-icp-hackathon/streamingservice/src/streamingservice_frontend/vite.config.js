@@ -34,7 +34,7 @@ export default defineConfig({
       },
     },
     headers: {
-      'Content-Security-Policy': "default-src 'self' blob:; media-src 'self' blob:;"
+      'Content-Security-Policy': "media-src 'self' blob: http://localhost:4943 http://127.0.0.1:4944;"
     }
   },
   plugins: [

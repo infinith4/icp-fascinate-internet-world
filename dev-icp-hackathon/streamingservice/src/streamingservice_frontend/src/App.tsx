@@ -53,12 +53,12 @@ function App() {
   const loadVideos = async () => {
     try {
       const videoList = await actor.get_video_list();
-      // setVideos(videoList.map(([id, title, description]: [string, string, string]) => ({
-      //   id,
-      //   title,
-      //   description,
-      //   hash: "" // ハッシュは空文字列として設定
-      // })));
+      setVideos(videoList.map(([id, title, description, hash]: [string, string, string, string]) => ({
+        id,
+        title,
+        description,
+        hash // ハッシュは空文字列として設定
+      })));
     } catch (error) {
       console.error('Error loading videos:', error);
     }
@@ -109,6 +109,9 @@ function App() {
       while (true) {
         try {
           const result = await actor.get_video_chunk(videoId, chunkIndex);
+          console.log("----------------------");
+          console.log(result);
+          
           if ('err' in result) {
             break;
           }

@@ -15,7 +15,7 @@ type VideoChunkResult = {
 };
 
 interface StreamingService extends _SERVICE {
-  get_video_list: ActorMethod<[], [string, string, string][]>;
+  get_video_list: ActorMethod<[], [string, string, string, string][]>;
   create_video: ActorMethod<[string, string], string>;
   upload_video_chunk: ActorMethod<[string, Uint8Array | number[], number], { ok: null } | { err: string }>;
   get_video_chunk: ActorMethod<[string, number], { ok: number[] } | { err: string }>;
@@ -35,7 +35,7 @@ function App() {
       },
     },
   });
-  const actor = createActor(import.meta.env.VITE_CANISTER_ID_STREAMINGSERVICE_BACKEND, {
+  const actor = createActor(import.meta.env.CANISTER_ID_STREAMINGSERVICE_BACKEND, {
     agent,
   }) as Actor & StreamingService;
 
@@ -59,7 +59,7 @@ function App() {
   const loadVideos = async () => {
     try {
       const videoList = await actor.get_video_list();
-      setVideos(videoList.map(([id, title, description]: [string, string, string]) => ({
+      setVideos(videoList.map(([id, title, description, _]: [string, string, string, string]) => ({
         id,
         title,
         description
@@ -79,15 +79,20 @@ function App() {
 
     try {
       const videoId = await actor.create_video(title, description);
-      
+      console.log(videoId);
       // Split video into chunks and upload
       const chunkSize = 1024 * 1024; // 1MB chunks
       const totalChunks = Math.ceil(file.size / chunkSize);
       
       for (let i = 0; i < totalChunks; i++) {
         const chunk = file.slice(i * chunkSize, (i + 1) * chunkSize);
+        console.log(chunk);
         const chunkBuffer = await chunk.arrayBuffer();
+        console.log(chunkBuffer);
+        console.log(Array.from(new Uint8Array(chunkBuffer)));
         const result = await actor.upload_video_chunk(videoId, Array.from(new Uint8Array(chunkBuffer)), i);
+        console.log("------------------result");
+        console.log(result);
         if ('err' in result) {
           throw new Error(result.err);
         }
@@ -95,6 +100,7 @@ function App() {
 
       await loadVideos(); // Reload video list
     } catch (error) {
+      console.error(error);
       console.error('Error uploading video:', error);
     } finally {
       setLoading(false);

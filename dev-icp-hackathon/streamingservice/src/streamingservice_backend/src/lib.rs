@@ -9,6 +9,7 @@ struct Video {
     title: String,
     description: String,
     chunks: Vec<Vec<u8>>,
+    hash: String,
 }
 
 thread_local! {
@@ -24,14 +25,15 @@ fn greet(name: String) -> String {
 fn upload_video_chunk(video_id: String, chunk: Vec<u8>, chunk_index: u32) -> Result<(), String> {
     VIDEOS.with(|videos| {
         let mut videos = videos.borrow_mut();
-        if let Some(video) = videos.get_mut(&video_id) {
-            while video.chunks.len() <= chunk_index as usize {
-                video.chunks.push(Vec::new());
-            }
-            video.chunks[chunk_index as usize] = chunk;
-            Ok(())
-        } else {
-            Err("Video not found".to_string())
+        match videos.get_mut(&video_id) {
+            Some(video) => {
+                while video.chunks.len() <= chunk_index as usize {
+                    video.chunks.push(Vec::new());
+                }
+                video.chunks[chunk_index as usize] = chunk;
+                Ok(())
+            },
+            None => Err("Video not found".to_string())
         }
     })
 }
@@ -55,11 +57,13 @@ fn get_video_chunk(video_id: String, chunk_index: u32) -> Result<Vec<u8>, String
 #[update]
 fn create_video(title: String, description: String) -> String {
     let video_id = ic_cdk::api::time().to_string();
+    let hash = "";
     let video = Video {
         id: video_id.clone(),
         title,
         description,
         chunks: Vec::new(),
+        hash: hash.to_string()
     };
     
     VIDEOS.with(|videos| {
@@ -70,11 +74,11 @@ fn create_video(title: String, description: String) -> String {
 }
 
 #[query]
-fn get_video_info(video_id: String) -> Result<(String, String), String> {
+fn get_video_info(video_id: String) -> Result<(String, String, String), String> {
     VIDEOS.with(|videos| {
         let videos = videos.borrow();
         if let Some(video) = videos.get(&video_id) {
-            Ok((video.title.clone(), video.description.clone()))
+            Ok((video.title.clone(), video.description.clone(), video.hash.clone()))
         } else {
             Err("Video not found".to_string())
         }
@@ -82,11 +86,16 @@ fn get_video_info(video_id: String) -> Result<(String, String), String> {
 }
 
 #[query]
-fn get_video_list() -> Vec<(String, String, String)> {
+fn get_video_list() -> Vec<(String, String, String, String)> {
     VIDEOS.with(|videos| {
         let videos = videos.borrow();
         videos.iter()
-            .map(|(id, video)| (id.clone(), video.title.clone(), video.description.clone()))
+            .map(|(id, video)| (
+                id.clone(),
+                video.title.clone(),
+                video.description.clone(),
+                video.hash.clone()
+            ))
             .collect()
     })
 } 

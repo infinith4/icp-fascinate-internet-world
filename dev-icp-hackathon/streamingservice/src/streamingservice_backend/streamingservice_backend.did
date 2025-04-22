@@ -1,14 +1,8 @@
-type Video = record {
-    id: text;
-    title: text;
-    description: text;
-    chunks: vec vec nat8;
-};
-
 service : {
+    "greet": (text) -> (text) query;
     "create_video": (text, text) -> (text);
     "upload_video_chunk": (text, vec nat8, nat32) -> (variant { ok; err: text });
     "get_video_chunk": (text, nat32) -> (variant { ok: vec nat8; err: text }) query;
-    "get_video_info": (text) -> (variant { ok: record { title: text; description: text; hash: text }; err: text }) query;
+    "get_video_info": (text) -> (variant { ok: text; err: text }) query;
     "get_video_list": () -> (vec record { text; text; text; text }) query;
 } 

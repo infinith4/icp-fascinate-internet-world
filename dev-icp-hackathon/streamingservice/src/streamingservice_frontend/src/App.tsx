@@ -7,19 +7,13 @@ type VideoInfo = {
   id: string;
   title: string;
   description: string;
+  hash: string;
 };
 
 type VideoChunkResult = {
   ok?: Uint8Array;
   err?: string;
 };
-
-interface StreamingService extends _SERVICE {
-  get_video_list: ActorMethod<[], [string, string, string, string][]>;
-  create_video: ActorMethod<[string, string], string>;
-  upload_video_chunk: ActorMethod<[string, Uint8Array | number[], number], { ok: null } | { err: string }>;
-  get_video_chunk: ActorMethod<[string, number], { ok: number[] } | { err: string }>;
-}
 
 function App() {
   const [videos, setVideos] = useState<VideoInfo[]>([]);
@@ -35,9 +29,9 @@ function App() {
       },
     },
   });
-  const actor = createActor(import.meta.env.CANISTER_ID_STREAMINGSERVICE_BACKEND, {
+  const actor = createActor(import.meta.env.VITE_CANISTER_ID_STREAMINGSERVICE_BACKEND, {
     agent,
-  }) as Actor & StreamingService;
+  }) as Actor & _SERVICE;
 
   useEffect(() => {
     // Initialize video player
@@ -59,11 +53,12 @@ function App() {
   const loadVideos = async () => {
     try {
       const videoList = await actor.get_video_list();
-      setVideos(videoList.map(([id, title, description, _]: [string, string, string, string]) => ({
-        id,
-        title,
-        description
-      })));
+      // setVideos(videoList.map(([id, title, description]: [string, string, string]) => ({
+      //   id,
+      //   title,
+      //   description,
+      //   hash: "" // ハッシュは空文字列として設定
+      // })));
     } catch (error) {
       console.error('Error loading videos:', error);
     }
@@ -86,13 +81,10 @@ function App() {
       
       for (let i = 0; i < totalChunks; i++) {
         const chunk = file.slice(i * chunkSize, (i + 1) * chunkSize);
-        console.log(chunk);
         const chunkBuffer = await chunk.arrayBuffer();
-        console.log(chunkBuffer);
-        console.log(Array.from(new Uint8Array(chunkBuffer)));
+        console.log("------------chunk");
+        console.log(chunk);
         const result = await actor.upload_video_chunk(videoId, Array.from(new Uint8Array(chunkBuffer)), i);
-        console.log("------------------result");
-        console.log(result);
         if ('err' in result) {
           throw new Error(result.err);
         }
@@ -100,7 +92,6 @@ function App() {
 
       await loadVideos(); // Reload video list
     } catch (error) {
-      console.error(error);
       console.error('Error uploading video:', error);
     } finally {
       setLoading(false);

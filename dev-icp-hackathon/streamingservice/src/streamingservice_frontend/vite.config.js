@@ -14,7 +14,10 @@ export default defineConfig({
     emptyOutDir: true,
   },
   define: {
-    'process.env': process.env
+    'process.env': {
+      ...process.env,
+      VITE_CANISTER_ID_STREAMINGSERVICE_BACKEND: process.env.CANISTER_ID_STREAMINGSERVICE_BACKEND
+    }
   },
   optimizeDeps: {
     esbuildOptions: {
@@ -30,6 +33,9 @@ export default defineConfig({
         changeOrigin: true,
       },
     },
+    headers: {
+      'Content-Security-Policy': "default-src 'self' blob:; media-src 'self' blob:;"
+    }
   },
   plugins: [
     react(),

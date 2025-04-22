@@ -12,44 +12,100 @@ struct Video {
     hash: String,
 }
 
+#[derive(CandidType, Deserialize)]
+enum UploadResult {
+    #[serde(rename = "ok")]
+    Ok(()),
+    #[serde(rename = "err")]
+    Err(String),
+}
+
+#[derive(CandidType, Deserialize)]
+enum VideoChunkResult {
+    #[serde(rename = "ok")]
+    Ok(Vec<u8>),
+    #[serde(rename = "err")]
+    Err(String),
+}
+
+#[derive(CandidType, Deserialize)]
+struct VideoInfo {
+    title: String,
+    description: String,
+    hash: String,
+}
+
+#[derive(CandidType, Deserialize)]
+enum VideoInfoResult {
+    #[serde(rename = "ok")]
+    Ok(String),
+    #[serde(rename = "err")]
+    Err(String),
+}
+
 thread_local! {
     static VIDEOS: RefCell<HashMap<String, Video>> = RefCell::new(HashMap::new());
 }
 
+//dfx canister call streamingservice_backend greet everyone
 #[ic_cdk::query]
 fn greet(name: String) -> String {
     format!("Hello, {}!", name)
 }
 
+use env_logger;
+use log::{error, warn, info, debug};
+use std::env;
+
 #[update]
-fn upload_video_chunk(video_id: String, chunk: Vec<u8>, chunk_index: u32) -> Result<(), String> {
+fn upload_video_chunk(video_id: String, chunk: Vec<u8>, chunk_index: u32) -> UploadResult {
     VIDEOS.with(|videos| {
+        ic_cdk::println!("Starting upload_video_chunk for video_id: {}", video_id);
         let mut videos = videos.borrow_mut();
+        
+        // 存在しないvideo_idの場合は新しいビデオエントリを作成
+        if !videos.contains_key(&video_id) {
+            ic_cdk::println!("Creating new video entry for video_id: {}", video_id);
+            videos.insert(video_id.clone(), Video {
+                id: video_id.clone(),
+                title: "".to_string(),
+                description: "".to_string(),
+                chunks: Vec::new(),
+                hash: "".to_string()
+            });
+        }
+        
+        // 以降は既存のビデオ処理
         match videos.get_mut(&video_id) {
             Some(video) => {
+                ic_cdk::println!("Processing chunk {} for video_id: {}", chunk_index, video_id);
                 while video.chunks.len() <= chunk_index as usize {
                     video.chunks.push(Vec::new());
                 }
                 video.chunks[chunk_index as usize] = chunk;
-                Ok(())
+                ic_cdk::println!("Successfully processed chunk {} for video_id: {}", chunk_index, video_id);
+                UploadResult::Ok(())
             },
-            None => Err("Video not found".to_string())
+            None => {
+                ic_cdk::println!("Error: Failed to create video entry for video_id: {}", video_id);
+                UploadResult::Err("Failed to create video entry".to_string())
+            }
         }
     })
 }
 
 #[query]
-fn get_video_chunk(video_id: String, chunk_index: u32) -> Result<Vec<u8>, String> {
+fn get_video_chunk(video_id: String, chunk_index: u32) -> VideoChunkResult {
     VIDEOS.with(|videos| {
         let videos = videos.borrow();
         if let Some(video) = videos.get(&video_id) {
             if let Some(chunk) = video.chunks.get(chunk_index as usize) {
-                Ok(chunk.clone())
+                VideoChunkResult::Ok(chunk.clone())
             } else {
-                Err("Chunk not found".to_string())
+                VideoChunkResult::Err("Chunk not found".to_string())
             }
         } else {
-            Err("Video not found".to_string())
+            VideoChunkResult::Err("Video not found".to_string())
         }
     })
 }
@@ -74,13 +130,19 @@ fn create_video(title: String, description: String) -> String {
 }
 
 #[query]
-fn get_video_info(video_id: String) -> Result<(String, String, String), String> {
+fn get_video_info(video_id: String) -> VideoInfoResult {
+    ic_cdk::println!("Starting get_video_info for video_id: {}", video_id);
     VIDEOS.with(|videos| {
         let videos = videos.borrow();
+        videos.iter()
+            .map(|(id, video)| (
+                ic_cdk::println!("{}", format!("title: {}, description: {}", video.title.clone(), video.description.clone())
+            )));
         if let Some(video) = videos.get(&video_id) {
-            Ok((video.title.clone(), video.description.clone(), video.hash.clone()))
+            ic_cdk::println!("video.title: {}", video.title);
+            VideoInfoResult::Ok(video.title.clone())
         } else {
-            Err("Video not found".to_string())
+            VideoInfoResult::Err("Video not found".to_string())
         }
     })
 }

@@ -7,8 +7,8 @@ services:
     build: 
       context: .
       dockerfile: Dockerfile
-    # ports:
-    #   - 3200:4200
+    ports:
+      - 4949:4949
     tty: true
     volumes:
       - type: bind

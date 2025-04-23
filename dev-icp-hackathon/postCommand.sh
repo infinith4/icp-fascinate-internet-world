@@ -19,7 +19,7 @@ sudo apt install libxtables12 -y
 # bash ./postCommandDfx.sh
 export DFXVM_INIT_YES=true
 sh -ci "$(curl -fsSL https://internetcomputer.org/install.sh)"
-export DFX_VERSION=0.25.0
+export DFX_VERSION=0.26.0
 sh -ci "$HOME/.local/share/dfx/env && dfx --version"
 
 
@@ -40,15 +40,15 @@ rustup target add wasm32-unknown-unknown
 
 cd /src
 
-curl -OL https://github.com/dfinity/pocketic/releases/download/7.0.0/pocket-ic-x86_64-linux.gz
-gzip -d pocket-ic-x86_64-linux.gz
-chmod +x pocket-ic-x86_64-linux
-mv pocket-ic-x86_64-linux pocket-ic
-export POCKET_IC_BIN="$(pwd)/pocket-ic"
+# curl -OL https://github.com/dfinity/pocketic/releases/download/7.0.0/pocket-ic-x86_64-linux.gz
+# gzip -d pocket-ic-x86_64-linux.gz
+# chmod +x pocket-ic-x86_64-linux
+# mv pocket-ic-x86_64-linux pocket-ic
+# export POCKET_IC_BIN="$(pwd)/pocket-ic"
 
-git clone https://github.com/sstephenson/bats.git
-cd bats
-sudo ./install.sh /usr/local
+# git clone https://github.com/sstephenson/bats.git
+# cd bats
+# sudo ./install.sh /usr/local
 
 cd /src/icpassproj
 exec bash

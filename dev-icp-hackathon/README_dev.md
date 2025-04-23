@@ -257,3 +257,12 @@ dfx deploy internet_identity --argument '(null)'
 
 web3 <- -> web2 : の連携し、internet identity でログインしたらOauth みたいに他のサービスにログインできるようにしたい
 
+Port 番号を利用しているか
+
+lsof -i :4943
+lsof -i :4949
+
+dfx start --clean --host 127.0.0.1:4949
+
+cd streamingservice
+dfx deploy

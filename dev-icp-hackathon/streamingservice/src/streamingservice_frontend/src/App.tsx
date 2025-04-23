@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Actor, HttpAgent, ActorMethod } from '@dfinity/agent';
+import { Actor, HttpAgent } from '@dfinity/agent';
 import { _SERVICE } from '../../declarations/streamingservice_backend/streamingservice_backend.did';
 import { createActor } from '../../declarations/streamingservice_backend';
 
@@ -10,19 +10,16 @@ type VideoInfo = {
   hash: string;
 };
 
-type VideoChunkResult = {
-  ok?: Uint8Array;
-  err?: string;
-};
-
 function App() {
   const [videos, setVideos] = useState<VideoInfo[]>([]);
   const [currentVideo, setCurrentVideo] = useState<string | null>(null);
   const [videoPlayer, setVideoPlayer] = useState<HTMLVideoElement | null>(null);
+  const [mediaSource, setMediaSource] = useState<MediaSource | null>(null);
+  const [sourceBuffer, setSourceBuffer] = useState<SourceBuffer | null>(null);
   const [loading, setLoading] = useState(false);
 
-  const agent = new HttpAgent({
-    host: 'http://localhost:4943',
+  const agent = HttpAgent.createSync({
+    host: 'http://localhost:' + import.meta.env.VITE_LOCAL_CANISTER_PORT,
     callOptions: {
       update: {
         timeout: 300000, // 5 minutes
@@ -59,7 +56,7 @@ function App() {
         id,
         title,
         description,
-        hash // ハッシュは空文字列として設定
+        hash
       })));
     } catch (error) {
       console.error('Error loading videos:', error);

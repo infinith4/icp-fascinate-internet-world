@@ -15,8 +15,7 @@ export default defineConfig({
   },
   define: {
     'process.env': {
-      ...process.env,
-      VITE_CANISTER_ID_STREAMINGSERVICE_BACKEND: process.env.CANISTER_ID_STREAMINGSERVICE_BACKEND
+      ...process.env
     }
   },
   optimizeDeps: {
@@ -29,16 +28,9 @@ export default defineConfig({
   server: {
     proxy: {
       "/api": {
-        target: "http://127.0.0.1:4943",
+        target: "http://127.0.0.1:" + process.env.VITE_LOCAL_CANISTER_PORT,
         changeOrigin: true,
       },
-      "/": {
-        target: "http://127.0.0.1:4944",
-        changeOrigin: true,
-      },
-    },
-    headers: {
-      'Content-Security-Policy': "media-src  blob: http://127.0.0.1:4943 http://127.0.0.1:4944;"
     }
   },
   plugins: [

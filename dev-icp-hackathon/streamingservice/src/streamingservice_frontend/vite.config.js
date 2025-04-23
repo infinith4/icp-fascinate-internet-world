@@ -32,9 +32,13 @@ export default defineConfig({
         target: "http://127.0.0.1:4943",
         changeOrigin: true,
       },
+      "/": {
+        target: "http://127.0.0.1:4944",
+        changeOrigin: true,
+      },
     },
     headers: {
-      'Content-Security-Policy': "media-src 'self' blob: http://localhost:4943 http://127.0.0.1:4944;"
+      'Content-Security-Policy': "media-src  blob: http://127.0.0.1:4943 http://127.0.0.1:4944;"
     }
   },
   plugins: [

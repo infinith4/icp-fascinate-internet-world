@@ -36,6 +36,8 @@ function App() {
   useEffect(() => {
     // Initialize video player
     const player = document.createElement('video');
+    console.log("player");
+    console.log(player);
     player.controls = true;
     setVideoPlayer(player);
     document.body.appendChild(player);
@@ -124,6 +126,8 @@ function App() {
 
       const videoBlob = new Blob(chunks, { type: 'video/mp4' });
       videoPlayer.src = URL.createObjectURL(videoBlob);
+      console.log("URL.createObjectURL(videoBlob)");
+      console.log(URL.createObjectURL(videoBlob));
       setCurrentVideo(videoId);
     } catch (error) {
       console.error('Error playing video:', error);

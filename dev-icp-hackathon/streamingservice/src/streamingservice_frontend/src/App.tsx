@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Actor, HttpAgent } from '@dfinity/agent';
 import { _SERVICE } from '../../declarations/streamingservice_backend/streamingservice_backend.did';
 import { createActor } from '../../declarations/streamingservice_backend';
@@ -11,6 +11,8 @@ type VideoInfo = {
 };
 
 function App() {
+  const videoRef = useRef<HTMLVideoElement>(null);
+
   const [videos, setVideos] = useState<VideoInfo[]>([]);
   const [currentVideo, setCurrentVideo] = useState<string | null>(null);
   const [videoPlayer, setVideoPlayer] = useState<HTMLVideoElement | null>(null);
@@ -97,40 +99,100 @@ function App() {
     }
   };
 
+  // 動画再生関数
   const playVideo = async (videoId: string) => {
-    if (!videoPlayer) return;
-
     setLoading(true);
-    try {
-      const chunks: Blob[] = [];
-      let chunkIndex = 0;
-      
-      while (true) {
-        try {
-          const result = await actor.get_video_chunk(videoId, chunkIndex);
-          console.log("----------------------");
-          console.log(result);
-          
-          if ('err' in result) {
-            break;
-          }
-          chunks.push(new Blob([new Uint8Array(result.ok)]));
-          chunkIndex++;
-        } catch (error) {
-          break;
-        }
-      }
-
-      const videoBlob = new Blob(chunks, { type: 'video/mp4' });
-      videoPlayer.src = URL.createObjectURL(videoBlob);
-      console.log("URL.createObjectURL(videoBlob)");
-      console.log(URL.createObjectURL(videoBlob));
-      setCurrentVideo(videoId);
-    } catch (error) {
-      console.error('Error playing video:', error);
-    } finally {
+    setCurrentVideo(videoId);
+    const player = videoRef.current;
+    if (!player) {
       setLoading(false);
+      return;
     }
+    if (!videoPlayer) {
+      setLoading(false);
+      return;
+    }
+
+    // 既存のMediaSourceやSourceBufferをクリーンアップ
+    if (mediaSource) {
+      mediaSource.removeEventListener('sourceopen', () => {});
+      setMediaSource(null);
+    }
+    if (sourceBuffer) {
+      setSourceBuffer(null);
+    }
+
+    // 新しいMediaSourceを作成
+    const newMediaSource = new MediaSource();
+    setMediaSource(newMediaSource);
+    player.src = URL.createObjectURL(newMediaSource);
+    player.load();
+    player.style.display = 'block';
+
+    videoPlayer.src = URL.createObjectURL(newMediaSource);
+    videoPlayer.load();
+    videoPlayer.style.display = 'block';
+
+    newMediaSource.addEventListener('sourceopen', async () => {
+      // video/mp4 など、バックエンドで保存している形式に合わせてください
+      const mimeCodec = 'video/mp4; codecs="avc1.42E01E, mp4a.40.2"';
+      if (!MediaSource.isTypeSupported(mimeCodec)) {
+        alert('このブラウザは指定のコーデックに対応していません: ' + mimeCodec);
+        setLoading(false);
+        return;
+      }
+      const sb = newMediaSource.addSourceBuffer(mimeCodec);
+      setSourceBuffer(sb);
+
+      try {
+        let chunkIndex = 0;
+        let isEnd = false;
+
+        // チャンクを順次appendBuffer
+        while (!isEnd) {
+          const chunkResult = await actor.get_video_chunk(videoId, chunkIndex);
+          if ('ok' in chunkResult && chunkResult.ok.length > 0) {
+            const chunkArray = new Uint8Array(chunkResult.ok);
+            await new Promise<void>((resolve, reject) => {
+              sb.addEventListener('updateend', () => resolve(), { once: true });
+              sb.appendBuffer(chunkArray);
+            });
+            chunkIndex++;
+          } else {
+            isEnd = true;
+          }
+        }
+        console.log("chunkIndex");
+        console.log(chunkIndex);
+        console.log("isEnd");
+        console.log(isEnd);
+
+        // 最後のappendBufferが完了してからendOfStreamを呼ぶ
+        console.log("sb.updating");
+        console.log(sb.updating);
+        if (sb.updating) {
+          sb.addEventListener('updateend', () => {
+            if (newMediaSource.readyState === 'open') {
+              newMediaSource.endOfStream();
+              videoPlayer.play();
+            }
+          }, { once: true });
+        } else {
+          console.log("newMediaSource.readyState");
+          console.log(newMediaSource.readyState);
+          newMediaSource.endOfStream();
+          videoPlayer.play();
+          if (newMediaSource.readyState === 'open') {
+            newMediaSource.endOfStream();
+            videoPlayer.play();
+          }
+        }
+      } catch (error) {
+        console.error('Error streaming video:', error);
+      } finally {
+        setLoading(false);
+      }
+    });
   };
 
   return (
@@ -138,7 +200,6 @@ function App() {
       <header>
         <h1>Video Streaming Service</h1>
       </header>
-      
       <main>
         <div className="upload-section">
           <input
@@ -149,7 +210,6 @@ function App() {
           />
           {loading && <p>Loading...</p>}
         </div>
-
         <div className="video-list">
           <h2>Available Videos</h2>
           <ul>
@@ -167,6 +227,7 @@ function App() {
             ))}
           </ul>
         </div>
+        <video ref={videoRef} controls style={{ width: 640, height: 360, display: 'block', margin: '16px auto' }} />
       </main>
     </div>
   );

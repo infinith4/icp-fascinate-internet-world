@@ -266,3 +266,13 @@ dfx start --clean --host 127.0.0.1:4949
 
 cd streamingservice
 dfx deploy
+
+sudo apt update
+sudo apt install ffmpeg
+
+ffprobe -v error -select_streams v:0 -show_entries stream=codec_name,codec_tag_string -of default=noprint_wrappers=1:nokey=1 "./videos/IC Hello Starter - Brave 2025-04-22 00-18-55.mp4"
+
+h264
+avc1
+
+ffprobe -v error -select_streams v:0 -show_entries stream=codec_name,codec_tag_string -of default=noprint_wrappers=1:nokey=1 "./videos/You are coding a new exciting project  The Social Network YouTube - Brave 2025-04-23 23-55-47.mp4"

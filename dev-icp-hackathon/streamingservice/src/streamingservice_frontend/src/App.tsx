@@ -181,7 +181,8 @@ function App() {
     const playlistResult = await actor.get_hls_playlist(videoId, import.meta.env.VITE_CANISTER_ID_STREAMINGSERVICE_BACKEND ?? '');
     if (playlistResult && 'ok' in playlistResult) {
       const m3u8Text = String(playlistResult.ok);
-      const rewrittenM3u8 = m3u8Text.replace(/(\d+)\.ts/g, (_, p1) => `icsegment://${videoId}/${p1}`);
+      // m3u8内の.tsパスをicsegment://videoId/segmentIndexに書き換え（接頭辞除去）
+      const rewrittenM3u8 = m3u8Text.replace(/[^\n]*?(\d+)\.ts/g, (_, p1) => `icsegment://${videoId}/${p1}`);
       const blob = new Blob([rewrittenM3u8], { type: 'application/vnd.apple.mpegurl' });
       const m3u8Url = URL.createObjectURL(blob);
       if (Hls.isSupported()) {
@@ -192,9 +193,10 @@ function App() {
               if (match) {
                 const [, vId, segIdx] = match;
                 actor.get_hls_segment(vId, Number(segIdx)).then((result: any) => {
+                  console.log('Segment data:', result);
                   if (result && 'ok' in result) {
                     const data = new Uint8Array(result.ok);
-                    callbacks.onSuccess({ data: data.buffer, url: context.url }, context, null);
+                    callbacks.onSuccess({ data: data.slice().buffer, url: context.url }, context, null);
                   } else {
                     callbacks.onError({ code: 400, text: 'Segment fetch error', url: context.url }, context, null);
                   }

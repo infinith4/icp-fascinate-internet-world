@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Actor, HttpAgent } from '@dfinity/agent';
 import { _SERVICE } from '../../declarations/streamingservice_backend/streamingservice_backend.did';
 import { createActor } from '../../declarations/streamingservice_backend';
+import Hls from 'hls.js';
 
 type VideoInfo = {
   id: string;
@@ -66,133 +67,163 @@ function App() {
   };
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    setLoading(true);
-    const title = prompt('Enter video title:') || 'Untitled';
-    const description = prompt('Enter video description:') || 'No description';
-
     try {
-      const videoId = await actor.create_video(title, description);
-      console.log(videoId);
-      // Split video into chunks and upload
-      const chunkSize = 1024 * 1024; // 1MB chunks
-      const totalChunks = Math.ceil(file.size / chunkSize);
-      
-      for (let i = 0; i < totalChunks; i++) {
-        const chunk = file.slice(i * chunkSize, (i + 1) * chunkSize);
-        const chunkBuffer = await chunk.arrayBuffer();
-        console.log("------------chunk");
-        console.log(chunk);
-        const result = await actor.upload_video_chunk(videoId, Array.from(new Uint8Array(chunkBuffer)), i);
-        if ('err' in result) {
-          throw new Error(result.err);
+      //TODO: mp4 から m3u8ファイルとtsファイル を生成
+      // handleFileUpload内
+      // m3u8ファイルとtsファイルをアップロード
+      const files = event.target.files;
+      console.log('files:', files);
+      const title = files?.[0].name;
+      console.log('title:', title);
+      const description = '';
+      const video_id = await actor.create_video(title || 'Untitled', description);
+      if (!files) return;
+
+      let playlistFile: File | null = null;
+      const tsFiles: { file: File, index: number }[] = [];
+
+      // ファイルを分類
+      for (let i = 0; i < files.length; i++) {
+        const f = files[i];
+        if (f.name.endsWith('.m3u8')) {
+          playlistFile = f;
+        } else if (f.name.endsWith('.ts')) {
+          // 例: IC-Hello-Starter-001.ts → 001
+          const match = f.name.match(/(\d+)\.ts$/);
+          if (match) {
+            tsFiles.push({ file: f, index: parseInt(match[1], 10) });
+          }
         }
       }
 
-      await loadVideos(); // Reload video list
-    } catch (error) {
-      console.error('Error uploading video:', error);
-    } finally {
-      setLoading(false);
+      // m3u8アップロード
+      if (playlistFile) {
+        const text = await playlistFile.text();
+        console.log('text:', text);
+        console.log('upload_playlist:');
+        const result = await actor.upload_playlist(video_id, text);
+        console.log('upload_playlist:', result);
+        if ('err' in result) {
+          alert('プレイリストアップロード失敗: ' + result.err);
+          setLoading(false);
+          return;
+        }
+      }
+
+      // tsセグメントアップロード
+      for (const { file, index } of tsFiles) {
+        const arrayBuffer = await file.arrayBuffer();
+        const uint8Array = Array.from(new Uint8Array(arrayBuffer));
+        const result = await actor.upload_ts_segment(video_id, index, uint8Array);
+        if ('err' in result) {
+          alert(`セグメント${index}アップロード失敗: ` + result.err);
+          setLoading(false);
+          return;
+        }
+      }
+
+      await loadVideos();
+      alert('アップロード成功');
+    } catch (e) {
+      alert('アップロード中にエラーが発生しました');
+      console.error(e);
     }
+    setLoading(false);
   };
 
-  // 動画再生関数
-  const playVideo = async (videoId: string) => {
-    setLoading(true);
+
+  // ファイルアップロード処理（チャンク分割＆upload_video_segment呼び出し）
+  // const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+  //   const file = event.target.files?.[0];
+  //   if (!file) return;
+  //   setLoading(true);
+  //   try {
+  //     // 動画エントリ作成
+  //     const title = file.name;
+  //     const description = '';
+  //     const video_id = await actor.create_video(title, description);
+  //     // チャンクサイズ（例: 1MB）
+  //     const CHUNK_SIZE = 1024 * 1024;
+  //     const arrayBuffer = await file.arrayBuffer();
+  //     const uint8Array = new Uint8Array(arrayBuffer);
+  //     const totalChunks = Math.ceil(uint8Array.length / CHUNK_SIZE);
+  //     for (let i = 0; i < totalChunks; i++) {
+  //       const start = i * CHUNK_SIZE;
+  //       const end = Math.min(start + CHUNK_SIZE, uint8Array.length);
+  //       const chunk = Array.from(uint8Array.slice(start, end));
+  //       console.log('Uploading chunk', i + 1, 'of', totalChunks);
+  //       const result = await actor.upload_video_segment(video_id, chunk, i);
+  //       console.log('Chunk upload result:', result);
+  //       if (!('ok' in result)) {
+  //         alert('アップロード失敗: ' + (result.err ?? 'unknown error'));
+  //         setLoading(false);
+  //         return;
+  //       }
+  //     }
+  //     await loadVideos();
+  //     alert('アップロード成功');
+  //   } catch (e) {
+  //     alert('アップロード中にエラーが発生しました');
+  //     console.error(e);
+  //   }
+  //   setLoading(false);
+  // };
+
+  // HLS.jsによるHLSストリーミング再生関数（MediaSource APIは使わない）
+  const playHlsStream = async (videoId: string) => {
     setCurrentVideo(videoId);
-    const player = videoRef.current;
-    if (!player) {
-      setLoading(false);
-      return;
-    }
-    if (!videoPlayer) {
-      setLoading(false);
-      return;
-    }
+    const video = videoRef.current;
+    if (!video) return;
+    video.pause();
+    video.removeAttribute('src');
+    video.load();
 
-    // 既存のMediaSourceやSourceBufferをクリーンアップ
-    if (mediaSource) {
-      mediaSource.removeEventListener('sourceopen', () => {});
-      setMediaSource(null);
-    }
-    if (sourceBuffer) {
-      setSourceBuffer(null);
-    }
-
-    // 新しいMediaSourceを作成
-    const newMediaSource = new MediaSource();
-    setMediaSource(newMediaSource);
-    player.src = URL.createObjectURL(newMediaSource);
-    player.load();
-    player.style.display = 'block';
-
-    videoPlayer.src = URL.createObjectURL(newMediaSource);
-    videoPlayer.load();
-    videoPlayer.style.display = 'block';
-
-    newMediaSource.addEventListener('sourceopen', async () => {
-      // video/mp4 など、バックエンドで保存している形式に合わせてください
-      const mimeCodec = 'video/mp4; codecs="avc1.42E01E, mp4a.40.2"';
-      if (!MediaSource.isTypeSupported(mimeCodec)) {
-        alert('このブラウザは指定のコーデックに対応していません: ' + mimeCodec);
-        setLoading(false);
-        return;
-      }
-      const sb = newMediaSource.addSourceBuffer(mimeCodec);
-      setSourceBuffer(sb);
-
-      try {
-        let chunkIndex = 0;
-        let isEnd = false;
-
-        // チャンクを順次appendBuffer
-        while (!isEnd) {
-          const chunkResult = await actor.get_video_chunk(videoId, chunkIndex);
-          if ('ok' in chunkResult && chunkResult.ok.length > 0) {
-            const chunkArray = new Uint8Array(chunkResult.ok);
-            await new Promise<void>((resolve, reject) => {
-              sb.addEventListener('updateend', () => resolve(), { once: true });
-              sb.appendBuffer(chunkArray);
-            });
-            chunkIndex++;
-          } else {
-            isEnd = true;
-          }
-        }
-        console.log("chunkIndex");
-        console.log(chunkIndex);
-        console.log("isEnd");
-        console.log(isEnd);
-
-        // 最後のappendBufferが完了してからendOfStreamを呼ぶ
-        console.log("sb.updating");
-        console.log(sb.updating);
-        if (sb.updating) {
-          sb.addEventListener('updateend', () => {
-            if (newMediaSource.readyState === 'open') {
-              newMediaSource.endOfStream();
-              videoPlayer.play();
+    const playlistResult = await actor.get_hls_playlist(videoId, import.meta.env.VITE_CANISTER_ID_STREAMINGSERVICE_BACKEND ?? '');
+    if (playlistResult && 'ok' in playlistResult) {
+      const m3u8Text = String(playlistResult.ok);
+      const rewrittenM3u8 = m3u8Text.replace(/(\d+)\.ts/g, (_, p1) => `icsegment://${videoId}/${p1}`);
+      const blob = new Blob([rewrittenM3u8], { type: 'application/vnd.apple.mpegurl' });
+      const m3u8Url = URL.createObjectURL(blob);
+      if (Hls.isSupported()) {
+        class CustomLoader extends Hls.DefaultConfig.loader {
+          load(context: any, config: any, callbacks: any) {
+            if (context.url.startsWith('icsegment://')) {
+              const match = context.url.match(/^icsegment:\/\/(.+)\/(\d+)$/);
+              if (match) {
+                const [, vId, segIdx] = match;
+                actor.get_hls_segment(vId, Number(segIdx)).then((result: any) => {
+                  if (result && 'ok' in result) {
+                    const data = new Uint8Array(result.ok);
+                    callbacks.onSuccess({ data: data.buffer, url: context.url }, context, null);
+                  } else {
+                    callbacks.onError({ code: 400, text: 'Segment fetch error', url: context.url }, context, null);
+                  }
+                }).catch(() => {
+                  callbacks.onError({ code: 500, text: 'Segment fetch exception', url: context.url }, context, null);
+                });
+                return;
+              }
             }
-          }, { once: true });
-        } else {
-          console.log("newMediaSource.readyState");
-          console.log(newMediaSource.readyState);
-          newMediaSource.endOfStream();
-          videoPlayer.play();
-          if (newMediaSource.readyState === 'open') {
-            newMediaSource.endOfStream();
-            videoPlayer.play();
+            super.load(context, config, callbacks);
           }
         }
-      } catch (error) {
-        console.error('Error streaming video:', error);
-      } finally {
-        setLoading(false);
+        const hls = new Hls({ loader: CustomLoader });
+        hls.loadSource(m3u8Url);
+        hls.attachMedia(video);
+        hls.on(Hls.Events.MANIFEST_PARSED, function () {
+          video.play();
+        });
+      } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+        video.src = m3u8Url;
+        video.addEventListener('loadedmetadata', function () {
+          video.play();
+        });
+      } else {
+        alert('HLS is not supported in this browser.');
       }
-    });
+    } else {
+      alert('HLSプレイリスト取得失敗');
+    }
   };
 
   return (
@@ -204,7 +235,8 @@ function App() {
         <div className="upload-section">
           <input
             type="file"
-            accept="video/*"
+            accept=".m3u8,.ts,video/*"
+            multiple
             onChange={handleFileUpload}
             disabled={loading}
           />
@@ -218,7 +250,7 @@ function App() {
                 <h3>{video.title}</h3>
                 <p>{video.description}</p>
                 <button 
-                  onClick={() => playVideo(video.id)}
+                  onClick={() => playHlsStream(video.id)}
                   disabled={loading}
                 >
                   {currentVideo === video.id ? 'Playing...' : 'Play'}

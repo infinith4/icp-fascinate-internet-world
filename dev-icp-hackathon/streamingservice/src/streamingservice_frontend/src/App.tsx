@@ -12,7 +12,6 @@ type VideoInfo = {
 };
 
 function App() {
-  const videoRef = useRef<HTMLVideoElement>(null);
 
   const [videos, setVideos] = useState<VideoInfo[]>([]);
   const [currentVideo, setCurrentVideo] = useState<string | null>(null);
@@ -172,7 +171,7 @@ function App() {
   // HLS.jsによるHLSストリーミング再生関数（MediaSource APIは使わない）
   const playHlsStream = async (videoId: string) => {
     setCurrentVideo(videoId);
-    const video = videoRef.current;
+    const video = videoPlayer;
     if (!video) return;
     video.pause();
     video.removeAttribute('src');
@@ -200,6 +199,7 @@ function App() {
                   } else {
                     callbacks.onError({ code: 400, text: 'Segment fetch error', url: context.url }, context, null);
                   }
+
                 }).catch(() => {
                   callbacks.onError({ code: 500, text: 'Segment fetch exception', url: context.url }, context, null);
                 });
@@ -222,6 +222,39 @@ function App() {
         });
       } else {
         alert('HLS is not supported in this browser.');
+      }
+    } else {
+      alert('HLSプレイリスト取得失敗');
+    }
+  };
+  const downloadStream = async (videoId: string) => {
+
+    console.log('downloadStream:',  videoId);
+    const playlistResult = await actor.get_hls_playlist(videoId, import.meta.env.VITE_CANISTER_ID_STREAMINGSERVICE_BACKEND ?? '');
+    if (playlistResult && 'ok' in playlistResult) {
+      const m3u8Text = String(playlistResult.ok);
+      // m3u8内の.tsパスをicsegment://videoId/segmentIndexに書き換え（接頭辞除去）
+      const rewrittenM3u8 = m3u8Text.replace(/[^\n]*?(\d+)\.ts/g, (_, p1) => `icsegment://${videoId}/${p1}`);
+      const blob = new Blob([rewrittenM3u8], { type: 'application/vnd.apple.mpegurl' });
+      const m3u8Url = URL.createObjectURL(blob);
+      console.log('m3u8Url:', m3u8Url);
+      if (true) {
+        const segIdx = 0;
+        actor.get_hls_segment(videoId, Number(segIdx)).then((result: any) => {
+          console.log('Segment data:', result);
+          // セグメントデータをファイル出力
+          const downloadblob = new Blob([result.ok], { type: 'video/mp2t' });
+          const url = URL.createObjectURL(downloadblob);
+          const a = document.createElement('a');
+          a.href = url;
+          console.log('url:', url);
+          a.download = `segment_${segIdx}.ts`;
+          document.body.appendChild(a);
+          a.click();
+          // document.body.removeChild(a);
+          // URL.revokeObjectURL(url);
+
+        });
       }
     } else {
       alert('HLSプレイリスト取得失敗');
@@ -257,11 +290,16 @@ function App() {
                 >
                   {currentVideo === video.id ? 'Playing...' : 'Play'}
                 </button>
+                <button 
+                  onClick={() => downloadStream(video.id)}
+                  disabled={loading}
+                >
+                  {currentVideo === video.id ? 'Downloading...' : 'Download'}
+                </button>
               </li>
             ))}
           </ul>
         </div>
-        <video ref={videoRef} controls style={{ width: 640, height: 360, display: 'block', margin: '16px auto' }} />
       </main>
     </div>
   );

@@ -189,51 +189,139 @@ function App() {
       const rewrittenM3u8 = m3u8Text.replace(/[^\n]*?(\d+)\.ts/g, (_, p1) => `icsegment://${videoId}/${p1}`);
       const blob = new Blob([rewrittenM3u8], { type: 'application/vnd.apple.mpegurl' });
       const m3u8Url = URL.createObjectURL(blob);
+      
       if (Hls.isSupported()) {
         class CustomLoader extends Hls.DefaultConfig.loader {
+          private retryDelay = 1000;
+          private maxRetryDelay = 64000;
+          private maxRetry = 15;
+          private retryCount: { [key: string]: number } = {};
+
           load(context: any, config: any, callbacks: any) {
             if (context.url.startsWith('icsegment://')) {
               const match = context.url.match(/^icsegment:\/\/(.+)\/(\d+)$/);
               if (match) {
                 const [, vId, segIdx] = match;
-                actor.get_hls_segment(vId, Number(segIdx)).then((result: any) => {
-                  if (result && 'ok' in result) {
-                    const uint8Array = new Uint8Array(result.ok);
-                    callbacks.onSuccess({
-                      data: uint8Array.buffer,
-                      url: context.url
-                    }, context, null);
-                  } else {
-                    callbacks.onError({ code: 400, text: 'Segment fetch error', url: context.url }, context, null);
-                  }
-                }).catch(() => {
-                  callbacks.onError({ code: 500, text: 'Segment fetch exception', url: context.url }, context, null);
-                });
+                const retryKey = `${vId}-${segIdx}`;
+                this.retryCount[retryKey] = this.retryCount[retryKey] || 0;
+
+                const loadSegment = () => {
+                  actor.get_hls_segment(vId, Number(segIdx))
+                    .then((result: any) => {
+                      if (result && 'ok' in result) {
+                        const data = new Uint8Array(result.ok);
+                        console.log(`Segment ${segIdx} loaded, size: ${data.length} bytes`);
+                        
+                        // Check if data starts with MPEG-TS sync byte (0x47)
+                        if (data.length > 0 && data[0] === 0x47) {
+                          callbacks.onSuccess({
+                            data: data.buffer,
+                            stats: {
+                              length: data.length,
+                              loaded: data.length
+                            },
+                            url: context.url
+                          }, context, null);
+                        } else {
+                          throw new Error('Invalid MPEG-TS format: missing sync byte');
+                        }
+                      } else {
+                        throw new Error(result.err || 'Segment fetch error');
+                      }
+                    })
+                    .catch((error) => {
+                      console.warn(`Segment load error (attempt ${this.retryCount[retryKey] + 1}/${this.maxRetry}):`, error);
+                      if (this.retryCount[retryKey] < this.maxRetry) {
+                        this.retryCount[retryKey]++;
+                        const delay = Math.min(this.retryDelay * Math.pow(2, this.retryCount[retryKey] - 1), this.maxRetryDelay);
+                        setTimeout(loadSegment, delay);
+                      } else {
+                        callbacks.onError({
+                          code: 500,
+                          text: `Failed to load segment after ${this.maxRetry} attempts: ${error.message}`,
+                          url: context.url
+                        }, context, null);
+                      }
+                    });
+                };
+
+                loadSegment();
                 return;
               }
             }
             super.load(context, config, callbacks);
           }
         }
-        const hls = new Hls({ 
+
+        const hls = new Hls({
+          debug: true,
+          autoStartLoad: true,
+          startLevel: 0,
           loader: CustomLoader,
-          debug: true // デバッグログを有効化
+          maxBufferSize: 0,
+          maxBufferLength: 30,
+          maxMaxBufferLength: 600,
+          startFragPrefetch: true,
+          manifestLoadingTimeOut: 20000,
+          manifestLoadingMaxRetry: 6,
+          manifestLoadingRetryDelay: 1000,
+          manifestLoadingMaxRetryTimeout: 64000,
+          levelLoadingTimeOut: 20000,
+          levelLoadingMaxRetry: 6,
+          levelLoadingRetryDelay: 1000,
+          levelLoadingMaxRetryTimeout: 64000,
+          fragLoadingTimeOut: 20000,
+          fragLoadingMaxRetry: 6,
+          fragLoadingRetryDelay: 1000,
+          fragLoadingMaxRetryTimeout: 64000
         });
+
+        hls.on(Hls.Events.ERROR, (_event, data) => {
+          console.warn('HLS error:', data);
+          if (data.details) console.warn('Error details:', data.details);
+          if (data.fatal) {
+            switch (data.type) {
+              case Hls.ErrorTypes.NETWORK_ERROR:
+                console.log('Fatal network error encountered, try to recover...');
+                hls.startLoad();
+                break;
+              case Hls.ErrorTypes.MEDIA_ERROR:
+                console.log('Fatal media error encountered, try to recover...');
+                hls.recoverMediaError();
+                break;
+              default:
+                console.log('Fatal error, cannot recover');
+                hls.destroy();
+                break;
+            }
+          }
+        });
+
+        hls.on(Hls.Events.FRAG_LOADING, (_event, data) => {
+          console.log('Fragment loading:', data);
+        });
+
+        hls.on(Hls.Events.FRAG_LOADED, (_event, data) => {
+          console.log('Fragment loaded:', data);
+        });
+
         hls.loadSource(m3u8Url);
         hls.attachMedia(video);
-        hls.on(Hls.Events.MANIFEST_PARSED, function () {
+
+        hls.on(Hls.Events.MANIFEST_PARSED, () => {
+          console.log('Manifest parsed, attempting playback');
           video.play().catch(e => {
             if (e.name !== 'AbortError') {
-              console.warn('play() error:', e);
+              console.warn('Play error:', e);
             }
           });
         });
       } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
         video.src = m3u8Url;
-        video.addEventListener('loadedmetadata', function () {
+        video.addEventListener('loadedmetadata', () => {
           video.play().catch(e => {
             if (e.name !== 'AbortError') {
-              console.warn('play() error:', e);
+              console.warn('Play error:', e);
             }
           });
         });

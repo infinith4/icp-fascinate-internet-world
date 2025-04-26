@@ -112,6 +112,7 @@ function App() {
         const arrayBuffer = await file.arrayBuffer();
         const uint8Array = Array.from(new Uint8Array(arrayBuffer));
         const result = await actor.upload_ts_segment(video_id, index, uint8Array);
+        console.log('upload_ts_segment. index: ', index);
         if ('err' in result) {
           alert(`セグメント${index}アップロード失敗: ` + result.err);
           setLoading(false);
@@ -186,66 +187,64 @@ function App() {
     const playlistResult = await actor.get_hls_playlist(videoId, import.meta.env.VITE_CANISTER_ID_STREAMINGSERVICE_BACKEND ?? '');
     if (playlistResult && 'ok' in playlistResult) {
       const m3u8Text = String(playlistResult.ok);
-      const rewrittenM3u8 = m3u8Text.replace(/[^\n]*?(\d+)\.ts/g, (_, p1) => `icsegment://${videoId}/${p1}`);
+      // Remove any encryption related tags and attributes from m3u8
+      const cleanedM3u8 = m3u8Text
+        .split('\n')
+        .filter(line => !line.startsWith('#EXT-X-KEY') && !line.includes('IV='))
+        .map(line => line.replace(/,IV=0x[0-9a-fA-F]+/, ''))
+        .join('\n');
+      
+      const rewrittenM3u8 = cleanedM3u8.replace(/[^\n]*?(\d+)\.ts/g, (_, p1) => `icsegment://${videoId}/${p1}`);
+      console.log('Processed m3u8:', rewrittenM3u8);
+      
       const blob = new Blob([rewrittenM3u8], { type: 'application/vnd.apple.mpegurl' });
       const m3u8Url = URL.createObjectURL(blob);
       
       if (Hls.isSupported()) {
         class CustomLoader extends Hls.DefaultConfig.loader {
-          private retryDelay = 1000;
-          private maxRetryDelay = 64000;
-          private maxRetry = 15;
-          private retryCount: { [key: string]: number } = {};
-
           load(context: any, config: any, callbacks: any) {
             if (context.url.startsWith('icsegment://')) {
               const match = context.url.match(/^icsegment:\/\/(.+)\/(\d+)$/);
               if (match) {
                 const [, vId, segIdx] = match;
-                const retryKey = `${vId}-${segIdx}`;
-                this.retryCount[retryKey] = this.retryCount[retryKey] || 0;
+                const segmentId = Number(segIdx);
 
-                const loadSegment = () => {
-                  actor.get_hls_segment(vId, Number(segIdx))
-                    .then((result: any) => {
-                      if (result && 'ok' in result) {
-                        const data = new Uint8Array(result.ok);
-                        console.log(`Segment ${segIdx} loaded, size: ${data.length} bytes`);
+                actor.get_hls_segment(vId, segmentId)
+                  .then((result: any) => {
+                    if (result && 'ok' in result) {
+                      const data = new Uint8Array(result.ok);
+                      if (data.length > 0) {
+                        // Log the first few bytes to verify MPEG-TS sync byte
+                        console.log('First bytes of segment:', Array.from(data.slice(0, 4)));
                         
-                        // Check if data starts with MPEG-TS sync byte (0x47)
-                        if (data.length > 0 && data[0] === 0x47) {
-                          callbacks.onSuccess({
-                            data: data.buffer,
-                            stats: {
-                              length: data.length,
-                              loaded: data.length
-                            },
-                            url: context.url
-                          }, context, null);
-                        } else {
-                          throw new Error('Invalid MPEG-TS format: missing sync byte');
-                        }
-                      } else {
-                        throw new Error(result.err || 'Segment fetch error');
-                      }
-                    })
-                    .catch((error) => {
-                      console.warn(`Segment load error (attempt ${this.retryCount[retryKey] + 1}/${this.maxRetry}):`, error);
-                      if (this.retryCount[retryKey] < this.maxRetry) {
-                        this.retryCount[retryKey]++;
-                        const delay = Math.min(this.retryDelay * Math.pow(2, this.retryCount[retryKey] - 1), this.maxRetryDelay);
-                        setTimeout(loadSegment, delay);
-                      } else {
-                        callbacks.onError({
-                          code: 500,
-                          text: `Failed to load segment after ${this.maxRetry} attempts: ${error.message}`,
+                        callbacks.onSuccess({
+                          data: data.buffer,
+                          stats: {
+                            loaded: data.length,
+                            total: data.length,
+                            retry: 0,
+                            aborted: false,
+                            loading: { first: 0, start: 0, end: 0 },
+                            parsing: { start: 0, end: 0 },
+                            buffering: { first: 0, start: 0, end: 0 }
+                          },
                           url: context.url
-                        }, context, null);
+                        }, context, {});  // Pass empty object instead of null
+                      } else {
+                        throw new Error('Empty segment data');
                       }
-                    });
-                };
-
-                loadSegment();
+                    } else {
+                      throw new Error(result.err || 'Segment fetch error');
+                    }
+                  })
+                  .catch((error) => {
+                    console.error('Failed to load segment:', error);
+                    callbacks.onError({
+                      code: 500,
+                      text: `Failed to load segment: ${error.message}`,
+                      url: context.url
+                    }, context, null);
+                  });
                 return;
               }
             }
@@ -255,30 +254,26 @@ function App() {
 
         const hls = new Hls({
           debug: true,
-          autoStartLoad: true,
-          startLevel: 0,
+          enableWorker: false,
+          enableSoftwareAES: false,
+          emeEnabled: false,
           loader: CustomLoader,
+          progressive: true,
+          lowLatencyMode: false,
           maxBufferSize: 0,
           maxBufferLength: 30,
-          maxMaxBufferLength: 600,
-          startFragPrefetch: true,
           manifestLoadingTimeOut: 20000,
           manifestLoadingMaxRetry: 6,
           manifestLoadingRetryDelay: 1000,
-          manifestLoadingMaxRetryTimeout: 64000,
           levelLoadingTimeOut: 20000,
           levelLoadingMaxRetry: 6,
-          levelLoadingRetryDelay: 1000,
-          levelLoadingMaxRetryTimeout: 64000,
           fragLoadingTimeOut: 20000,
           fragLoadingMaxRetry: 6,
-          fragLoadingRetryDelay: 1000,
-          fragLoadingMaxRetryTimeout: 64000
+          startFragPrefetch: true
         });
 
         hls.on(Hls.Events.ERROR, (_event, data) => {
           console.warn('HLS error:', data);
-          if (data.details) console.warn('Error details:', data.details);
           if (data.fatal) {
             switch (data.type) {
               case Hls.ErrorTypes.NETWORK_ERROR:

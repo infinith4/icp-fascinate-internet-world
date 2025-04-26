@@ -64,6 +64,14 @@ enum VideoInfoResult {
     Err(String),
 }
 
+#[derive(CandidType, Deserialize)]
+enum DeleteVideoResult {
+    #[serde(rename = "ok")]
+    Ok(String),
+    #[serde(rename = "err")]
+    Err(String),
+}
+
 thread_local! {
     static VIDEOS: RefCell<HashMap<String, Video>> = RefCell::new(HashMap::new());
 }
@@ -238,6 +246,19 @@ fn upload_ts_segment(video_id: String, segment_index: u32, ts_data: Vec<u8>) -> 
             UploadResult::Ok("OK".to_string())
         } else {
             UploadResult::Err("Video not found".to_string())
+        }
+    })
+}
+
+// 動画を削除するAPI
+#[update]
+fn delete_video(video_id: String) -> DeleteVideoResult {
+    VIDEOS.with(|videos| {
+        let mut videos = videos.borrow_mut();
+        if videos.remove(&video_id).is_some() {
+            DeleteVideoResult::Ok("Video deleted successfully".to_string())
+        } else {
+            DeleteVideoResult::Err("Video not found".to_string())
         }
     })
 }

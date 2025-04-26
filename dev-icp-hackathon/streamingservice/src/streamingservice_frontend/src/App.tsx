@@ -361,6 +361,34 @@ function App() {
     }
   };
 
+  const deleteVideo = async (videoId: string) => {
+    if (!confirm('Are you sure you want to delete this video?')) {
+      return;
+    }
+    
+    setLoading(true);
+    try {
+      const result = await actor.delete_video(videoId);
+      if ('ok' in result) {
+        await loadVideos(); // 動画リストを再読み込み
+        if (currentVideo === videoId) {
+          setCurrentVideo(null); // 現在再生中の動画が削除された場合、再生を停止
+          if (videoPlayer) {
+            videoPlayer.pause();
+            videoPlayer.removeAttribute('src');
+            videoPlayer.load();
+          }
+        }
+      } else {
+        alert('削除失敗: ' + result.err);
+      }
+    } catch (e) {
+      alert('削除中にエラーが発生しました');
+      console.error(e);
+    }
+    setLoading(false);
+  };
+
   return (
     <div className="App">
       <header>
@@ -395,6 +423,13 @@ function App() {
                   disabled={loading}
                 >
                   {currentVideo === video.id ? 'Downloading...' : 'Download'}
+                </button>
+                <button 
+                  onClick={() => deleteVideo(video.id)}
+                  disabled={loading}
+                  style={{ backgroundColor: '#ff4444' }}
+                >
+                  Delete
                 </button>
               </li>
             ))}

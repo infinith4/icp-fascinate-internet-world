@@ -35,8 +35,6 @@ function App() {
   useEffect(() => {
     // Initialize video player
     const player = document.createElement('video');
-    console.log("player");
-    console.log(player);
     player.controls = true;
     setVideoPlayer(player);
     document.body.appendChild(player);
@@ -168,6 +166,14 @@ function App() {
   //   setLoading(false);
   // };
 
+  const playTsSegment = (segmentData: Uint8Array) => {
+    if (!videoPlayer) return;
+    const blob = new Blob([segmentData], { type: 'video/mp2t' });
+    const url = URL.createObjectURL(blob);
+    videoPlayer.src = url;
+    videoPlayer.play();
+  };
+
   // HLS.jsによるHLSストリーミング再生関数（MediaSource APIは使わない）
   const playHlsStream = async (videoId: string) => {
     setCurrentVideo(videoId);
@@ -180,7 +186,6 @@ function App() {
     const playlistResult = await actor.get_hls_playlist(videoId, import.meta.env.VITE_CANISTER_ID_STREAMINGSERVICE_BACKEND ?? '');
     if (playlistResult && 'ok' in playlistResult) {
       const m3u8Text = String(playlistResult.ok);
-      // m3u8内の.tsパスをicsegment://videoId/segmentIndexに書き換え（接頭辞除去）
       const rewrittenM3u8 = m3u8Text.replace(/[^\n]*?(\d+)\.ts/g, (_, p1) => `icsegment://${videoId}/${p1}`);
       const blob = new Blob([rewrittenM3u8], { type: 'application/vnd.apple.mpegurl' });
       const m3u8Url = URL.createObjectURL(blob);
@@ -192,14 +197,15 @@ function App() {
               if (match) {
                 const [, vId, segIdx] = match;
                 actor.get_hls_segment(vId, Number(segIdx)).then((result: any) => {
-                  console.log('Segment data:', result);
                   if (result && 'ok' in result) {
-                    const data = new Uint8Array(result.ok);
-                    callbacks.onSuccess({ data: data.slice().buffer, url: context.url }, context, null);
+                    const uint8Array = new Uint8Array(result.ok);
+                    callbacks.onSuccess({
+                      data: uint8Array.buffer,
+                      url: context.url
+                    }, context, null);
                   } else {
                     callbacks.onError({ code: 400, text: 'Segment fetch error', url: context.url }, context, null);
                   }
-
                 }).catch(() => {
                   callbacks.onError({ code: 500, text: 'Segment fetch exception', url: context.url }, context, null);
                 });
@@ -209,16 +215,27 @@ function App() {
             super.load(context, config, callbacks);
           }
         }
-        const hls = new Hls({ loader: CustomLoader });
+        const hls = new Hls({ 
+          loader: CustomLoader,
+          debug: true // デバッグログを有効化
+        });
         hls.loadSource(m3u8Url);
         hls.attachMedia(video);
         hls.on(Hls.Events.MANIFEST_PARSED, function () {
-          video.play();
+          video.play().catch(e => {
+            if (e.name !== 'AbortError') {
+              console.warn('play() error:', e);
+            }
+          });
         });
       } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
         video.src = m3u8Url;
         video.addEventListener('loadedmetadata', function () {
-          video.play();
+          video.play().catch(e => {
+            if (e.name !== 'AbortError') {
+              console.warn('play() error:', e);
+            }
+          });
         });
       } else {
         alert('HLS is not supported in this browser.');

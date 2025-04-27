@@ -257,3 +257,33 @@ dfx deploy internet_identity --argument '(null)'
 
 web3 <- -> web2 : の連携し、internet identity でログインしたらOauth みたいに他のサービスにログインできるようにしたい
 
+Port 番号を利用しているか
+
+lsof -i :4943
+lsof -i :4949
+
+dfx start --clean --host 127.0.0.1:4949
+
+cd streamingservice
+dfx deploy
+
+sudo apt update
+sudo apt install ffmpeg
+
+ffprobe -v error -select_streams v:0 -show_entries stream=codec_name,codec_tag_string -of default=noprint_wrappers=1:nokey=1 "./videos/IC Hello Starter - Brave 2025-04-22 00-18-55.mp4"
+
+h264
+avc1
+
+ffprobe -v error -select_streams v:0 -show_entries stream=codec_name,codec_tag_string -of default=noprint_wrappers=1:nokey=1 "./videos/You are coding a new exciting project  The Social Network YouTube - Brave 2025-04-23 23-55-47.mp4"
+
+
+ffmpeg -i "./videos/The-Social-Network.mp4" -b:v 1M -c:a copy -f hls -hls_playlist_type vod -hls_time 5 -g 24 -hls_segment_filename "./videos/The-Social-Network-1m%3d.ts" "./videos/The-Social-Network-1m.m3u8"
+
+
+
+ffmpeg -i "./videos/IC Hello Starter - Brave 2025-04-22 00-18-55.mp4" -b:v 1M -c:a copy -f hls -hls_playlist_type vod -hls_time 5 -g 24 -hls_segment_filename "./videos/IC Hello Starter - Brave 2025-04-22 00-18-55%3d.ts" "./videos/IC Hello Starter - Brave 2025-04-22 00-18-55-1m.m3u8"
+
+ffmpeg -i "./videos/IC-Hello-Starter.mp4" -b:v 1M -c:a copy -f hls -hls_playlist_type vod -hls_time 5 -g 24 -hls_segment_filename "./videos/IC-Hello-Starter-%3d.ts" "./videos/IC-Hello-Starter-1m.m3u8"
+
+ffmpeg -i "./videos/Narita.mp4" -b:v 1M -c:a copy -f hls -hls_playlist_type vod -hls_time 5 -g 24 -hls_segment_filename "./videos/Narita-1m%3d.ts" "./videos/Narita-1m.m3u8"

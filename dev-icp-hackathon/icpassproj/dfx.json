@@ -21,6 +21,12 @@
         "vetkd_system_api"
       ]
     },
+    "mng_canister": {
+      "main": "src/mng_canister/main.mo",
+      "candid": "src/mng_canister/mng_canister.did",
+      "package": "mng_canister",
+      "type": "motoko"
+    },
     "icpassproj_frontend": {
       "dependencies": [
         "icpassproj_backend",

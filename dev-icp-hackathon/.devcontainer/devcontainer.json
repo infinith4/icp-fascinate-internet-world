@@ -25,7 +25,11 @@
 				"llvm-vs-code-extensions.lldb-dap",
 				"ms-vscode.cpptools",
 				"webfreak.debug",
-				"RooVeterinaryInc.roo-cline"
+				"RooVeterinaryInc.roo-cline",
+				"GitHub.copilot-chat",
+				"GitHub.copilot",
+				"motoko-lsp-client.motoko-lsp-client",
+				"dfinity-foundation.motoko-viper"
 			]
 		}
 	},

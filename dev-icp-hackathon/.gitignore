@@ -3,3 +3,7 @@ onmac/.$icp.drawio.bkp
 onmac/.$icp.drawio.dtmp
 seed.*
 .env*
+.dfx
+declarations
+
+mng_canister_rust/target

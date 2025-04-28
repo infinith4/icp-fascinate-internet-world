@@ -615,12 +615,11 @@ function App() {
         <h1>Video Streaming Service</h1>
       </header>
       <main>
-        <div className="upload-section">
-          <label>upload-section: 
+        <div className="upload-section-hls">
+          <label>upload-section-hls: 
             <input
-              name='upload-section'
               type="file"
-              accept=".m3u8,.ts,.mp4,video/*"
+              accept=".m3u8,.ts,video/*"
               multiple
               onChange={handleFileUploadHls}
               disabled={loading}

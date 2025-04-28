@@ -82,6 +82,44 @@ fn greet(name: String) -> String {
     format!("Hello, {}!", name)
 }
 
+#[update]
+fn upload_video_chunk(video_id: String, chunk_index: u32, chunk: Vec<u8>) -> UploadResult {
+    VIDEOS.with(|videos| {
+        ic_cdk::println!("Starting upload_video_chunk for video_id: {}", video_id);
+        let mut videos = videos.borrow_mut();
+        
+        // 存在しないvideo_idの場合は新しいビデオエントリを作成
+        if !videos.contains_key(&video_id) {
+            ic_cdk::println!("Creating new video entry for video_id: {}", video_id);
+            videos.insert(video_id.clone(), Video {
+                id: video_id.clone(),
+                title: "".to_string(),
+                description: "".to_string(),
+                chunks: Vec::new(),
+                hash: "".to_string(),
+                playlist: None
+            });
+        }
+        
+        // 以降は既存のビデオ処理
+        match videos.get_mut(&video_id) {
+            Some(video) => {
+                ic_cdk::println!("Processing chunk {} for video_id: {}", chunk_index, video_id);
+                while video.chunks.len() <= chunk_index as usize {
+                    video.chunks.push(Vec::new());
+                }
+                video.chunks[chunk_index as usize] = chunk;
+                ic_cdk::println!("Successfully processed chunk {} for video_id: {}", chunk_index, video_id);
+                UploadResult::Ok("ok".to_string())
+            },
+            None => {
+                ic_cdk::println!("Error: Failed to create video entry for video_id: {}", video_id);
+                UploadResult::Err("Failed to create video entry".to_string())
+            }
+        }
+    })
+}
+
 // HLS用: TSセグメントアップロードAPI
 #[update]
 fn upload_video_segment(video_id: String, ts_segment: Vec<u8>, segment_index: u32) -> UploadResult {

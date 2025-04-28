@@ -350,49 +350,75 @@ function App() {
   // };
 
 
-  // ファイルアップロード処理（チャンク分割＆upload_video_segment呼び出し）
-  // const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-  //   const file = event.target.files?.[0];
-  //   if (!file) return;
-  //   setLoading(true);
-  //   try {
-  //     // 動画エントリ作成
-  //     const title = file.name;
-  //     const description = '';
-  //     const video_id = await actor.create_video(title, description);
-  //     // チャンクサイズ（例: 1MB）
-  //     const CHUNK_SIZE = 1024 * 1024;
-  //     const arrayBuffer = await file.arrayBuffer();
-  //     const uint8Array = new Uint8Array(arrayBuffer);
-  //     const totalChunks = Math.ceil(uint8Array.length / CHUNK_SIZE);
-  //     for (let i = 0; i < totalChunks; i++) {
-  //       const start = i * CHUNK_SIZE;
-  //       const end = Math.min(start + CHUNK_SIZE, uint8Array.length);
-  //       const chunk = Array.from(uint8Array.slice(start, end));
-  //       console.log('Uploading chunk', i + 1, 'of', totalChunks);
-  //       const result = await actor.upload_video_segment(video_id, chunk, i);
-  //       console.log('Chunk upload result:', result);
-  //       if (!('ok' in result)) {
-  //         alert('アップロード失敗: ' + (result.err ?? 'unknown error'));
-  //         setLoading(false);
-  //         return;
-  //       }
-  //     }
-  //     await loadVideos();
-  //     alert('アップロード成功');
-  //   } catch (e) {
-  //     alert('アップロード中にエラーが発生しました');
-  //     console.error(e);
-  //   }
-  //   setLoading(false);
-  // };
+  //ファイルアップロード処理（チャンク分割＆upload_video_segment呼び出し）
+  const handleFileUploadOriginal = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
 
-  const playTsSegment = (segmentData: Uint8Array) => {
+    setLoading(true);
+    const title = prompt('Enter video title:') || 'Untitled';
+    const description = prompt('Enter video description:') || 'No description';
+
+    try {
+      const videoId = await actor.create_video(title, description);
+      console.log(videoId);
+      // Split video into chunks and upload
+      const chunkSize = 1024 * 1024; // 1MB chunks
+      const totalChunks = Math.ceil(file.size / chunkSize);
+      
+      for (let i = 0; i < totalChunks; i++) {
+        const chunk = file.slice(i * chunkSize, (i + 1) * chunkSize);
+        const chunkBuffer = await chunk.arrayBuffer();
+        console.log("------------chunk", i);
+        console.log(chunk);
+        const result = await actor.upload_video_chunk(videoId, i, Array.from(new Uint8Array(chunkBuffer)));
+        if ('err' in result) {
+          throw new Error(result.err);
+        }
+      }
+
+      await loadVideos(); // Reload video list
+    } catch (error) {
+      console.error('Error uploading video:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const playVideoOriginal = async (videoId: string) => {
     if (!videoPlayer) return;
-    const blob = new Blob([segmentData], { type: 'video/mp2t' });
-    const url = URL.createObjectURL(blob);
-    videoPlayer.src = url;
-    videoPlayer.play();
+
+    setLoading(true);
+    try {
+      const chunks: Blob[] = [];
+      let chunkIndex = 0;
+      
+      while (true) {
+        try {
+          const result = await actor.get_video_chunk(videoId, chunkIndex);
+          console.log("----------------------");
+          console.log(result);
+          
+          if ('err' in result) {
+            break;
+          }
+          chunks.push(new Blob([new Uint8Array(result.ok)]));
+          chunkIndex++;
+        } catch (error) {
+          break;
+        }
+      }
+
+      const videoBlob = new Blob(chunks, { type: 'video/mp4' });
+      videoPlayer.src = URL.createObjectURL(videoBlob);
+      console.log("URL.createObjectURL(videoBlob)");
+      console.log(URL.createObjectURL(videoBlob));
+      setCurrentVideo(videoId);
+    } catch (error) {
+      console.error('Error playing video:', error);
+    } finally {
+      setLoading(false);
+    }
   };
 
   // HLS.jsによるHLSストリーミング再生関数（MediaSource APIは使わない）
@@ -639,6 +665,18 @@ function App() {
           </label>
           {loading && <p>Loading...</p>}
         </div>
+        <div className="upload-section-original">
+          <label>upload-section-original: 
+            <input
+              type="file"
+              accept=".mp4,video/*"
+              multiple
+              onChange={handleFileUploadOriginal}
+              disabled={loading}
+            />
+          </label>
+          {loading && <p>Loading...</p>}
+        </div>
         <div className="video-list">
           <h2>Available Videos</h2>
           <p ref={ffmpegMessageRef}></p>
@@ -665,6 +703,13 @@ function App() {
                   style={{ backgroundColor: '#ff4444' }}
                 >
                   Delete
+                </button>
+
+                <button 
+                  onClick={() => playVideoOriginal(video.id)}
+                  disabled={loading}
+                >
+                  {currentVideo === video.id ? 'Playing...' : 'Play'}
                 </button>
               </li>
             ))}

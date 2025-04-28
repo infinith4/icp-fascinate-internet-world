@@ -287,3 +287,13 @@ ffmpeg -i "./videos/IC Hello Starter - Brave 2025-04-22 00-18-55.mp4" -b:v 1M -c
 ffmpeg -i "./videos/IC-Hello-Starter.mp4" -b:v 1M -c:a copy -f hls -hls_playlist_type vod -hls_time 5 -g 24 -hls_segment_filename "./videos/IC-Hello-Starter-%3d.ts" "./videos/IC-Hello-Starter-1m.m3u8"
 
 ffmpeg -i "./videos/Narita.mp4" -b:v 1M -c:a copy -f hls -hls_playlist_type vod -hls_time 5 -g 24 -hls_segment_filename "./videos/Narita-1m%3d.ts" "./videos/Narita-1m.m3u8"
+
+
+
+https://ffmpegwasm.netlify.app/docs/getting-started/usage
+
+
+cd /src/streamingservice/src/streamingservice_frontend
+
+npm install @ffmpeg/ffmpeg @ffmpeg/util
+

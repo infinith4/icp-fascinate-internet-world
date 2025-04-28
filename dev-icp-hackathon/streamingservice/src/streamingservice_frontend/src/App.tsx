@@ -4,6 +4,10 @@ import { _SERVICE } from '../../declarations/streamingservice_backend/streamings
 import { createActor } from '../../declarations/streamingservice_backend';
 import Hls from 'hls.js';
 
+import { FFmpeg } from '@ffmpeg/ffmpeg';
+import { fetchFile, toBlobURL } from '@ffmpeg/util';
+import { log } from 'console';
+
 type VideoInfo = {
   id: string;
   title: string;
@@ -20,6 +24,12 @@ function App() {
   const [sourceBuffer, setSourceBuffer] = useState<SourceBuffer | null>(null);
   const [loading, setLoading] = useState(false);
 
+  const [ffmpegLoaded, setFfmpegLoaded] = useState(false);
+  const ffmpegRef = useRef(new FFmpeg());
+  const ffmpegVideoRef = useRef(null);
+  const ffmpegMessageRef = useRef<HTMLParagraphElement>(null);
+  const ffmpeg = new FFmpeg();
+
   const agent = HttpAgent.createSync({
     host: 'http://localhost:' + import.meta.env.VITE_LOCAL_CANISTER_PORT,
     callOptions: {
@@ -31,7 +41,6 @@ function App() {
   const actor = createActor(import.meta.env.VITE_CANISTER_ID_STREAMINGSERVICE_BACKEND, {
     agent,
   }) as Actor & _SERVICE;
-
   useEffect(() => {
     // Initialize video player
     const player = document.createElement('video');
@@ -41,7 +50,8 @@ function App() {
 
     // Load video list
     loadVideos();
-
+    const ffmpeg = new FFmpeg();
+    ffmpegLoad();
     return () => {
       if (player) {
         document.body.removeChild(player);
@@ -63,10 +73,154 @@ function App() {
     }
   };
 
-  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+  const ffmpegLoad = async () => {
     try {
-      //TODO: mp4 から m3u8ファイルとtsファイル を生成
-      // handleFileUpload内
+      ffmpeg.on('log', ({ message }) => {
+        console.log(message);
+      });
+      await ffmpeg.load();
+      if (ffmpegMessageRef.current) {
+        ffmpegMessageRef.current.innerHTML = 'FFmpeg core loaded';
+      }
+
+      console.log('FFmpeg loaded:');
+      setFfmpegLoaded(true);
+
+      // const baseURL = 'https://unpkg.com/@ffmpeg/core-mt@0.12.6/dist/umd'
+      // const ffmpeg = ffmpegRef.current;
+      // console.log('FFmpeg instance:', ffmpeg);
+      // ffmpeg.on('log', ({ message }) => {
+      //   if (ffmpegMessageRef.current) {
+      //     ffmpegMessageRef.current.innerHTML = message;
+      //   }
+      //   console.log(message);
+      // });
+      // console.log('FFmpeg load:');
+      // // toBlobURL is used to bypass CORS issue, urls with the same
+      // // domain can be used directly.
+      // // 非同期でファイルをフェッチしてblobURLに変換
+      // const response = await fetch(`${baseURL}/ffmpeg-core.js`);
+      // const jsBlob = await response.blob();
+      // const jsURL = URL.createObjectURL(jsBlob);
+
+      // const wasmResponse = await fetch(`${baseURL}/ffmpeg-core.wasm`);
+      // const wasmBlob = await wasmResponse.blob();
+      // const wasmURL = URL.createObjectURL(wasmBlob);
+
+      // const workerResponse = await fetch(`${baseURL}/ffmpeg-core.worker.js`);
+      // const workerBlob = await workerResponse.blob();
+      // const workerURL = URL.createObjectURL(workerBlob);
+
+      // await ffmpeg.load({
+      //   coreURL: jsURL,
+      //   wasmURL: wasmURL,
+      //   workerURL: workerURL
+      // });
+      // console.log('FFmpeg loaded:');
+      // setFfmpegLoaded(true);
+      // // クリーンアップ
+      // URL.revokeObjectURL(jsURL);
+      // URL.revokeObjectURL(wasmURL);
+      // URL.revokeObjectURL(workerURL);
+
+    } catch (error) {
+      console.error('FFmpeg load error:', error);
+      throw error;
+    }
+  }
+
+  const handleFileUploadWithFfmpeg = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    setLoading(true);
+  
+    try {
+      ffmpeg.on('log', ({ message }) => {
+        console.log(message);
+      });
+      await ffmpeg.load();
+      const inputData = await fetchFile(file);
+      await ffmpeg.writeFile(file.name, inputData);
+  
+      // セグメント長を2秒に短縮し、サイズを小さく
+      const segmentDuration = 2;
+      
+      // ビットレートを下げてファイルサイズを削減
+      await ffmpeg.exec([
+        '-i', file.name,
+        '-c:v', 'libx264',     // H.264コーデックを使用
+        '-b:v', '800k',        // ビデオビットレートを800kbpsに制限
+        '-maxrate', '1000k',   // 最大ビットレート
+        '-bufsize', '1200k',   // バッファサイズ
+        '-c:a', 'aac',         // オーディオコーデック
+        '-b:a', '128k',        // オーディオビットレート
+        '-f', 'hls',           
+        '-hls_time', segmentDuration.toString(),
+        '-hls_segment_type', 'mpegts',
+        '-hls_list_size', '0',
+        '-hls_segment_filename', 'segment_%03d.ts',
+        'playlist.m3u8'
+      ]);
+  
+      const video_id = await actor.create_video(file.name, '');
+  
+      // m3u8ファイルのアップロード
+      const playlist = await ffmpeg.readFile('playlist.m3u8');
+      const playlistText = new TextDecoder().decode(playlist as Uint8Array);
+      const playlistResult = await actor.upload_playlist(video_id, playlistText);
+      
+      if ('err' in playlistResult) {
+        throw new Error(`Failed to upload playlist: ${playlistResult.err}`);
+      }
+  
+      // TSセグメントの分割アップロード
+      let segmentIndex = 0;
+      while (true) {
+        try {
+          const segmentName = `segment_${String(segmentIndex).padStart(3, '0')}.ts`;
+          const segmentData = await ffmpeg.readFile(segmentName);
+          
+          if (!segmentData) break;
+          const uint8Array = new Uint8Array(segmentData as unknown as ArrayBuffer);
+          
+          // セグメントを1MBごとに分割
+          const CHUNK_SIZE = 1024 * 1024; // 1MB
+          for (let offset = 0; offset < uint8Array.length; offset += CHUNK_SIZE) {
+            const chunk = uint8Array.slice(offset, offset + CHUNK_SIZE);
+            console.log('upload_ts_segment');
+            const result = await actor.upload_ts_segment(
+              video_id,
+              segmentIndex,
+              Array.from(chunk)
+            );
+            
+            if ('err' in result) {
+              throw new Error(`Failed to upload segment ${segmentIndex} chunk: ${result.err}`);
+            }
+          }
+          
+          segmentIndex++;
+        } catch (e) {
+          if (e instanceof Error && e.message.includes('not found')) {
+            break; // セグメントが見つからない場合は終了
+          }
+          throw e; // その他のエラーは再スロー
+        }
+      }
+  
+      await loadVideos();
+      alert('アップロード成功');
+  
+    } catch (e) {
+      console.error('Error during upload:', e);
+      alert('アップロード中にエラーが発生しました: ' + (e as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleFileUploadHls = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    try {
       // m3u8ファイルとtsファイルをアップロード
       const files = event.target.files;
       console.log('files:', files);
@@ -128,6 +282,72 @@ function App() {
     }
     setLoading(false);
   };
+  
+  // const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+  //   try {
+  //     //TODO: mp4 から m3u8ファイルとtsファイル を生成
+  //     // handleFileUpload内
+  //     // m3u8ファイルとtsファイルをアップロード
+  //     const files = event.target.files;
+  //     console.log('files:', files);
+  //     const title = files?.[0].name;
+  //     console.log('title:', title);
+  //     const description = '';
+  //     const video_id = await actor.create_video(title || 'Untitled', description);
+  //     if (!files) return;
+
+  //     let playlistFile: File | null = null;
+  //     const tsFiles: { file: File, index: number }[] = [];
+
+  //     // ファイルを分類
+  //     for (let i = 0; i < files.length; i++) {
+  //       const f = files[i];
+  //       if (f.name.endsWith('.m3u8')) {
+  //         playlistFile = f;
+  //       } else if (f.name.endsWith('.ts')) {
+  //         // 例: IC-Hello-Starter-001.ts → 001
+  //         const match = f.name.match(/(\d+)\.ts$/);
+  //         if (match) {
+  //           tsFiles.push({ file: f, index: parseInt(match[1], 10) });
+  //         }
+  //       }
+  //     }
+
+  //     // m3u8アップロード
+  //     if (playlistFile) {
+  //       const text = await playlistFile.text();
+  //       console.log('text:', text);
+  //       console.log('upload_playlist:');
+  //       const result = await actor.upload_playlist(video_id, text);
+  //       console.log('upload_playlist:', result);
+  //       if ('err' in result) {
+  //         alert('プレイリストアップロード失敗: ' + result.err);
+  //         setLoading(false);
+  //         return;
+  //       }
+  //     }
+
+  //     // tsセグメントアップロード
+  //     for (const { file, index } of tsFiles) {
+  //       const arrayBuffer = await file.arrayBuffer();
+  //       const uint8Array = Array.from(new Uint8Array(arrayBuffer));
+  //       const result = await actor.upload_ts_segment(video_id, index, uint8Array);
+  //       console.log('upload_ts_segment. index: ', index);
+  //       if ('err' in result) {
+  //         alert(`セグメント${index}アップロード失敗: ` + result.err);
+  //         setLoading(false);
+  //         return;
+  //       }
+  //     }
+
+  //     await loadVideos();
+  //     alert('アップロード成功');
+  //   } catch (e) {
+  //     alert('アップロード中にエラーが発生しました');
+  //     console.error(e);
+  //   }
+  //   setLoading(false);
+  // };
 
 
   // ファイルアップロード処理（チャンク分割＆upload_video_segment呼び出し）
@@ -389,24 +609,40 @@ function App() {
     setLoading(false);
   };
 
-  return (
+  return (ffmpegLoaded ? (
     <div className="App">
       <header>
         <h1>Video Streaming Service</h1>
       </header>
       <main>
         <div className="upload-section">
-          <input
-            type="file"
-            accept=".m3u8,.ts,video/*"
-            multiple
-            onChange={handleFileUpload}
-            disabled={loading}
-          />
+          <label>upload-section: 
+            <input
+              name='upload-section'
+              type="file"
+              accept=".m3u8,.ts,.mp4,video/*"
+              multiple
+              onChange={handleFileUploadHls}
+              disabled={loading}
+            />
+          </label>
+          {loading && <p>Loading...</p>}
+        </div>
+        <div className="upload-section-ffmpeg">
+          <label>upload-section-ffmpeg: 
+            <input
+              type="file"
+              accept=".mp4,video/*"
+              multiple
+              onChange={handleFileUploadWithFfmpeg}
+              disabled={loading}
+            />
+          </label>
           {loading && <p>Loading...</p>}
         </div>
         <div className="video-list">
           <h2>Available Videos</h2>
+          <p ref={ffmpegMessageRef}></p>
           <ul>
             {videos.map((video) => (
               <li key={video.id}>
@@ -437,7 +673,17 @@ function App() {
         </div>
       </main>
     </div>
-  );
+  ) : (
+    <div className="App">
+      <header>
+        <h1>Loading FFmpeg...</h1>
+      </header>
+      <main>
+        <p>Please wait while FFmpeg is loading...</p>
+        <button onClick={ffmpegLoad}>Load ffmpeg-core</button>
+      </main>
+    </div>
+  ));
 }
 
 export default App;

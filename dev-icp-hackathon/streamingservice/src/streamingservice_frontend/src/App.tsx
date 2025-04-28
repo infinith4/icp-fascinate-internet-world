@@ -3,7 +3,8 @@ import { Actor, HttpAgent } from '@dfinity/agent';
 import { _SERVICE } from '../../declarations/streamingservice_backend/streamingservice_backend.did';
 import { createActor } from '../../declarations/streamingservice_backend';
 import Hls from 'hls.js';
-import { FFmpegService } from './services/FFmpegService';
+import { FFmpegService, FFmpegProgress } from './services/FFmpegService';
+import { Timer } from './utils/Timer';
 
 type VideoInfo = {
   id: string;
@@ -12,15 +13,43 @@ type VideoInfo = {
   hash: string;
 };
 
+interface ProgressBarProps {
+  progress: number;
+  message: string;
+}
+
+const ProgressBar: React.FC<ProgressBarProps> = ({ progress, message }) => (
+  <div style={{ marginBottom: '20px' }}>
+    <div style={{ marginBottom: '5px' }}>{message}</div>
+    <div style={{ 
+      width: '100%', 
+      height: '20px', 
+      backgroundColor: '#eee',
+      borderRadius: '10px',
+      overflow: 'hidden'
+    }}>
+      <div style={{
+        width: `${Math.min(100, Math.max(0, progress))}%`,
+        height: '100%',
+        backgroundColor: '#4CAF50',
+        transition: 'width 0.3s ease'
+      }} />
+    </div>
+    <div style={{ textAlign: 'right' }}>{progress.toFixed(1)}%</div>
+  </div>
+);
+
 function App() {
   const [videos, setVideos] = useState<VideoInfo[]>([]);
   const [currentVideo, setCurrentVideo] = useState<string | null>(null);
   const [videoPlayer, setVideoPlayer] = useState<HTMLVideoElement | null>(null);
   const [loading, setLoading] = useState(false);
   const [ffmpegLoaded, setFfmpegLoaded] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<{ message: string; progress: number } | null>(null);
   const ffmpegService = useRef(new FFmpegService());
   const ffmpegMessageRef = useRef<HTMLParagraphElement>(null);
 
+  const timer = new Timer();
   const agent = HttpAgent.createSync({
     host: 'http://localhost:' + import.meta.env.VITE_LOCAL_CANISTER_PORT,
     callOptions: {
@@ -81,20 +110,37 @@ function App() {
   };
 
   const handleFileUploadWithFfmpeg = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    console.log('handleFileUploadWithFfmpeg:');
     const file = event.target.files?.[0];
     if (!file) return;
     setLoading(true);
+    setUploadProgress({ message: 'Starting upload...', progress: 0 });
 
     try {
       console.log('create_video:');
       const video_id = await actor.create_video(file.name, '');
+
+      // FFmpeg処理の進捗表示を設定
+      ffmpegService.current.onProgress = (progress: FFmpegProgress) => {
+        if (progress.progress) {
+          setUploadProgress({
+            message: progress.message,
+            progress: progress.progress.percent
+          });
+        } else {
+          setUploadProgress({
+            message: progress.message,
+            progress: uploadProgress?.progress || 0
+          });
+        }
+      };
+
       const { playlist, segments } = await ffmpegService.current.processVideo(file);
       console.log('processVideo:');
 
       // プレイリストのアップロード
       const playlistText = new TextDecoder().decode(playlist);
       console.log('playlist:', playlistText);
+      setUploadProgress({ message: 'Uploading playlist...', progress: 0 });
       const playlistResult = await actor.upload_playlist(video_id, playlistText);
       
       if ('err' in playlistResult) {
@@ -102,9 +148,22 @@ function App() {
       }
 
       // セグメントのアップロード
+      const totalSegments = segments.length;
       const CHUNK_SIZE = 1024 * 1024; // 1MB
+      let uploadedSegments = 0;
+      let totalChunks = 0;
+      let uploadedChunks = 0;
+
+      // 総チャンク数を計算
+      for (const segment of segments) {
+        totalChunks += Math.ceil(segment.data.length / CHUNK_SIZE);
+      }
+
       for (const segment of segments) {
         const uint8Array = new Uint8Array(segment.data);
+        const segmentChunks = Math.ceil(uint8Array.length / CHUNK_SIZE);
+        let uploadedSegmentChunks = 0;
+
         for (let offset = 0; offset < uint8Array.length; offset += CHUNK_SIZE) {
           const chunk = uint8Array.slice(offset, offset + CHUNK_SIZE);
           console.log('upload_ts_segment:', segment.index);
@@ -117,17 +176,33 @@ function App() {
           if ('err' in result) {
             throw new Error(`Failed to upload segment ${segment.index}: ${result.err}`);
           }
+
+          uploadedSegmentChunks++;
+          uploadedChunks++;
+          
+          const totalProgress = (uploadedChunks / totalChunks) * 100;
+          setUploadProgress({
+            message: `Uploading segment ${uploadedSegments + 1}/${totalSegments} (${uploadedSegmentChunks}/${segmentChunks} chunks)`,
+            progress: totalProgress
+          });
         }
+
+        uploadedSegments++;
       }
 
       await loadVideos();
+      setUploadProgress({ message: 'Upload completed!', progress: 100 });
       alert('アップロード成功');
     } catch (e) {
       console.error('Error during upload:', e);
       alert('アップロード中にエラーが発生しました: ' + (e as Error).message);
     } finally {
       setLoading(false);
+      setTimeout(() => setUploadProgress(null), 2000); // 2秒後にプログレスバーを非表示
     }
+    
+    const resulttimer = timer.stop();
+    console.log('Timer results:', timer.formatResults(resulttimer));
   };
 
   const handleFileUploadHls = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -588,6 +663,12 @@ function App() {
           </label>
           {loading && <p>Loading...</p>}
         </div>
+        {uploadProgress && (
+            <ProgressBar
+              progress={uploadProgress.progress}
+              message={uploadProgress.message}
+            />
+          )}
         <div className="video-list">
           <h2>Available Videos</h2>
           <p ref={ffmpegMessageRef}></p>
@@ -600,7 +681,7 @@ function App() {
                   onClick={() => playHlsStream(video.id)}
                   disabled={loading}
                 >
-                  {currentVideo === video.id ? 'Playing...' : 'Play'}
+                  {currentVideo === video.id ? 'Playing...' : 'Play HLS'}
                 </button>
                 <button 
                   onClick={() => downloadStream(video.id)}
@@ -620,7 +701,7 @@ function App() {
                   onClick={() => playVideoOriginal(video.id)}
                   disabled={loading}
                 >
-                  {currentVideo === video.id ? 'Playing...' : 'Play'}
+                  {currentVideo === video.id ? 'Playing...' : 'Play Original MP4'}
                 </button>
               </li>
             ))}

@@ -3,10 +3,7 @@ import { Actor, HttpAgent } from '@dfinity/agent';
 import { _SERVICE } from '../../declarations/streamingservice_backend/streamingservice_backend.did';
 import { createActor } from '../../declarations/streamingservice_backend';
 import Hls from 'hls.js';
-
-import { FFmpeg } from '@ffmpeg/ffmpeg';
-import { fetchFile, toBlobURL } from '@ffmpeg/util';
-import { log } from 'console';
+import { FFmpegService } from './services/FFmpegService';
 
 type VideoInfo = {
   id: string;
@@ -16,48 +13,58 @@ type VideoInfo = {
 };
 
 function App() {
-
   const [videos, setVideos] = useState<VideoInfo[]>([]);
   const [currentVideo, setCurrentVideo] = useState<string | null>(null);
   const [videoPlayer, setVideoPlayer] = useState<HTMLVideoElement | null>(null);
-  const [mediaSource, setMediaSource] = useState<MediaSource | null>(null);
-  const [sourceBuffer, setSourceBuffer] = useState<SourceBuffer | null>(null);
   const [loading, setLoading] = useState(false);
-
   const [ffmpegLoaded, setFfmpegLoaded] = useState(false);
-  const ffmpegRef = useRef(new FFmpeg());
-  const ffmpegVideoRef = useRef(null);
+  const ffmpegService = useRef(new FFmpegService());
   const ffmpegMessageRef = useRef<HTMLParagraphElement>(null);
-  const ffmpeg = new FFmpeg();
 
   const agent = HttpAgent.createSync({
     host: 'http://localhost:' + import.meta.env.VITE_LOCAL_CANISTER_PORT,
     callOptions: {
       update: {
-        timeout: 300000, // 5 minutes
+        timeout: 300000,
       },
     },
   });
+  
   const actor = createActor(import.meta.env.VITE_CANISTER_ID_STREAMINGSERVICE_BACKEND, {
     agent,
   }) as Actor & _SERVICE;
+
   useEffect(() => {
-    // Initialize video player
     const player = document.createElement('video');
     player.controls = true;
     setVideoPlayer(player);
     document.body.appendChild(player);
 
-    // Load video list
     loadVideos();
-    const ffmpeg = new FFmpeg();
-    ffmpegLoad();
+    initFFmpeg();
+
     return () => {
       if (player) {
         document.body.removeChild(player);
       }
     };
   }, []);
+
+  const initFFmpeg = async () => {
+    try {
+      const ffmpeg = ffmpegService.current;
+      ffmpeg.onProgress = ({ message }) => {
+        if (ffmpegMessageRef.current) {
+          ffmpegMessageRef.current.innerHTML = message;
+        }
+      };
+      
+      await ffmpeg.load();
+      setFfmpegLoaded(true);
+    } catch (error) {
+      console.error('FFmpeg initialization error:', error);
+    }
+  };
 
   const loadVideos = async () => {
     try {
@@ -73,144 +80,43 @@ function App() {
     }
   };
 
-  const ffmpegLoad = async () => {
-    try {
-      ffmpeg.on('log', ({ message }) => {
-        console.log(message);
-      });
-      await ffmpeg.load();
-      if (ffmpegMessageRef.current) {
-        ffmpegMessageRef.current.innerHTML = 'FFmpeg core loaded';
-      }
-
-      console.log('FFmpeg loaded:');
-      setFfmpegLoaded(true);
-
-      // const baseURL = 'https://unpkg.com/@ffmpeg/core-mt@0.12.6/dist/umd'
-      // const ffmpeg = ffmpegRef.current;
-      // console.log('FFmpeg instance:', ffmpeg);
-      // ffmpeg.on('log', ({ message }) => {
-      //   if (ffmpegMessageRef.current) {
-      //     ffmpegMessageRef.current.innerHTML = message;
-      //   }
-      //   console.log(message);
-      // });
-      // console.log('FFmpeg load:');
-      // // toBlobURL is used to bypass CORS issue, urls with the same
-      // // domain can be used directly.
-      // // 非同期でファイルをフェッチしてblobURLに変換
-      // const response = await fetch(`${baseURL}/ffmpeg-core.js`);
-      // const jsBlob = await response.blob();
-      // const jsURL = URL.createObjectURL(jsBlob);
-
-      // const wasmResponse = await fetch(`${baseURL}/ffmpeg-core.wasm`);
-      // const wasmBlob = await wasmResponse.blob();
-      // const wasmURL = URL.createObjectURL(wasmBlob);
-
-      // const workerResponse = await fetch(`${baseURL}/ffmpeg-core.worker.js`);
-      // const workerBlob = await workerResponse.blob();
-      // const workerURL = URL.createObjectURL(workerBlob);
-
-      // await ffmpeg.load({
-      //   coreURL: jsURL,
-      //   wasmURL: wasmURL,
-      //   workerURL: workerURL
-      // });
-      // console.log('FFmpeg loaded:');
-      // setFfmpegLoaded(true);
-      // // クリーンアップ
-      // URL.revokeObjectURL(jsURL);
-      // URL.revokeObjectURL(wasmURL);
-      // URL.revokeObjectURL(workerURL);
-
-    } catch (error) {
-      console.error('FFmpeg load error:', error);
-      throw error;
-    }
-  }
-
   const handleFileUploadWithFfmpeg = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
     setLoading(true);
-  
+
     try {
-      ffmpeg.on('log', ({ message }) => {
-        console.log(message);
-      });
-      await ffmpeg.load();
-      const inputData = await fetchFile(file);
-      await ffmpeg.writeFile(file.name, inputData);
-  
-      // セグメント長を2秒に短縮し、サイズを小さく
-      const segmentDuration = 2;
-      
-      // ビットレートを下げてファイルサイズを削減
-      await ffmpeg.exec([
-        '-i', file.name,
-        '-c:v', 'libx264',     // H.264コーデックを使用
-        '-b:v', '800k',        // ビデオビットレートを800kbpsに制限
-        '-maxrate', '1000k',   // 最大ビットレート
-        '-bufsize', '1200k',   // バッファサイズ
-        '-c:a', 'aac',         // オーディオコーデック
-        '-b:a', '128k',        // オーディオビットレート
-        '-f', 'hls',           
-        '-hls_time', segmentDuration.toString(),
-        '-hls_segment_type', 'mpegts',
-        '-hls_list_size', '0',
-        '-hls_segment_filename', 'segment_%03d.ts',
-        'playlist.m3u8'
-      ]);
-  
       const video_id = await actor.create_video(file.name, '');
-  
-      // m3u8ファイルのアップロード
-      const playlist = await ffmpeg.readFile('playlist.m3u8');
-      const playlistText = new TextDecoder().decode(playlist as Uint8Array);
+      const { playlist, segments } = await ffmpegService.current.processVideo(file);
+
+      // プレイリストのアップロード
+      const playlistText = new TextDecoder().decode(playlist);
       const playlistResult = await actor.upload_playlist(video_id, playlistText);
       
       if ('err' in playlistResult) {
         throw new Error(`Failed to upload playlist: ${playlistResult.err}`);
       }
-  
-      // TSセグメントの分割アップロード
-      let segmentIndex = 0;
-      while (true) {
-        try {
-          const segmentName = `segment_${String(segmentIndex).padStart(3, '0')}.ts`;
-          const segmentData = await ffmpeg.readFile(segmentName);
+
+      // セグメントのアップロード
+      const CHUNK_SIZE = 1024 * 1024; // 1MB
+      for (const segment of segments) {
+        const uint8Array = new Uint8Array(segment.data);
+        for (let offset = 0; offset < uint8Array.length; offset += CHUNK_SIZE) {
+          const chunk = uint8Array.slice(offset, offset + CHUNK_SIZE);
+          const result = await actor.upload_ts_segment(
+            video_id,
+            segment.index,
+            Array.from(chunk)
+          );
           
-          if (!segmentData) break;
-          const uint8Array = new Uint8Array(segmentData as unknown as ArrayBuffer);
-          
-          // セグメントを1MBごとに分割
-          const CHUNK_SIZE = 1024 * 1024; // 1MB
-          for (let offset = 0; offset < uint8Array.length; offset += CHUNK_SIZE) {
-            const chunk = uint8Array.slice(offset, offset + CHUNK_SIZE);
-            console.log('upload_ts_segment');
-            const result = await actor.upload_ts_segment(
-              video_id,
-              segmentIndex,
-              Array.from(chunk)
-            );
-            
-            if ('err' in result) {
-              throw new Error(`Failed to upload segment ${segmentIndex} chunk: ${result.err}`);
-            }
+          if ('err' in result) {
+            throw new Error(`Failed to upload segment ${segment.index}: ${result.err}`);
           }
-          
-          segmentIndex++;
-        } catch (e) {
-          if (e instanceof Error && e.message.includes('not found')) {
-            break; // セグメントが見つからない場合は終了
-          }
-          throw e; // その他のエラーは再スロー
         }
       }
-  
+
       await loadVideos();
       alert('アップロード成功');
-  
     } catch (e) {
       console.error('Error during upload:', e);
       alert('アップロード中にエラーが発生しました: ' + (e as Error).message);
@@ -724,7 +630,7 @@ function App() {
       </header>
       <main>
         <p>Please wait while FFmpeg is loading...</p>
-        <button onClick={ffmpegLoad}>Load ffmpeg-core</button>
+        <button onClick={initFFmpeg}>Load ffmpeg-core</button>
       </main>
     </div>
   ));

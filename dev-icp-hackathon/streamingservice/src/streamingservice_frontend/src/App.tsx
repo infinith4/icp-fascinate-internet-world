@@ -81,16 +81,20 @@ function App() {
   };
 
   const handleFileUploadWithFfmpeg = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    console.log('handleFileUploadWithFfmpeg:');
     const file = event.target.files?.[0];
     if (!file) return;
     setLoading(true);
 
     try {
+      console.log('create_video:');
       const video_id = await actor.create_video(file.name, '');
       const { playlist, segments } = await ffmpegService.current.processVideo(file);
+      console.log('processVideo:');
 
       // プレイリストのアップロード
       const playlistText = new TextDecoder().decode(playlist);
+      console.log('playlist:', playlistText);
       const playlistResult = await actor.upload_playlist(video_id, playlistText);
       
       if ('err' in playlistResult) {
@@ -103,6 +107,7 @@ function App() {
         const uint8Array = new Uint8Array(segment.data);
         for (let offset = 0; offset < uint8Array.length; offset += CHUNK_SIZE) {
           const chunk = uint8Array.slice(offset, offset + CHUNK_SIZE);
+          console.log('upload_ts_segment:', segment.index);
           const result = await actor.upload_ts_segment(
             video_id,
             segment.index,

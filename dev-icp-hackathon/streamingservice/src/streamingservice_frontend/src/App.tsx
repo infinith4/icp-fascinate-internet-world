@@ -64,17 +64,35 @@ function App() {
   }) as Actor & _SERVICE;
 
   useEffect(() => {
+    initFFmpeg();
+    const videoContainer = document.getElementById('video-container');
+    console.log('videoContainer:', videoContainer);
+    if (!videoContainer) return;
+
+    // video要素を作成
     const player = document.createElement('video');
     player.controls = true;
+    player.playsInline = true;
+    player.autoplay = true;
+    
+    // video要素のスタイルを設定
+    player.style.width = '100%';
+    player.style.height = '100%';
+    player.style.objectFit = 'contain'; // アスペクト比を保持しながらコンテナに収める
+    player.style.backgroundColor = '#000';
+    player.style.display = 'block';
+    
+    // video-containerにvideo要素を追加
+    videoContainer.appendChild(player);
     setVideoPlayer(player);
-    document.body.appendChild(player);
 
     loadVideos();
-    initFFmpeg();
 
     return () => {
-      if (player) {
-        document.body.removeChild(player);
+      console.log('Cleaning up video player');
+      if (player && videoContainer.contains(player)) {
+        console.log('remove Cleaning up video player');
+        videoContainer.removeChild(player);
       }
     };
   }, []);
@@ -269,73 +287,6 @@ function App() {
     setLoading(false);
   };
   
-  // const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-  //   try {
-  //     //TODO: mp4 から m3u8ファイルとtsファイル を生成
-  //     // handleFileUpload内
-  //     // m3u8ファイルとtsファイルをアップロード
-  //     const files = event.target.files;
-  //     console.log('files:', files);
-  //     const title = files?.[0].name;
-  //     console.log('title:', title);
-  //     const description = '';
-  //     const video_id = await actor.create_video(title || 'Untitled', description);
-  //     if (!files) return;
-
-  //     let playlistFile: File | null = null;
-  //     const tsFiles: { file: File, index: number }[] = [];
-
-  //     // ファイルを分類
-  //     for (let i = 0; i < files.length; i++) {
-  //       const f = files[i];
-  //       if (f.name.endsWith('.m3u8')) {
-  //         playlistFile = f;
-  //       } else if (f.name.endsWith('.ts')) {
-  //         // 例: IC-Hello-Starter-001.ts → 001
-  //         const match = f.name.match(/(\d+)\.ts$/);
-  //         if (match) {
-  //           tsFiles.push({ file: f, index: parseInt(match[1], 10) });
-  //         }
-  //       }
-  //     }
-
-  //     // m3u8アップロード
-  //     if (playlistFile) {
-  //       const text = await playlistFile.text();
-  //       console.log('text:', text);
-  //       console.log('upload_playlist:');
-  //       const result = await actor.upload_playlist(video_id, text);
-  //       console.log('upload_playlist:', result);
-  //       if ('err' in result) {
-  //         alert('プレイリストアップロード失敗: ' + result.err);
-  //         setLoading(false);
-  //         return;
-  //       }
-  //     }
-
-  //     // tsセグメントアップロード
-  //     for (const { file, index } of tsFiles) {
-  //       const arrayBuffer = await file.arrayBuffer();
-  //       const uint8Array = Array.from(new Uint8Array(arrayBuffer));
-  //       const result = await actor.upload_ts_segment(video_id, index, uint8Array);
-  //       console.log('upload_ts_segment. index: ', index);
-  //       if ('err' in result) {
-  //         alert(`セグメント${index}アップロード失敗: ` + result.err);
-  //         setLoading(false);
-  //         return;
-  //       }
-  //     }
-
-  //     await loadVideos();
-  //     alert('アップロード成功');
-  //   } catch (e) {
-  //     alert('アップロード中にエラーが発生しました');
-  //     console.error(e);
-  //   }
-  //   setLoading(false);
-  // };
-
-
   //ファイルアップロード処理（チャンク分割＆upload_video_segment呼び出し）
   const handleFileUploadOriginal = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -409,8 +360,10 @@ function App() {
 
   // HLS.jsによるHLSストリーミング再生関数（MediaSource APIは使わない）
   const playHlsStream = async (videoId: string) => {
+    console.log('playHlsStream:', videoId);
     setCurrentVideo(videoId);
     const video = videoPlayer;
+    console.log('video:', video);
     if (!video) return;
     video.pause();
     video.removeAttribute('src');
@@ -621,7 +574,7 @@ function App() {
     setLoading(false);
   };
 
-  return (ffmpegLoaded ? (
+  return (
     <div className="App">
       <header>
         <h1>Video Streaming Service</h1>
@@ -706,20 +659,26 @@ function App() {
               </li>
             ))}
           </ul>
+          <div 
+            id="video-container" 
+            style={{
+              width: '100%',
+              maxWidth: '800px',
+              margin: '0 auto',
+              position: 'relative',
+              backgroundColor: '#000',
+              aspectRatio: '16/9',
+              overflow: 'hidden', // はみ出し部分を隠す
+              cursor: 'pointer'
+            }}
+          />
         </div>
+        <p>
+          <video controls src="https://webdesign-trends.net/wp/wp-content/uploads/2021/09/sample-video.mp4" style={{ width: '736px'}}  ></video>
+        </p>
       </main>
     </div>
-  ) : (
-    <div className="App">
-      <header>
-        <h1>Loading FFmpeg...</h1>
-      </header>
-      <main>
-        <p>Please wait while FFmpeg is loading...</p>
-        <button onClick={initFFmpeg}>Load ffmpeg-core</button>
-      </main>
-    </div>
-  ));
+  );
 }
 
 export default App;

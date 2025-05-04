@@ -11,6 +11,9 @@ curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.1/install.sh | bash
 npm install -g npm@11.1.0
 nvm use --lts
 
+npm install typescript -g
+
+
 # sudo apt-get update
 sudo apt install libxtables12 -y
 # sudo apt-get install expect -y

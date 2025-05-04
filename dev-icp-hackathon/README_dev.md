@@ -297,3 +297,7 @@ cd /src/streamingservice/src/streamingservice_frontend
 
 npm install @ffmpeg/ffmpeg @ffmpeg/util
 
+----------------------
+
+
+cd test-vetkeys/fork-dfinity-vetkd-devkit/examples/password_manager

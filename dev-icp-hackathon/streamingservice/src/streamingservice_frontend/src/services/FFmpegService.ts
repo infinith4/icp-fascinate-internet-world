@@ -15,6 +15,7 @@ export interface FFmpegProgress {
 export interface ProcessedVideo {
   playlist: Uint8Array;
   segments: { index: number; data: Uint8Array }[];
+  thumbnail?: Uint8Array;  // サムネイル用のフィールドを追加
 }
 
 export class FFmpegService {
@@ -54,11 +55,12 @@ export class FFmpegService {
       throw error;
     }
   }
-
+  // FFmpegを使用して動画をHLS形式に変換するメソッド
   async processVideo(file: File, options: {
     segmentDuration?: number;
     videoBitrate?: string;
     audioBitrate?: string;
+    thumbnailTime?: number;  // サムネイル生成時の動画時間位置（秒）
   } = {}): Promise<ProcessedVideo> {
     console.log('processVideo');
     this.timer.start();
@@ -70,7 +72,8 @@ export class FFmpegService {
     const {
       segmentDuration = 2,
       videoBitrate = '800k',
-      audioBitrate = '128k'
+      audioBitrate = '128k',
+      thumbnailTime = 1  // デフォルトは1秒位置
     } = options;
 
     try {
@@ -79,6 +82,23 @@ export class FFmpegService {
       const inputData = await fetchFile(file);
       await this.ffmpeg.writeFile(inputFileName, inputData);
       this.timer.split('fileWrite');
+
+      // サムネイルを生成
+      if (this.onProgress) {
+        this.onProgress({ message: 'Generating thumbnail...' });
+      }
+      
+      await this.ffmpeg.exec([
+        '-ss', thumbnailTime.toString(),
+        '-i', inputFileName,
+        '-vf', 'scale=480:-1',  // 幅480pxに設定（高さは自動調整）
+        '-vframes', '1',
+        'thumbnail.jpg'
+      ]);
+
+      const thumbnail = await this.ffmpeg.readFile('thumbnail.jpg');
+      await this.ffmpeg.deleteFile('thumbnail.jpg');
+      this.timer.split('thumbnailGeneration');
 
       // HLS変換を実行
       await this.ffmpeg.exec([
@@ -150,7 +170,11 @@ export class FFmpegService {
       const formattedTimings = this.timer.formatResults(timings);
       console.log('Processing timings:', formattedTimings);
 
-      return { playlist: playlist as Uint8Array, segments };
+      return { 
+        playlist: playlist as Uint8Array, 
+        segments,
+        thumbnail: thumbnail as Uint8Array
+      };
     } catch (error) {
       console.error('Video processing error:', error);
       throw error;

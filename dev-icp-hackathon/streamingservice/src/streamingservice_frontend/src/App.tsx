@@ -157,8 +157,18 @@ function App() {
         }
       };
 
-      const { playlist, segments } = await ffmpegService.current.processVideo(file);
+      const { playlist, segments, thumbnail } = await ffmpegService.current.processVideo(file);
       console.log('processVideo:');
+      console.log('thumbnail:', thumbnail);
+      // サムネイルのアップロード
+      if (thumbnail) {
+        setUploadProgress({ message: 'Uploading thumbnail...', progress: 0 });
+        const thumbnailResult = await actor.upload_thumbnail(video_id, Array.from(thumbnail));
+        console.log('thumbnailResult:', thumbnailResult);
+        if ('err' in thumbnailResult) {
+          throw new Error(`Failed to upload thumbnail: ${thumbnailResult.err}`);
+        }
+      }
 
       // プレイリストのアップロード
       const playlistText = new TextDecoder().decode(playlist);
@@ -581,10 +591,42 @@ function App() {
 
   return (
     <div className="App">
-      <header>
-        <h1>Video Streaming Service</h1>
+      <header style={{
+        backgroundColor: '#1976d2',
+        color: 'white',
+        padding: '1rem',
+        marginBottom: '2rem'
+      }}>
+        <h1 style={{ margin: 0 }}>Video Streaming Service</h1>
       </header>
       <main>
+        <nav style={{ 
+          display: 'flex',
+          justifyContent: 'center',
+          gap: '2rem',
+          marginBottom: '2rem'
+        }}>
+          <a href={`/video-viewer?canisterId=${import.meta.env.VITE_CANISTER_ID_STREAMINGSERVICE_FRONTEND}`} style={{ 
+            textDecoration: 'none',
+            color: '#1976d2',
+            fontWeight: 'bold',
+            fontSize: '1.2rem',
+            padding: '0.5rem 1rem',
+            borderRadius: '4px',
+            border: '2px solid #1976d2',
+            transition: 'all 0.3s ease'
+          }}>Video Gallery</a>
+          <a href={`/image-gallery?canisterId=${import.meta.env.VITE_CANISTER_ID_STREAMINGSERVICE_FRONTEND}`} style={{ 
+            textDecoration: 'none',
+            color: '#1976d2',
+            fontWeight: 'bold',
+            fontSize: '1.2rem',
+            padding: '0.5rem 1rem',
+            borderRadius: '4px',
+            border: '2px solid #1976d2',
+            transition: 'all 0.3s ease'
+          }}>Image Gallery</a>
+        </nav>
         <div className="upload-section-hls">
           <label>upload-section-hls: 
             <input

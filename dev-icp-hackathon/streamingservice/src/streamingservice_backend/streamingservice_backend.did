@@ -10,5 +10,7 @@ service : {
     "get_hls_segment": (text, nat32) -> (variant { ok: vec nat8; err: text }) query;
     "upload_playlist": (text, text) -> (variant { ok: text; err: text });
     "upload_ts_segment": (text, nat32, vec nat8) -> (variant { ok: text; err: text });
+    "upload_thumbnail": (text, vec nat8) -> (variant { ok: text; err: text });
+    "get_thumbnail": (text) -> (variant { ok: vec nat8; err: text }) query;
     "delete_video": (text) -> (variant { ok: text; err: text });
 }

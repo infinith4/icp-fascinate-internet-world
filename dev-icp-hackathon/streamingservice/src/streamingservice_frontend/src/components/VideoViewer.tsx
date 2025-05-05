@@ -1,6 +1,10 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Paper, Typography, Stack } from '@mui/material';
 import Box from '@mui/material/Box';
+import { useSearchParams } from 'react-router-dom';
+import { Actor, HttpAgent } from '@dfinity/agent';
+import { _SERVICE } from '../../../declarations/streamingservice_backend/streamingservice_backend.did';
+import { createActor } from '../../../declarations/streamingservice_backend';
 
 interface VideoViewerProps {
   videos?: Array<{
@@ -10,25 +14,37 @@ interface VideoViewerProps {
   }>;
 }
 
-const defaultVideos = [
-  {
-    id: '1',
-    title: 'Video Player 1',
-    url: 'https://webdesign-trends.net/wp/wp-content/uploads/2021/09/sample-video.mp4'
-  },
-  {
-    id: '2',
-    title: 'Video Player 2',
-    url: 'https://webdesign-trends.net/wp/wp-content/uploads/2021/09/sample-video.mp4'
-  },
-  {
-    id: '3',
-    title: 'Video Player 3',
-    url: 'https://webdesign-trends.net/wp/wp-content/uploads/2021/09/sample-video.mp4'
-  }
-];
+export const VideoViewer: React.FC<VideoViewerProps> = () => {
+  const [searchParams] = useSearchParams();
+  const [videos, setVideos] = useState<Array<{ id: string; title: string; url?: string }>>([]);
+  const canisterId = searchParams.get('canisterId');
 
-export const VideoViewer: React.FC<VideoViewerProps> = ({ videos = defaultVideos }) => {
+  useEffect(() => {
+    const loadVideos = async () => {
+      if (!canisterId) return;
+
+      const agent = new HttpAgent({
+        host: 'http://localhost:' + import.meta.env.VITE_LOCAL_CANISTER_PORT
+      });
+
+      const actor = createActor(canisterId, {
+        agent,
+      }) as Actor & _SERVICE;
+
+      try {
+        const videoList = await actor.get_video_list();
+        setVideos(videoList.map(([id, title]) => ({
+          id,
+          title
+        })));
+      } catch (error) {
+        console.error('Error loading videos:', error);
+      }
+    };
+
+    loadVideos();
+  }, [canisterId]);
+
   return (
     <Box sx={{ p: 3, bgcolor: '#f5f5f5', minHeight: '100vh' }}>
       <Typography variant="h4" sx={{ mb: 4, textAlign: 'center' }}>
@@ -37,20 +53,33 @@ export const VideoViewer: React.FC<VideoViewerProps> = ({ videos = defaultVideos
       <Stack spacing={3}>
         <Stack
           direction="row"
-          spacing={3}
           sx={{
             flexWrap: 'wrap',
-            gap: 3,
-            justifyContent: 'center'
+            gap: { xs: 2, sm: 3 },
+            justifyContent: 'center',
+            alignItems: 'stretch'
           }}
         >
           {videos.map((video) => (
-            <Box key={video.id} sx={{ width: { xs: '100%', md: '30%' }, minWidth: 300 }}>
+            <Box 
+              key={video.id} 
+              sx={{ 
+                width: {
+                  xs: '100%',
+                  sm: 'calc(50% - 24px)',
+                  md: 'calc(33.333% - 24px)'
+                },
+                minWidth: { xs: '280px', sm: '320px' },
+                display: 'flex'
+              }}
+            >
               <Paper 
                 elevation={3} 
                 sx={{ 
                   p: 2,
-                  height: '100%',
+                  width: '100%',
+                  display: 'flex',
+                  flexDirection: 'column',
                   bgcolor: '#000',
                   borderRadius: '8px',
                   overflow: 'hidden'

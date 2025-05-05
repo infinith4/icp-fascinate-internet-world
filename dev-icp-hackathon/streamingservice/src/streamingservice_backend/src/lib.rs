@@ -11,6 +11,7 @@ struct Video {
     chunks: Vec<Vec<u8>>,
     hash: String,
     playlist: Option<String>, // 追加
+    thumbnail: Option<Vec<u8>>, // 追加
 }
 
 #[derive(CandidType, Deserialize)]
@@ -72,6 +73,14 @@ enum DeleteVideoResult {
     Err(String),
 }
 
+#[derive(CandidType, Deserialize)]
+enum ThumbnailResult {
+    #[serde(rename = "ok")]
+    Ok(Vec<u8>),
+    #[serde(rename = "err")]
+    Err(String),
+}
+
 thread_local! {
     static VIDEOS: RefCell<HashMap<String, Video>> = RefCell::new(HashMap::new());
 }
@@ -97,7 +106,8 @@ fn upload_video_chunk(video_id: String, chunk_index: u32, chunk: Vec<u8>) -> Upl
                 description: "".to_string(),
                 chunks: Vec::new(),
                 hash: "".to_string(),
-                playlist: None
+                playlist: None,
+                thumbnail: None
             });
         }
         
@@ -132,7 +142,8 @@ fn upload_video_segment(video_id: String, ts_segment: Vec<u8>, segment_index: u3
                 description: "".to_string(),
                 chunks: Vec::new(),
                 hash: "".to_string(),
-                playlist: None
+                playlist: None,
+                thumbnail: None
             });
         }
         match videos.get_mut(&video_id) {
@@ -174,7 +185,8 @@ fn create_video(title: String, description: String) -> String {
         description,
         chunks: Vec::new(),
         hash: hash.to_string(),
-        playlist: None
+        playlist: None,
+        thumbnail: None
     };
     
     VIDEOS.with(|videos| {
@@ -189,10 +201,7 @@ fn get_video_info(video_id: String) -> VideoInfoResult {
     ic_cdk::println!("Starting get_video_info for video_id: {}", video_id);
     VIDEOS.with(|videos| {
         let videos = videos.borrow();
-        videos.iter()
-            .map(|(id, video)| (
-                ic_cdk::println!("{}", format!("title: {}, description: {}", video.title.clone(), video.description.clone())
-            )));
+        // Remove unused map operation
         if let Some(video) = videos.get(&video_id) {
             ic_cdk::println!("video.title: {}", video.title);
             VideoInfoResult::Ok(video.title.clone())
@@ -297,6 +306,35 @@ fn delete_video(video_id: String) -> DeleteVideoResult {
             DeleteVideoResult::Ok("Video deleted successfully".to_string())
         } else {
             DeleteVideoResult::Err("Video not found".to_string())
+        }
+    })
+}
+
+#[update]
+fn upload_thumbnail(video_id: String, thumbnail_data: Vec<u8>) -> UploadResult {
+    VIDEOS.with(|videos| {
+        let mut videos = videos.borrow_mut();
+        if let Some(video) = videos.get_mut(&video_id) {
+            video.thumbnail = Some(thumbnail_data);
+            UploadResult::Ok("Thumbnail uploaded successfully".to_string())
+        } else {
+            UploadResult::Err("Video not found".to_string())
+        }
+    })
+}
+
+#[query]
+fn get_thumbnail(video_id: String) -> ThumbnailResult {
+    VIDEOS.with(|videos| {
+        let videos = videos.borrow();
+        if let Some(video) = videos.get(&video_id) {
+            if let Some(thumbnail) = &video.thumbnail {
+                ThumbnailResult::Ok(thumbnail.clone())
+            } else {
+                ThumbnailResult::Err("Thumbnail not found".to_string())
+            }
+        } else {
+            ThumbnailResult::Err("Video not found".to_string())
         }
     })
 }

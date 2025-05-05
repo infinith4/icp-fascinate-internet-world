@@ -616,7 +616,7 @@ function App() {
             border: '2px solid #1976d2',
             transition: 'all 0.3s ease'
           }}>Video Gallery</a>
-          <a href={`/image-gallery?canisterId=${import.meta.env.VITE_CANISTER_ID_STREAMINGSERVICE_FRONTEND}`} style={{ 
+          <a href={`/video-gallery?canisterId=${import.meta.env.VITE_CANISTER_ID_STREAMINGSERVICE_FRONTEND}`} style={{ 
             textDecoration: 'none',
             color: '#1976d2',
             fontWeight: 'bold',
@@ -625,7 +625,7 @@ function App() {
             borderRadius: '4px',
             border: '2px solid #1976d2',
             transition: 'all 0.3s ease'
-          }}>Image Gallery</a>
+          }}>Video Gallery</a>
         </nav>
         <div className="upload-section-hls">
           <label>upload-section-hls: 
@@ -772,9 +772,6 @@ function App() {
             justifyContent: 'space-between',
             gap: '20px'
           }}>
-            <video controls src="https://webdesign-trends.net/wp/wp-content/uploads/2021/09/sample-video.mp4" style={{ width: 'calc(33.33% - 14px)' }} />
-            <video controls src="https://webdesign-trends.net/wp/wp-content/uploads/2021/09/sample-video.mp4" style={{ width: 'calc(33.33% - 14px)' }} />
-            <video controls src="https://webdesign-trends.net/wp/wp-content/uploads/2021/09/sample-video.mp4" style={{ width: 'calc(33.33% - 14px)' }} />
           </div>
         </div>
       </main>

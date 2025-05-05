@@ -1,8 +1,8 @@
 import React from 'react';
 import { createBrowserRouter } from 'react-router-dom';
 import App from './App';
-import { VideoViewer } from './components/VideoViewer';
-import { ImageGallery } from './components/ImageGallery';
+import { VideoGallery } from './components/VideoGallery';
+import { LandingPage } from './components/LandingPage';
 
 export const router = createBrowserRouter([
   {
@@ -10,11 +10,11 @@ export const router = createBrowserRouter([
     element: <App />
   },
   {
-    path: '/video-viewer',
-    element: <VideoViewer />
+    path: '/landing',
+    element: <LandingPage />
   },
   {
-    path: '/image-gallery',
-    element: <ImageGallery />
+    path: '/video-gallery',
+    element: <VideoGallery />
   }
 ]);

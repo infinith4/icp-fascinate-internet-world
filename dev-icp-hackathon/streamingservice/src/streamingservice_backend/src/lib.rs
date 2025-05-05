@@ -201,7 +201,10 @@ fn get_video_info(video_id: String) -> VideoInfoResult {
     ic_cdk::println!("Starting get_video_info for video_id: {}", video_id);
     VIDEOS.with(|videos| {
         let videos = videos.borrow();
-        // Remove unused map operation
+        videos.iter()
+            .map(|(id, video)| (
+                ic_cdk::println!("{}", format!("title: {}, description: {}", video.title.clone(), video.description.clone())
+            )));
         if let Some(video) = videos.get(&video_id) {
             ic_cdk::println!("video.title: {}", video.title);
             VideoInfoResult::Ok(video.title.clone())

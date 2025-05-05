@@ -37,6 +37,16 @@ export const ImageGallery: React.FC<ImageGalleryProps> = () => {
     setSelectedVideo(null);
   };
 
+  const handleVideoDoubleClick = () => {
+    if (videoPlayer) {
+      if (document.fullscreenElement) {
+        document.exitFullscreen();
+      } else {
+        videoPlayer.requestFullscreen();
+      }
+    }
+  };
+
   const playHlsStream = async (videoId: string) => {
     console.log("videoId", videoId);
     if (!videoPlayer) return;
@@ -335,6 +345,7 @@ export const ImageGallery: React.FC<ImageGalleryProps> = () => {
             }}
             controls
             playsInline
+            onDoubleClick={handleVideoDoubleClick}
           />
         </Box>
       </Modal>

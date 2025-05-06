@@ -10,6 +10,11 @@ import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import DeleteIcon from '@mui/icons-material/Delete';
 import DownloadIcon from '@mui/icons-material/Download';
 import VideoFileIcon from '@mui/icons-material/VideoFile';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { AuthClient } from '@dfinity/auth-client';
+import { VideoGallery } from './components/VideoGallery';
+import { Login } from './components/Login';
+import { Identity } from '@dfinity/agent';
 
 type VideoInfo = {
   id: string;
@@ -53,6 +58,8 @@ function App() {
   const [uploadProgress, setUploadProgress] = useState<{ message: string; progress: number } | null>(null);
   const ffmpegService = useRef(new FFmpegService());
   const ffmpegMessageRef = useRef<HTMLParagraphElement>(null);
+  const [identity, setIdentity] = useState<Identity | null>(null);
+  const [isInitialized, setIsInitialized] = useState(false);
 
   const timer = new Timer();
   const agent = HttpAgent.createSync({
@@ -102,6 +109,10 @@ function App() {
     };
   }, []);
 
+  useEffect(() => {
+    initAuth();
+  }, []);
+
   const initFFmpeg = async () => {
     try {
       const ffmpeg = ffmpegService.current;
@@ -116,6 +127,20 @@ function App() {
     } catch (error) {
       console.error('FFmpeg initialization error:', error);
     }
+  };
+
+  const initAuth = async () => {
+    const authClient = await AuthClient.create();
+    const isAuthenticated = await authClient.isAuthenticated();
+    
+    if (isAuthenticated) {
+      setIdentity(authClient.getIdentity());
+    }
+    setIsInitialized(true);
+  };
+
+  const handleAuthChange = (newIdentity: Identity | null) => {
+    setIdentity(newIdentity);
   };
 
   const loadVideos = async () => {
@@ -589,193 +614,230 @@ function App() {
     setLoading(false);
   };
 
+  if (!isInitialized) {
+    return <div>Loading...</div>;
+  }
+
   return (
-    <div className="App">
-      <header style={{
-        backgroundColor: '#1976d2',
-        color: 'white',
-        padding: '1rem',
-        marginBottom: '2rem'
-      }}>
-        <h1 style={{ margin: 0 }}>Video Streaming Service</h1>
-      </header>
-      <main>
-        <nav style={{ 
-          display: 'flex',
-          justifyContent: 'center',
-          gap: '2rem',
-          marginBottom: '2rem'
-        }}>
-          <a href={`/video-viewer?canisterId=${import.meta.env.VITE_CANISTER_ID_STREAMINGSERVICE_FRONTEND}`} style={{ 
-            textDecoration: 'none',
-            color: '#1976d2',
-            fontWeight: 'bold',
-            fontSize: '1.2rem',
-            padding: '0.5rem 1rem',
-            borderRadius: '4px',
-            border: '2px solid #1976d2',
-            transition: 'all 0.3s ease'
-          }}>Video Gallery</a>
-          <a href={`/video-gallery?canisterId=${import.meta.env.VITE_CANISTER_ID_STREAMINGSERVICE_FRONTEND}`} style={{ 
-            textDecoration: 'none',
-            color: '#1976d2',
-            fontWeight: 'bold',
-            fontSize: '1.2rem',
-            padding: '0.5rem 1rem',
-            borderRadius: '4px',
-            border: '2px solid #1976d2',
-            transition: 'all 0.3s ease'
-          }}>Video Gallery</a>
-        </nav>
-        <div className="upload-section-hls">
-          <label>upload-section-hls: 
-            <input
-              type="file"
-              accept=".m3u8,.ts,video/*"
-              multiple
-              onChange={handleFileUploadHls}
-              disabled={loading}
-            />
-          </label>
-          {loading && <p>Loading...</p>}
-        </div>
-        <div className="upload-section-ffmpeg">
-          <label>upload-section-ffmpeg: 
-            <input
-              type="file"
-              accept=".mp4,video/*"
-              multiple
-              onChange={handleFileUploadWithFfmpeg}
-              disabled={loading}
-            />
-          </label>
-          {loading && <p>Loading...</p>}
-        </div>
-        <div className="upload-section-original">
-          <label>upload-section-original: 
-            <input
-              type="file"
-              accept=".mp4,video/*"
-              multiple
-              onChange={handleFileUploadOriginal}
-              disabled={loading}
-            />
-          </label>
-          {loading && <p>Loading...</p>}
-        </div>
-        {uploadProgress && (
-            <ProgressBar
-              progress={uploadProgress.progress}
-              message={uploadProgress.message}
-            />
-          )}
-        <div className="video-list">
-          <h2>Available Videos</h2>
-          <p ref={ffmpegMessageRef}></p>
-          <ul>
-            {videos.map((video) => (
-              <li key={video.id}>
-                <h3>{video.title}</h3>
-                <p>{video.description}</p>
-                <Stack direction="row" spacing={2}>
-                  <Button
-                    variant="contained"
-                    startIcon={<PlayArrowIcon />}
-                    onClick={() => playHlsStream(video.id)}
-                    disabled={loading}
-                  >
-                    {currentVideo === video.id ? 'Playing...' : 'Play HLS'}
-                  </Button>
-                  <Button
-                    variant="contained"
-                    color="secondary"
-                    startIcon={<DownloadIcon />}
-                    onClick={() => downloadStream(video.id)}
-                    disabled={loading}
-                  >
-                    {currentVideo === video.id ? 'Downloading...' : 'Download'}
-                  </Button>
-                  <Button
-                    variant="contained"
-                    color="error"
-                    startIcon={<DeleteIcon />}
-                    onClick={() => deleteVideo(video.id)}
-                    disabled={loading}
-                  >
-                    Delete
-                  </Button>
-                  <Button
-                    variant="outlined"
-                    startIcon={<VideoFileIcon />}
-                    onClick={() => playVideoOriginal(video.id)}
-                    disabled={loading}
-                  >
-                    {currentVideo === video.id ? 'Playing...' : 'Play Original MP4'}
-                  </Button>
-                </Stack>
-              </li>
-            ))}
-          </ul>
-          <div 
-            id="video-container" 
-            style={{
-              width: '100%',
-              backgroundColor: '#000',
-              aspectRatio: '16/9',
-              overflow: 'hidden',
-              cursor: 'pointer'
-            }}
-          />
-          
-          {/* 3つのvideo-containerを横に並べる */}
-          <div style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            gap: '20px',
-            marginBottom: '20px'
-          }}>
-            <div 
-              id="video-container-1" 
-              style={{
-                width: 'calc(33.33% - 14px)',
-                backgroundColor: '#000',
-                aspectRatio: '16/9',
-                overflow: 'hidden',
-                cursor: 'pointer'
-              }}
-            />
-            <div 
-              id="video-container-2" 
-              style={{
-                width: 'calc(33.33% - 14px)',
-                backgroundColor: '#000',
-                aspectRatio: '16/9',
-                overflow: 'hidden',
-                cursor: 'pointer'
-              }}
-            />
-            <div 
-              id="video-container-3" 
-              style={{
-                width: 'calc(33.33% - 14px)',
-                backgroundColor: '#000',
-                aspectRatio: '16/9',
-                overflow: 'hidden',
-                cursor: 'pointer'
-              }}
-            />
-          </div>
-          
-          {/* サンプル動画部分も同様に横並びに */}
-          <div style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            gap: '20px'
-          }}>
-          </div>
-        </div>
-      </main>
-    </div>
+    <Router>
+      <Routes>
+        <Route 
+          path="/" 
+          element={
+            identity ? (
+              <div className="App">
+                <header style={{
+                  backgroundColor: '#1976d2',
+                  color: 'white',
+                  padding: '1rem',
+                  marginBottom: '2rem'
+                }}>
+                  <h1 style={{ margin: 0 }}>Video Streaming Service</h1>
+                </header>
+                <main>
+                  <nav style={{ 
+                    display: 'flex',
+                    justifyContent: 'center',
+                    gap: '2rem',
+                    marginBottom: '2rem'
+                  }}>
+                    <a href={`/video-viewer?canisterId=${import.meta.env.VITE_CANISTER_ID_STREAMINGSERVICE_FRONTEND}`} style={{ 
+                      textDecoration: 'none',
+                      color: '#1976d2',
+                      fontWeight: 'bold',
+                      fontSize: '1.2rem',
+                      padding: '0.5rem 1rem',
+                      borderRadius: '4px',
+                      border: '2px solid #1976d2',
+                      transition: 'all 0.3s ease'
+                    }}>Video Gallery</a>
+                    <a href={`/video-gallery?canisterId=${import.meta.env.VITE_CANISTER_ID_STREAMINGSERVICE_FRONTEND}`} style={{ 
+                      textDecoration: 'none',
+                      color: '#1976d2',
+                      fontWeight: 'bold',
+                      fontSize: '1.2rem',
+                      padding: '0.5rem 1rem',
+                      borderRadius: '4px',
+                      border: '2px solid #1976d2',
+                      transition: 'all 0.3s ease'
+                    }}>Video Gallery</a>
+                  </nav>
+                  <div className="upload-section-hls">
+                    <label>upload-section-hls: 
+                      <input
+                        type="file"
+                        accept=".m3u8,.ts,video/*"
+                        multiple
+                        onChange={handleFileUploadHls}
+                        disabled={loading}
+                      />
+                    </label>
+                    {loading && <p>Loading...</p>}
+                  </div>
+                  <div className="upload-section-ffmpeg">
+                    <label>upload-section-ffmpeg: 
+                      <input
+                        type="file"
+                        accept=".mp4,video/*"
+                        multiple
+                        onChange={handleFileUploadWithFfmpeg}
+                        disabled={loading}
+                      />
+                    </label>
+                    {loading && <p>Loading...</p>}
+                  </div>
+                  <div className="upload-section-original">
+                    <label>upload-section-original: 
+                      <input
+                        type="file"
+                        accept=".mp4,video/*"
+                        multiple
+                        onChange={handleFileUploadOriginal}
+                        disabled={loading}
+                      />
+                    </label>
+                    {loading && <p>Loading...</p>}
+                  </div>
+                  {uploadProgress && (
+                      <ProgressBar
+                        progress={uploadProgress.progress}
+                        message={uploadProgress.message}
+                      />
+                    )}
+                  <div className="video-list">
+                    <h2>Available Videos</h2>
+                    <p ref={ffmpegMessageRef}></p>
+                    <ul>
+                      {videos.map((video) => (
+                        <li key={video.id}>
+                          <h3>{video.title}</h3>
+                          <p>{video.description}</p>
+                          <Stack direction="row" spacing={2}>
+                            <Button
+                              variant="contained"
+                              startIcon={<PlayArrowIcon />}
+                              onClick={() => playHlsStream(video.id)}
+                              disabled={loading}
+                            >
+                              {currentVideo === video.id ? 'Playing...' : 'Play HLS'}
+                            </Button>
+                            <Button
+                              variant="contained"
+                              color="secondary"
+                              startIcon={<DownloadIcon />}
+                              onClick={() => downloadStream(video.id)}
+                              disabled={loading}
+                            >
+                              {currentVideo === video.id ? 'Downloading...' : 'Download'}
+                            </Button>
+                            <Button
+                              variant="contained"
+                              color="error"
+                              startIcon={<DeleteIcon />}
+                              onClick={() => deleteVideo(video.id)}
+                              disabled={loading}
+                            >
+                              Delete
+                            </Button>
+                            <Button
+                              variant="outlined"
+                              startIcon={<VideoFileIcon />}
+                              onClick={() => playVideoOriginal(video.id)}
+                              disabled={loading}
+                            >
+                              {currentVideo === video.id ? 'Playing...' : 'Play Original MP4'}
+                            </Button>
+                          </Stack>
+                        </li>
+                      ))}
+                    </ul>
+                    <div 
+                      id="video-container" 
+                      style={{
+                        width: '100%',
+                        backgroundColor: '#000',
+                        aspectRatio: '16/9',
+                        overflow: 'hidden',
+                        cursor: 'pointer'
+                      }}
+                    />
+                    
+                    {/* 3つのvideo-containerを横に並べる */}
+                    <div style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      gap: '20px',
+                      marginBottom: '20px'
+                    }}>
+                      <div 
+                        id="video-container-1" 
+                        style={{
+                          width: 'calc(33.33% - 14px)',
+                          backgroundColor: '#000',
+                          aspectRatio: '16/9',
+                          overflow: 'hidden',
+                          cursor: 'pointer'
+                        }}
+                      />
+                      <div 
+                        id="video-container-2" 
+                        style={{
+                          width: 'calc(33.33% - 14px)',
+                          backgroundColor: '#000',
+                          aspectRatio: '16/9',
+                          overflow: 'hidden',
+                          cursor: 'pointer'
+                        }}
+                      />
+                      <div 
+                        id="video-container-3" 
+                        style={{
+                          width: 'calc(33.33% - 14px)',
+                          backgroundColor: '#000',
+                          aspectRatio: '16/9',
+                          overflow: 'hidden',
+                          cursor: 'pointer'
+                        }}
+                      />
+                    </div>
+                    
+                    {/* サンプル動画部分も同様に横並びに */}
+                    <div style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      gap: '20px'
+                    }}>
+                    </div>
+                  </div>
+                </main>
+              </div>
+            ) : (
+              <Navigate to="/login" replace />
+            )
+          } 
+        />
+        <Route 
+          path="/login" 
+          element={
+            identity ? (
+              <Navigate to="/" replace />
+            ) : (
+              <Login />
+            )
+          } 
+        />
+        <Route 
+          path="/video-gallery" 
+          element={
+            identity ? (
+              <VideoGallery identity={identity} onAuthChange={handleAuthChange} />
+            ) : (
+              <Navigate to="/login" replace />
+            )
+          } 
+        />
+      </Routes>
+    </Router>
   );
 }
 

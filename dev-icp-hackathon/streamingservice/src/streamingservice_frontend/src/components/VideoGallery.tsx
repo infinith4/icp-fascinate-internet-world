@@ -52,111 +52,6 @@ export const VideoGallery: React.FC<VideoGalleryProps> = () => {
     setUploadModalOpen(true);
   };
 
-    // const handleFileUploadWithFfmpeg = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    //   const file = event.target.files?.[0];
-    //   if (!file) return;
-    //   setLoading(true);
-    //   setUploadProgress({ message: 'Starting upload...', progress: 0 });
-  
-    //   try {
-    //     console.log('create_video:');
-    //     const video_id = await actor.create_video(file.name, '');
-  
-    //     // FFmpeg処理の進捗表示を設定
-    //     ffmpegService.current.onProgress = (progress: FFmpegProgress) => {
-    //       if (progress.progress) {
-    //         setUploadProgress({
-    //           message: progress.message,
-    //           progress: progress.progress.percent
-    //         });
-    //       } else {
-    //         setUploadProgress({
-    //           message: progress.message,
-    //           progress: uploadProgress?.progress || 0
-    //         });
-    //       }
-    //     };
-  
-    //     const { playlist, segments, thumbnail } = await ffmpegService.current.processVideo(file);
-    //     console.log('processVideo:');
-    //     console.log('thumbnail:', thumbnail);
-    //     // サムネイルのアップロード
-    //     if (thumbnail) {
-    //       setUploadProgress({ message: 'Uploading thumbnail...', progress: 0 });
-    //       const thumbnailResult = await actor.upload_thumbnail(video_id, Array.from(thumbnail));
-    //       console.log('thumbnailResult:', thumbnailResult);
-    //       if ('err' in thumbnailResult) {
-    //         throw new Error(`Failed to upload thumbnail: ${thumbnailResult.err}`);
-    //       }
-    //     }
-  
-    //     // プレイリストのアップロード
-    //     const playlistText = new TextDecoder().decode(playlist);
-    //     console.log('playlist:', playlistText);
-    //     setUploadProgress({ message: 'Uploading playlist...', progress: 0 });
-    //     const playlistResult = await actor.upload_playlist(video_id, playlistText);
-        
-    //     if ('err' in playlistResult) {
-    //       throw new Error(`Failed to upload playlist: ${playlistResult.err}`);
-    //     }
-  
-    //     // セグメントのアップロード
-    //     const totalSegments = segments.length;
-    //     const CHUNK_SIZE = 1024 * 1024; // 1MB
-    //     let uploadedSegments = 0;
-    //     let totalChunks = 0;
-    //     let uploadedChunks = 0;
-  
-    //     // 総チャンク数を計算
-    //     for (const segment of segments) {
-    //       totalChunks += Math.ceil(segment.data.length / CHUNK_SIZE);
-    //     }
-  
-    //     for (const segment of segments) {
-    //       const uint8Array = new Uint8Array(segment.data);
-    //       const segmentChunks = Math.ceil(uint8Array.length / CHUNK_SIZE);
-    //       let uploadedSegmentChunks = 0;
-  
-    //       for (let offset = 0; offset < uint8Array.length; offset += CHUNK_SIZE) {
-    //         const chunk = uint8Array.slice(offset, offset + CHUNK_SIZE);
-    //         console.log('upload_ts_segment:', segment.index);
-    //         const result = await actor.upload_ts_segment(
-    //           video_id,
-    //           segment.index,
-    //           Array.from(chunk)
-    //         );
-            
-    //         if ('err' in result) {
-    //           throw new Error(`Failed to upload segment ${segment.index}: ${result.err}`);
-    //         }
-  
-    //         uploadedSegmentChunks++;
-    //         uploadedChunks++;
-            
-    //         const totalProgress = (uploadedChunks / totalChunks) * 100;
-    //         setUploadProgress({
-    //           message: `Uploading segment ${uploadedSegments + 1}/${totalSegments} (${uploadedSegmentChunks}/${segmentChunks} chunks)`,
-    //           progress: totalProgress
-    //         });
-    //       }
-  
-    //       uploadedSegments++;
-    //     }
-  
-    //     await loadVideos();
-    //     setUploadProgress({ message: 'Upload completed!', progress: 100 });
-    //     alert('アップロード成功');
-    //   } catch (e) {
-    //     console.error('Error during upload:', e);
-    //     alert('アップロード中にエラーが発生しました: ' + (e as Error).message);
-    //   } finally {
-    //     setLoading(false);
-    //     setTimeout(() => setUploadProgress(null), 2000); // 2秒後にプログレスバーを非表示
-    //   }
-      
-    //   const resulttimer = timer.stop();
-    //   console.log('Timer results:', timer.formatResults(resulttimer));
-    // };
   const handleUpload = async (file: File, title: string) => {
     try {
       const agent = new HttpAgent({
@@ -184,14 +79,58 @@ export const VideoGallery: React.FC<VideoGalleryProps> = () => {
       const playlistText = new TextDecoder().decode(playlist);
       await actor.upload_playlist(video_id, playlistText);
 
-      // セグメントを順次アップロード
-      for (const segment of segments) {
-        await actor.upload_ts_segment(video_id, segment.index, Array.from(segment.data));
+      // セグメントを順次アップロード（チャンクサイズとバッチサイズを最適化）
+      const CHUNK_SIZE = 256 * 1024; // 256KB
+      const BATCH_SIZE = 3; // 同時アップロード数を制限
+      const RETRY_COUNT = 3; // リトライ回数
+
+      let totalProgress = 0;
+      const uploadSegment = async (segment: { index: number; data: Uint8Array }) => {
+        const chunks: Uint8Array[] = [];
+        for (let offset = 0; offset < segment.data.length; offset += CHUNK_SIZE) {
+          chunks.push(segment.data.slice(offset, Math.min(offset + CHUNK_SIZE, segment.data.length)));
+        }
+
+        for (let i = 0; i < chunks.length; i++) {
+          let retries = 0;
+          while (retries < RETRY_COUNT) {
+            try {
+              await actor.upload_ts_segment(
+                video_id,
+                segment.index,
+                Array.from(chunks[i])
+              );
+              break;
+            } catch (error) {
+              retries++;
+              if (retries === RETRY_COUNT) {
+                throw new Error(`Failed to upload segment ${segment.index} chunk ${i} after ${RETRY_COUNT} retries`);
+              }
+              await new Promise(resolve => setTimeout(resolve, 1000 * retries)); // exponential backoff
+            }
+          }
+
+          totalProgress = ((i + 1) / chunks.length) * 100;
+          setUploadProgress(totalProgress);
+        }
+      };
+
+      // バッチ処理でセグメントをアップロード
+      for (let i = 0; i < segments.length; i += BATCH_SIZE) {
+        const batch = segments.slice(i, Math.min(i + BATCH_SIZE, segments.length));
+        await Promise.all(batch.map(uploadSegment));
       }
 
       // サムネイルがある場合はアップロード
       if (thumbnail) {
-        await actor.upload_thumbnail(video_id, Array.from(thumbnail));
+        const thumbnailChunks: Uint8Array[] = [];
+        for (let offset = 0; offset < thumbnail.length; offset += CHUNK_SIZE) {
+          thumbnailChunks.push(thumbnail.slice(offset, Math.min(offset + CHUNK_SIZE, thumbnail.length)));
+        }
+
+        for (const chunk of thumbnailChunks) {
+          await actor.upload_thumbnail(video_id, Array.from(chunk));
+        }
       }
 
       // 動画リストを更新

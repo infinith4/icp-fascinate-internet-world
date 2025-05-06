@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { Box, Paper, Typography, Stack, Modal } from '@mui/material';
 import { useSearchParams } from 'react-router-dom';
 import { Actor, HttpAgent } from '@dfinity/agent';
@@ -7,6 +7,7 @@ import { createActor } from '../../../declarations/streamingservice_backend';
 import Hls from 'hls.js';
 import { Header } from './Header';
 import { UploadModal } from './UploadModal';
+import { FFmpegService, FFmpegProgress } from '../services/FFmpegService';
 
 interface Image {
   id: string;
@@ -27,11 +28,135 @@ export const VideoGallery: React.FC<VideoGalleryProps> = () => {
   const [uploadModalOpen, setUploadModalOpen] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const canisterId = searchParams.get('canisterId');
+  const ffmpegService = useRef(new FFmpegService());
+  const [ffmpegLoaded, setFfmpegLoaded] = useState(false);
+
+  useEffect(() => {
+    initFFmpeg();
+  }, []);
+
+  const initFFmpeg = async () => {
+    try {
+      await ffmpegService.current.load();
+      setFfmpegLoaded(true);
+    } catch (error) {
+      console.error('FFmpeg initialization error:', error);
+    }
+  };
 
   const handleUploadClick = () => {
+    if (!ffmpegLoaded) {
+      alert('FFmpegの初期化中です。しばらくお待ちください。');
+      return;
+    }
     setUploadModalOpen(true);
   };
 
+    // const handleFileUploadWithFfmpeg = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    //   const file = event.target.files?.[0];
+    //   if (!file) return;
+    //   setLoading(true);
+    //   setUploadProgress({ message: 'Starting upload...', progress: 0 });
+  
+    //   try {
+    //     console.log('create_video:');
+    //     const video_id = await actor.create_video(file.name, '');
+  
+    //     // FFmpeg処理の進捗表示を設定
+    //     ffmpegService.current.onProgress = (progress: FFmpegProgress) => {
+    //       if (progress.progress) {
+    //         setUploadProgress({
+    //           message: progress.message,
+    //           progress: progress.progress.percent
+    //         });
+    //       } else {
+    //         setUploadProgress({
+    //           message: progress.message,
+    //           progress: uploadProgress?.progress || 0
+    //         });
+    //       }
+    //     };
+  
+    //     const { playlist, segments, thumbnail } = await ffmpegService.current.processVideo(file);
+    //     console.log('processVideo:');
+    //     console.log('thumbnail:', thumbnail);
+    //     // サムネイルのアップロード
+    //     if (thumbnail) {
+    //       setUploadProgress({ message: 'Uploading thumbnail...', progress: 0 });
+    //       const thumbnailResult = await actor.upload_thumbnail(video_id, Array.from(thumbnail));
+    //       console.log('thumbnailResult:', thumbnailResult);
+    //       if ('err' in thumbnailResult) {
+    //         throw new Error(`Failed to upload thumbnail: ${thumbnailResult.err}`);
+    //       }
+    //     }
+  
+    //     // プレイリストのアップロード
+    //     const playlistText = new TextDecoder().decode(playlist);
+    //     console.log('playlist:', playlistText);
+    //     setUploadProgress({ message: 'Uploading playlist...', progress: 0 });
+    //     const playlistResult = await actor.upload_playlist(video_id, playlistText);
+        
+    //     if ('err' in playlistResult) {
+    //       throw new Error(`Failed to upload playlist: ${playlistResult.err}`);
+    //     }
+  
+    //     // セグメントのアップロード
+    //     const totalSegments = segments.length;
+    //     const CHUNK_SIZE = 1024 * 1024; // 1MB
+    //     let uploadedSegments = 0;
+    //     let totalChunks = 0;
+    //     let uploadedChunks = 0;
+  
+    //     // 総チャンク数を計算
+    //     for (const segment of segments) {
+    //       totalChunks += Math.ceil(segment.data.length / CHUNK_SIZE);
+    //     }
+  
+    //     for (const segment of segments) {
+    //       const uint8Array = new Uint8Array(segment.data);
+    //       const segmentChunks = Math.ceil(uint8Array.length / CHUNK_SIZE);
+    //       let uploadedSegmentChunks = 0;
+  
+    //       for (let offset = 0; offset < uint8Array.length; offset += CHUNK_SIZE) {
+    //         const chunk = uint8Array.slice(offset, offset + CHUNK_SIZE);
+    //         console.log('upload_ts_segment:', segment.index);
+    //         const result = await actor.upload_ts_segment(
+    //           video_id,
+    //           segment.index,
+    //           Array.from(chunk)
+    //         );
+            
+    //         if ('err' in result) {
+    //           throw new Error(`Failed to upload segment ${segment.index}: ${result.err}`);
+    //         }
+  
+    //         uploadedSegmentChunks++;
+    //         uploadedChunks++;
+            
+    //         const totalProgress = (uploadedChunks / totalChunks) * 100;
+    //         setUploadProgress({
+    //           message: `Uploading segment ${uploadedSegments + 1}/${totalSegments} (${uploadedSegmentChunks}/${segmentChunks} chunks)`,
+    //           progress: totalProgress
+    //         });
+    //       }
+  
+    //       uploadedSegments++;
+    //     }
+  
+    //     await loadVideos();
+    //     setUploadProgress({ message: 'Upload completed!', progress: 100 });
+    //     alert('アップロード成功');
+    //   } catch (e) {
+    //     console.error('Error during upload:', e);
+    //     alert('アップロード中にエラーが発生しました: ' + (e as Error).message);
+    //   } finally {
+    //     setLoading(false);
+    //     setTimeout(() => setUploadProgress(null), 2000); // 2秒後にプログレスバーを非表示
+    //   }
+      
+    //   const resulttimer = timer.stop();
+    //   console.log('Timer results:', timer.formatResults(resulttimer));
+    // };
   const handleUpload = async (file: File, title: string) => {
     try {
       const agent = new HttpAgent({
@@ -42,46 +167,34 @@ export const VideoGallery: React.FC<VideoGalleryProps> = () => {
         agent,
       }) as Actor & _SERVICE;
 
-      // チャンクサイズを1MBに設定
-      const chunkSize = 1024 * 1024;
-      const totalChunks = Math.ceil(file.size / chunkSize);
-      const chunks: Uint8Array[] = [];
+      // 動画IDを作成
+      const video_id = await actor.create_video(title, '');
 
-      // ファイルをチャンクに分割
-      for (let i = 0; i < totalChunks; i++) {
-        const start = i * chunkSize;
-        const end = Math.min(start + chunkSize, file.size);
-        const chunk = await file.slice(start, end).arrayBuffer();
-        chunks.push(new Uint8Array(chunk));
+      // FFmpegの進捗ハンドラーを設定
+      ffmpegService.current.onProgress = (progress: FFmpegProgress) => {
+        if (progress.progress) {
+          setUploadProgress(progress.progress.percent);
+        }
+      };
+
+      // FFmpegで動画を処理
+      const { playlist, segments, thumbnail } = await ffmpegService.current.processVideo(file);
+
+      // プレイリストをアップロード
+      const playlistText = new TextDecoder().decode(playlist);
+      await actor.upload_playlist(video_id, playlistText);
+
+      // セグメントを順次アップロード
+      for (const segment of segments) {
+        await actor.upload_ts_segment(video_id, segment.index, Array.from(segment.data));
       }
 
-      // バッチサイズを設定（同時にアップロードするチャンク数）
-      const batchSize = 5;
-      const totalBatches = Math.ceil(chunks.length / batchSize);
-
-      // 各バッチをアップロード
-      for (let i = 0; i < totalBatches; i++) {
-        const start = i * batchSize;
-        const end = Math.min(start + batchSize, chunks.length);
-        const batch = chunks.slice(start, end);
-
-        // バッチ内のすべてのチャンクを並行してアップロード
-        await Promise.all(batch.map((chunk, index) => {
-          const chunkIndex = start + index;
-          return actor.upload_chunk({
-            chunk,
-            order: BigInt(chunkIndex),
-            title,
-            total_chunks: BigInt(totalChunks)
-          });
-        }));
-
-        // プログレスの更新
-        const progress = Math.min(((i + 1) * batchSize / totalChunks) * 100, 100);
-        setUploadProgress(progress);
+      // サムネイルがある場合はアップロード
+      if (thumbnail) {
+        await actor.upload_thumbnail(video_id, Array.from(thumbnail));
       }
 
-      // アップロード完了後、動画リストを更新
+      // 動画リストを更新
       const videoList = await actor.get_video_list();
       const videosWithThumbnails = await Promise.all(
         videoList.map(async ([id, title]) => {

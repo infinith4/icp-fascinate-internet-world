@@ -68,7 +68,8 @@ export const VideoGallery: React.FC<VideoGalleryProps> = () => {
       // FFmpegの進捗ハンドラーを設定
       ffmpegService.current.onProgress = (progress: FFmpegProgress) => {
         if (progress.progress) {
-          setUploadProgress(progress.progress.percent);
+          // FFmpeg処理の進捗は0-30%で表示
+          setUploadProgress(progress.progress.percent * 0.3);
         }
       };
 
@@ -84,7 +85,15 @@ export const VideoGallery: React.FC<VideoGalleryProps> = () => {
       const BATCH_SIZE = 3; // 同時アップロード数を制限
       const RETRY_COUNT = 3; // リトライ回数
 
-      let totalProgress = 0;
+      // 全セグメントの総チャンク数を計算
+      let totalChunks = 0;
+      const segmentChunks = segments.map(segment => {
+        const numChunks = Math.ceil(segment.data.length / CHUNK_SIZE);
+        totalChunks += numChunks;
+        return numChunks;
+      });
+
+      let uploadedChunks = 0;
       const uploadSegment = async (segment: { index: number; data: Uint8Array }) => {
         const chunks: Uint8Array[] = [];
         for (let offset = 0; offset < segment.data.length; offset += CHUNK_SIZE) {
@@ -110,8 +119,10 @@ export const VideoGallery: React.FC<VideoGalleryProps> = () => {
             }
           }
 
-          totalProgress = ((i + 1) / chunks.length) * 100;
-          setUploadProgress(totalProgress);
+          uploadedChunks++;
+          // アップロード進捗は30-100%で表示（FFmpeg処理が0-30%）
+          const uploadProgress = (uploadedChunks / totalChunks) * 70;
+          setUploadProgress(30 + uploadProgress);
         }
       };
 

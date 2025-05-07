@@ -22,7 +22,7 @@ interface HeaderProps {
   onAuthChange: (identity: Identity | null) => void;
 }
 
-export const Header: React.FC<HeaderProps> = ({ onUploadClick }) => {
+export const Header: React.FC<HeaderProps> = ({ onUploadClick, identity, onAuthChange }) => {
   const navigate = useNavigate();
   const [anchorEl, setAnchorEl] = React.useState<null | HTMLElement>(null);
 
@@ -37,7 +37,10 @@ export const Header: React.FC<HeaderProps> = ({ onUploadClick }) => {
   const handleLogout = async () => {
     const authClient = await AuthClient.create();
     await authClient.logout();
-    //onAuthChange(null);
+    localStorage.removeItem('sessionStart'); // セッション情報をクリア
+    onAuthChange(null);
+    handleMenuClose();
+    navigate('/');
   };
 
   return (
@@ -68,14 +71,16 @@ export const Header: React.FC<HeaderProps> = ({ onUploadClick }) => {
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
           {identity ? (
             <>
-              <Button
-                variant="contained"
-                color="primary"
-                startIcon={<CloudUploadIcon />}
-                onClick={onUploadClick}
-              >
-                アップロード
-              </Button>
+              {onUploadClick && (
+                <Button
+                  variant="contained"
+                  color="primary"
+                  startIcon={<CloudUploadIcon />}
+                  onClick={onUploadClick}
+                >
+                  アップロード
+                </Button>
+              )}
               <IconButton 
                 color="inherit"
                 size="large"
@@ -93,6 +98,14 @@ export const Header: React.FC<HeaderProps> = ({ onUploadClick }) => {
                 anchorEl={anchorEl}
                 open={Boolean(anchorEl)}
                 onClose={handleMenuClose}
+                anchorOrigin={{
+                  vertical: 'bottom',
+                  horizontal: 'right',
+                }}
+                transformOrigin={{
+                  vertical: 'top',
+                  horizontal: 'right',
+                }}
               >
                 <MenuItem disabled>
                   <Typography variant="body2" sx={{ fontSize: '0.8rem' }}>

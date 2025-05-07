@@ -29,6 +29,7 @@ export const VideoGallery: React.FC = () => {
   const [videoPlayer, setVideoPlayer] = useState<HTMLVideoElement | null>(null);
   const [uploadModalOpen, setUploadModalOpen] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
+  const [identity, setIdentity] = useState<Identity | null>(null);
   const canisterId = searchParams.get('canisterId');
   const ffmpegService = useRef(new FFmpegService());
   const [ffmpegLoaded, setFfmpegLoaded] = useState(false);
@@ -49,12 +50,16 @@ export const VideoGallery: React.FC = () => {
 
   const checkAuth = async () => {
     const authClient = await AuthClient.create();
-    //const isAuthenticated = await authClient.isAuthenticated();
+    const isAuthenticated = await authClient.isAuthenticated();
     
-    // if (isAuthenticated) {
-    //   const identity = authClient.getIdentity();
-    //   onAuthChange(identity);
-    // }
+    if (isAuthenticated) {
+      const identity = authClient.getIdentity();
+      setIdentity(identity);
+    }
+  };
+
+  const handleAuthChange = (newIdentity: Identity | null) => {
+    setIdentity(newIdentity);
   };
 
   const handleUploadClick = () => {
@@ -379,7 +384,11 @@ export const VideoGallery: React.FC = () => {
 
   return (
     <Box>
-      <Header onUploadClick={handleUploadClick} />
+      <Header 
+        onUploadClick={handleUploadClick}
+        identity={identity}
+        onAuthChange={handleAuthChange}
+      />
       <Box sx={{ p: 3, bgcolor: '#f5f5f5', minHeight: '100vh', mt: '64px' }}>
         <Typography variant="h4" sx={{ mb: 4, textAlign: 'center' }}>
           Videos Gallery

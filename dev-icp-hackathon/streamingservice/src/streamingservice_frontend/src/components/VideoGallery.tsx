@@ -9,6 +9,7 @@ import Hls from 'hls.js';
 import { Header } from './Header';
 import { UploadModal } from './UploadModal';
 import { FFmpegService, FFmpegProgress } from '../services/FFmpegService';
+import { CustomLoader } from '../services/CustomLoader';
 
 interface Image {
   id: string;
@@ -218,26 +219,43 @@ export const VideoGallery: React.FC = () => {
     }
   };
 
+  useEffect(() => {
+    if (selectedVideo && videoPlayer) {
+      playHlsStream(selectedVideo);
+    }
+  }, [selectedVideo, videoPlayer]);
+
   const playHlsStream = async (videoId: string) => {
-    console.log("videoId", videoId);
-    if (!videoPlayer) return;
+    console.log("Attempting to play videoId:", videoId);
+    if (!videoPlayer) {
+      console.error('Video player not initialized yet');
+      return;
+    }
     
-    videoPlayer.pause();
-    videoPlayer.removeAttribute('src');
-    videoPlayer.load();
+    try {
+      videoPlayer.pause();
+      videoPlayer.removeAttribute('src');
+      videoPlayer.load();
 
-    const agent = new HttpAgent({
-      host: 'http://localhost:' + import.meta.env.VITE_LOCAL_CANISTER_PORT,
-      //identity: identity
-    });
+      const agent = new HttpAgent({
+        host: 'http://localhost:' + import.meta.env.VITE_LOCAL_CANISTER_PORT,
+      });
 
-    const actor = createActor(import.meta.env.VITE_CANISTER_ID_STREAMINGSERVICE_BACKEND || '', {
-      agent,
-    }) as Actor & _SERVICE;
+      const actor = createActor(import.meta.env.VITE_CANISTER_ID_STREAMINGSERVICE_BACKEND || '', {
+        agent,
+      }) as Actor & _SERVICE;
 
-    const playlistResult = await actor.get_hls_playlist(videoId, import.meta.env.VITE_CANISTER_ID_STREAMINGSERVICE_BACKEND ?? '');
-    if (playlistResult && 'ok' in playlistResult) {
+      console.log("Fetching playlist for video:", videoId);
+      const playlistResult = await actor.get_hls_playlist(videoId, import.meta.env.VITE_CANISTER_ID_STREAMINGSERVICE_BACKEND ?? '');
+      
+      if (!playlistResult || !('ok' in playlistResult)) {
+        console.error('Failed to fetch playlist:', playlistResult);
+        return;
+      }
+
       const m3u8Text = String(playlistResult.ok);
+      console.log("Received m3u8 content:", m3u8Text.substring(0, 100) + "...");
+      
       const cleanedM3u8 = m3u8Text
         .split('\n')
         .filter(line => !line.startsWith('#EXT-X-KEY') && !line.includes('IV='))
@@ -249,82 +267,68 @@ export const VideoGallery: React.FC = () => {
       const m3u8Url = URL.createObjectURL(blob);
       
       if (Hls.isSupported()) {
-        class CustomLoader extends Hls.DefaultConfig.loader {
-          load(context: any, config: any, callbacks: any) {
-            if (context.url.startsWith('icsegment://')) {
-              const match = context.url.match(/^icsegment:\/\/(.+)\/(\d+)$/);
-              if (match) {
-                const [, vId, segIdx] = match;
-                const segmentId = Number(segIdx);
-
-                actor.get_hls_segment(vId, segmentId)
-                  .then((result: any) => {
-                    if (result && 'ok' in result) {
-                      const data = new Uint8Array(result.ok);
-                      if (data.length > 0) {
-                        callbacks.onSuccess({
-                          data: data.buffer,
-                          stats: {
-                            loaded: data.length,
-                            total: data.length,
-                            retry: 0,
-                            aborted: false,
-                            loading: { first: 0, start: 0, end: 0 },
-                            parsing: { start: 0, end: 0 },
-                            buffering: { first: 0, start: 0, end: 0 }
-                          },
-                          url: context.url
-                        }, context, {});
-                      } else {
-                        throw new Error('Empty segment data');
-                      }
-                    } else {
-                      throw new Error(result.err || 'Segment fetch error');
-                    }
-                  })
-                  .catch((error) => {
-                    console.error('Failed to load segment:', error);
-                    callbacks.onError({
-                      code: 500,
-                      text: `Failed to load segment: ${error.message}`,
-                      url: context.url
-                    }, context, null);
-                  });
-                return;
-              }
-            }
-            super.load(context, config, callbacks);
-          }
-        }
-
+        console.log("HLS.js is supported, initializing...");
         const hls = new Hls({
           debug: true,
           enableWorker: false,
           enableSoftwareAES: false,
           emeEnabled: false,
-          loader: CustomLoader
+          loader: CustomLoader,
+          manifestLoadingTimeOut: 20000,
+          manifestLoadingMaxRetry: 3,
+          levelLoadingTimeOut: 20000,
+          levelLoadingMaxRetry: 3
+        });
+
+        hls.on(Hls.Events.ERROR, (event, data) => {
+          console.error('HLS error:', event, data);
+          if (data.fatal) {
+            switch (data.type) {
+              case Hls.ErrorTypes.NETWORK_ERROR:
+                console.log('Fatal network error encountered, trying to recover...');
+                hls.startLoad();
+                break;
+              case Hls.ErrorTypes.MEDIA_ERROR:
+                console.log('Fatal media error encountered, trying to recover...');
+                hls.recoverMediaError();
+                break;
+              default:
+                console.log('Fatal error, cannot recover');
+                hls.destroy();
+                break;
+            }
+          }
         });
 
         hls.loadSource(m3u8Url);
         hls.attachMedia(videoPlayer);
 
         hls.on(Hls.Events.MANIFEST_PARSED, () => {
+          console.log('HLS manifest parsed, attempting to play...');
           videoPlayer.play().catch(e => {
-            if (e.name !== 'AbortError') {
-              console.warn('Play error:', e);
+            console.error('Play error:', e);
+            if (e.name === 'NotAllowedError') {
+              console.log('Playback requires user interaction');
             }
           });
         });
+
+        // Cleanup function
+        return () => {
+          hls.destroy();
+          URL.revokeObjectURL(m3u8Url);
+        };
       } else if (videoPlayer.canPlayType('application/vnd.apple.mpegurl')) {
+        console.log("Native HLS playback supported");
         videoPlayer.src = m3u8Url;
-        videoPlayer.play().catch(e => {
-          if (e.name !== 'AbortError') {
-            console.warn('Play error:', e);
-          }
+        await videoPlayer.play().catch(e => {
+          console.error('Native playback error:', e);
         });
       } else {
-        console.error('HLS is not supported in this browser.');
+        console.error('HLS playback is not supported in this browser');
       }
+    } catch (error) {
+      console.error('Error in playHlsStream:', error);
     }
   };
 
@@ -378,7 +382,16 @@ export const VideoGallery: React.FC = () => {
 
   useEffect(() => {
     if (selectedVideo) {
-      playHlsStream(selectedVideo);
+      // videoPlayerRef.currentが設定されるまで少し待つ
+      const initializeVideo = setTimeout(() => {
+        if (videoPlayer) {
+          playHlsStream(selectedVideo);
+        } else {
+          console.warn('Video player still not initialized, retrying...');
+        }
+      }, 100);
+
+      return () => clearTimeout(initializeVideo);
     }
   }, [selectedVideo, videoPlayer]);
 
@@ -516,7 +529,12 @@ export const VideoGallery: React.FC = () => {
             }}
           >
             <video
-              ref={(el) => setVideoPlayer(el)}
+              ref={(el) => {
+                if (el) {
+                  console.log('Setting video player element');
+                  setVideoPlayer(el);
+                }
+              }}
               style={{
                 width: '100%',
                 height: '100%',

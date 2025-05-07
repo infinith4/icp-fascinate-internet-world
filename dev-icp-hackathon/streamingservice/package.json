@@ -16,9 +16,10 @@
     "src/streamingservice_frontend"
   ],
   "devDependencies": {
-    "@types/node": "^22.14.1"
+    "@types/node": "^22.15.12"
   },
   "dependencies": {
+    "@dfinity/auth-client": "^2.4.1",
     "react-player": "^2.16.0"
   }
 }

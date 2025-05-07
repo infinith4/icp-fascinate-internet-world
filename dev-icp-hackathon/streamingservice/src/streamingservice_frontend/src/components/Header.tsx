@@ -6,18 +6,42 @@ import {
   Typography, 
   Button, 
   Avatar, 
-  IconButton 
+  IconButton,
+  Menu,
+  MenuItem
 } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 import AccountCircleIcon from '@mui/icons-material/AccountCircle';
+import { Identity } from '@dfinity/agent';
+import { AuthClient } from '@dfinity/auth-client';
 
 interface HeaderProps {
   onUploadClick?: () => void;
+  identity: Identity | null;
+  onAuthChange: (identity: Identity | null) => void;
 }
 
-export const Header: React.FC<HeaderProps> = ({ onUploadClick }) => {
+export const Header: React.FC<HeaderProps> = ({ onUploadClick, identity, onAuthChange }) => {
   const navigate = useNavigate();
+  const [anchorEl, setAnchorEl] = React.useState<null | HTMLElement>(null);
+
+  const handleMenuClick = (event: React.MouseEvent<HTMLElement>) => {
+    setAnchorEl(event.currentTarget);
+  };
+
+  const handleMenuClose = () => {
+    setAnchorEl(null);
+  };
+
+  const handleLogout = async () => {
+    const authClient = await AuthClient.create();
+    await authClient.logout();
+    localStorage.removeItem('sessionStart'); // セッション情報をクリア
+    onAuthChange(null);
+    handleMenuClose();
+    navigate('/');
+  };
 
   return (
     <AppBar position="fixed" sx={{ bgcolor: 'white', color: 'text.primary' }}>
@@ -45,26 +69,63 @@ export const Header: React.FC<HeaderProps> = ({ onUploadClick }) => {
         </Box>
 
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-          <Button
-            variant="contained"
-            color="primary"
-            startIcon={<CloudUploadIcon />}
-            onClick={onUploadClick}
-          >
-            アップロード
-          </Button>
-          <IconButton 
-            color="inherit"
-            size="large"
-            sx={{ 
-              bgcolor: 'grey.100',
-              '&:hover': { bgcolor: 'grey.200' }
-            }}
-          >
-            <Avatar sx={{ width: 32, height: 32 }}>
-              <AccountCircleIcon />
-            </Avatar>
-          </IconButton>
+          {identity ? (
+            <>
+              {onUploadClick && (
+                <Button
+                  variant="contained"
+                  color="primary"
+                  startIcon={<CloudUploadIcon />}
+                  onClick={onUploadClick}
+                >
+                  アップロード
+                </Button>
+              )}
+              <IconButton 
+                color="inherit"
+                size="large"
+                onClick={handleMenuClick}
+                sx={{ 
+                  bgcolor: 'grey.100',
+                  '&:hover': { bgcolor: 'grey.200' }
+                }}
+              >
+                <Avatar sx={{ width: 32, height: 32 }}>
+                  <AccountCircleIcon />
+                </Avatar>
+              </IconButton>
+              <Menu
+                anchorEl={anchorEl}
+                open={Boolean(anchorEl)}
+                onClose={handleMenuClose}
+                anchorOrigin={{
+                  vertical: 'bottom',
+                  horizontal: 'right',
+                }}
+                transformOrigin={{
+                  vertical: 'top',
+                  horizontal: 'right',
+                }}
+              >
+                <MenuItem disabled>
+                  <Typography variant="body2" sx={{ fontSize: '0.8rem' }}>
+                    {identity.getPrincipal().toString().slice(0, 10)}...
+                  </Typography>
+                </MenuItem>
+                <MenuItem onClick={handleLogout}>
+                  ログアウト
+                </MenuItem>
+              </Menu>
+            </>
+          ) : (
+            <Button
+              variant="contained"
+              color="primary"
+              onClick={() => navigate('/login')}
+            >
+              ログイン
+            </Button>
+          )}
         </Box>
       </Toolbar>
     </AppBar>

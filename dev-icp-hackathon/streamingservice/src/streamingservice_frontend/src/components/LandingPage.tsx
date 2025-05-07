@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Box, Container, Typography, Button, Paper } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 import PlayCircleOutlineIcon from '@mui/icons-material/PlayCircleOutline';
@@ -8,15 +8,21 @@ import { Header } from './Header';
 
 export const LandingPage: React.FC = () => {
   const navigate = useNavigate();
+  const [identity, setIdentity] = useState<any>(null);
 
   const handleUploadClick = () => {
     // TODO: Implement upload functionality
     console.log('Upload clicked');
+    
   };
 
   return (
     <Box>
-      <Header onUploadClick={handleUploadClick} />
+      <Header 
+        onUploadClick={handleUploadClick}
+        identity={identity}
+        onAuthChange={setIdentity}
+      />
       <Box sx={{ mt: '64px' }}>
         {/* Hero Section */}
         <Box

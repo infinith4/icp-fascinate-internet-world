@@ -1,7 +1,8 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { Box, Paper, Typography, Stack, Modal } from '@mui/material';
 import { useSearchParams } from 'react-router-dom';
-import { Actor, HttpAgent } from '@dfinity/agent';
+import { Actor, HttpAgent, Identity } from '@dfinity/agent';
+import { AuthClient } from '@dfinity/auth-client';
 import { _SERVICE } from '../../../declarations/streamingservice_backend/streamingservice_backend.did';
 import { createActor } from '../../../declarations/streamingservice_backend';
 import Hls from 'hls.js';
@@ -16,10 +17,11 @@ interface Image {
 }
 
 interface VideoGalleryProps {
-  images?: Image[];
+  identity: Identity;
+  onAuthChange: (identity: Identity | null) => void;
 }
 
-export const VideoGallery: React.FC<VideoGalleryProps> = () => {
+export const VideoGallery: React.FC = () => {
   const [searchParams] = useSearchParams();
   const [images, setImages] = useState<Image[]>([]);
   const [loading, setLoading] = useState(false);
@@ -27,12 +29,14 @@ export const VideoGallery: React.FC<VideoGalleryProps> = () => {
   const [videoPlayer, setVideoPlayer] = useState<HTMLVideoElement | null>(null);
   const [uploadModalOpen, setUploadModalOpen] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
+  const [identity, setIdentity] = useState<Identity | null>(null);
   const canisterId = searchParams.get('canisterId');
   const ffmpegService = useRef(new FFmpegService());
   const [ffmpegLoaded, setFfmpegLoaded] = useState(false);
 
   useEffect(() => {
     initFFmpeg();
+    checkAuth();
   }, []);
 
   const initFFmpeg = async () => {
@@ -44,7 +48,26 @@ export const VideoGallery: React.FC<VideoGalleryProps> = () => {
     }
   };
 
+  const checkAuth = async () => {
+    const authClient = await AuthClient.create();
+    const isAuthenticated = await authClient.isAuthenticated();
+    
+    if (isAuthenticated) {
+      const identity = authClient.getIdentity();
+      setIdentity(identity);
+    }
+  };
+
+  const handleAuthChange = (newIdentity: Identity | null) => {
+    setIdentity(newIdentity);
+  };
+
   const handleUploadClick = () => {
+    // if (!identity) {
+    //   alert('アップロードするにはログインが必要です。');
+    //   return;
+    // }
+    
     if (!ffmpegLoaded) {
       alert('FFmpegの初期化中です。しばらくお待ちください。');
       return;
@@ -55,7 +78,8 @@ export const VideoGallery: React.FC<VideoGalleryProps> = () => {
   const handleUpload = async (file: File, title: string) => {
     try {
       const agent = new HttpAgent({
-        host: 'http://localhost:' + import.meta.env.VITE_LOCAL_CANISTER_PORT
+        host: 'http://localhost:' + import.meta.env.VITE_LOCAL_CANISTER_PORT,
+        //identity: identity
       });
 
       const actor = createActor(import.meta.env.VITE_CANISTER_ID_STREAMINGSERVICE_BACKEND, {
@@ -203,7 +227,8 @@ export const VideoGallery: React.FC<VideoGalleryProps> = () => {
     videoPlayer.load();
 
     const agent = new HttpAgent({
-      host: 'http://localhost:' + import.meta.env.VITE_LOCAL_CANISTER_PORT
+      host: 'http://localhost:' + import.meta.env.VITE_LOCAL_CANISTER_PORT,
+      //identity: identity
     });
 
     const actor = createActor(import.meta.env.VITE_CANISTER_ID_STREAMINGSERVICE_BACKEND || '', {
@@ -303,50 +328,51 @@ export const VideoGallery: React.FC<VideoGalleryProps> = () => {
     }
   };
 
-  useEffect(() => {
-    const loadImages = async () => {
-      if (!canisterId) return;
+  const loadImages = async () => {
+    if (!canisterId) return;
 
-      setLoading(true);
-      try {
-        const agent = new HttpAgent({
-          host: 'http://localhost:' + import.meta.env.VITE_LOCAL_CANISTER_PORT
-        });
+    setLoading(true);
+    try {
+      const agent = new HttpAgent({
+        host: 'http://localhost:' + import.meta.env.VITE_LOCAL_CANISTER_PORT,
+        //identity: identity
+      });
 
-        const actor = createActor(import.meta.env.VITE_CANISTER_ID_STREAMINGSERVICE_BACKEND, {
-          agent,
-        }) as Actor & _SERVICE;
+      const actor = createActor(import.meta.env.VITE_CANISTER_ID_STREAMINGSERVICE_BACKEND, {
+        agent,
+      }) as Actor & _SERVICE;
 
-        // Get video list from backend
-        const videoList = await actor.get_video_list();
-        console.log('Video List:', videoList);
-        const videosWithThumbnails = await Promise.all(
-          videoList.map(async ([id, title]) => {
-            try {
-              console.log('Loading thumbnail for video:', id);
-              const thumbnailResult = await actor.get_thumbnail(id);
-              if ('ok' in thumbnailResult) {
-                console.log('thumbnailResult.ok', thumbnailResult.ok);
-                // Convert thumbnail data to URL
-                const blob = new Blob([new Uint8Array(thumbnailResult.ok)], { type: 'image/jpeg' });
-                const thumbnailUrl = URL.createObjectURL(blob);
-                return { id, title, thumbnailUrl };
-              }
-            } catch (error) {
-              console.error(`Error loading thumbnail for video ${id}:`, error);
+      // Get video list from backend
+      const videoList = await actor.get_video_list();
+      console.log('Video List:', videoList);
+      const videosWithThumbnails = await Promise.all(
+        videoList.map(async ([id, title]) => {
+          try {
+            console.log('Loading thumbnail for video:', id);
+            const thumbnailResult = await actor.get_thumbnail(id);
+            if ('ok' in thumbnailResult) {
+              console.log('thumbnailResult.ok', thumbnailResult.ok);
+              // Convert thumbnail data to URL
+              const blob = new Blob([new Uint8Array(thumbnailResult.ok)], { type: 'image/jpeg' });
+              const thumbnailUrl = URL.createObjectURL(blob);
+              return { id, title, thumbnailUrl };
             }
-            return { id, title };
-          })
-        );
+          } catch (error) {
+            console.error(`Error loading thumbnail for video ${id}:`, error);
+          }
+          return { id, title };
+        })
+      );
 
-        setImages(videosWithThumbnails);
-      } catch (error) {
-        console.error('Error loading images:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
+      setImages(videosWithThumbnails);
+    } catch (error) {
+      console.error('Error loading images:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
+  useEffect(() => {
     loadImages();
   }, [canisterId]);
 
@@ -358,7 +384,11 @@ export const VideoGallery: React.FC<VideoGalleryProps> = () => {
 
   return (
     <Box>
-      <Header onUploadClick={handleUploadClick} />
+      <Header 
+        onUploadClick={handleUploadClick}
+        identity={identity}
+        onAuthChange={handleAuthChange}
+      />
       <Box sx={{ p: 3, bgcolor: '#f5f5f5', minHeight: '100vh', mt: '64px' }}>
         <Typography variant="h4" sx={{ mb: 4, textAlign: 'center' }}>
           Videos Gallery

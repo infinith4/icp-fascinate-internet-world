@@ -15,7 +15,7 @@ export interface FFmpegProgress {
 export interface ProcessedVideo {
   playlist: Uint8Array;
   segments: { index: number; data: Uint8Array }[];
-  thumbnail?: Uint8Array;  // サムネイル用のフィールドを追加
+  thumbnail?: Uint8Array;
 }
 
 export class FFmpegService {
@@ -29,11 +29,9 @@ export class FFmpegService {
     this.ffmpeg = new FFmpeg();
     this.timer = new Timer();
     
-    // FFmpegのログイベントをリッスン
-    this.ffmpeg.on('log', ({ message }) => {
+    this.ffmpeg.on('log', ({ message }: { message: string }) => {
       console.log('FFmpeg:', message);
       if (this.onProgress) {
-        // メッセージの内容に基づいて進捗を更新
         let progressPercent = this.lastProgress;
 
         if (message.includes('load')) {
@@ -45,12 +43,11 @@ export class FFmpegService {
         } else if (message.includes('Converting')) {
           progressPercent = 40;
         } else if (message.includes('segment') || message.includes('.ts')) {
-          // セグメント処理中は50-90%の範囲で進捗を更新
           const currentSegment = message.match(/\d+/);
           if (currentSegment) {
             const segmentNum = parseInt(currentSegment[0]);
-            progressPercent = 50 + ((segmentNum / 20) * 40); // 20セグメントを想定
-            progressPercent = Math.min(90, progressPercent); // 90%を超えないようにする
+            progressPercent = 50 + ((segmentNum / 20) * 40);
+            progressPercent = Math.min(90, progressPercent);
           }
         }
 
@@ -67,7 +64,6 @@ export class FFmpegService {
       }
     });
 
-    // 初期進捗を報告
     if (this.onProgress) {
       this.onProgress({
         message: 'Initializing FFmpeg...',
@@ -126,7 +122,7 @@ export class FFmpegService {
     segmentDuration?: number;
     videoBitrate?: string;
     audioBitrate?: string;
-    thumbnailTime?: number;  // サムネイル生成時の動画時間位置（秒）
+    thumbnailTime?: number;
   } = {}): Promise<ProcessedVideo> {
     console.log('processVideo');
     this.timer.start();
@@ -137,13 +133,12 @@ export class FFmpegService {
 
     const {
       segmentDuration = 2,
-      videoBitrate = '800k',
+      videoBitrate = '1M',
       audioBitrate = '128k',
-      thumbnailTime = 1  // デフォルトは1秒位置
+      thumbnailTime = 1
     } = options;
 
     try {
-      // ファイル書き込み進捗
       if (this.onProgress) {
         this.onProgress({
           message: 'Writing input file...',
@@ -156,12 +151,23 @@ export class FFmpegService {
         });
       }
 
-      const inputFileName = 'input.mp4';
+
+      const timestamp = `${new Date().toISOString().replace(/[-:]/g, '').replace('T', '').replace(/\..+/, '')}`;
+      const inputFileName = `input_${timestamp}.mp4`;
+      const thumbnailFileName = `thumbnail_${timestamp}.jpg`;
+      const playlistFileName = `playlist${timestamp}.m3u8`
+
       const inputData = await fetchFile(file);
+      
+      // メモリ使用量を制限するためにファイルサイズをチェック
+      const maxFileSize = 100 * 1024 * 1024; // 100MB
+      if (file.size > maxFileSize) {
+        throw new Error(`File size exceeds maximum limit of ${maxFileSize / (1024 * 1024)}MB`);
+      }
+
       await this.ffmpeg.writeFile(inputFileName, inputData);
       this.timer.split('fileWrite');
 
-      // サムネイル生成進捗
       if (this.onProgress) {
         this.onProgress({
           message: 'Generating thumbnail...',
@@ -179,14 +185,13 @@ export class FFmpegService {
         '-i', inputFileName,
         '-vf', 'scale=480:-1',  // 幅480pxに設定（高さは自動調整）
         '-vframes', '1',
-        'thumbnail.jpg'
+        thumbnailFileName
       ]);
 
       const thumbnail = await this.ffmpeg.readFile('thumbnail.jpg');
       await this.ffmpeg.deleteFile('thumbnail.jpg');
       this.timer.split('thumbnailGeneration');
 
-      // HLS変換進捗
       if (this.onProgress) {
         this.onProgress({
           message: 'Converting to HLS format...',
@@ -199,6 +204,27 @@ export class FFmpegService {
         });
       }
 
+      // メモリ使用量を最適化するためのパラメータを追加
+      // await this.ffmpeg.exec([
+      //   '-i', inputFileName,
+      //   '-c:v', 'libx264',
+      //   '-preset', 'ultrafast',  // より高速なプリセットを使用
+      //   '-tune', 'fastdecode',   // デコード速度を優先
+      //   '-crf', '23',
+      //   '-b:v', videoBitrate,
+      //   '-c:a', 'aac',
+      //   '-b:a', audioBitrate,
+      //   '-f', 'hls',
+      //   '-hls_time', segmentDuration.toString(),
+      //   '-hls_segment_type', 'mpegts',
+      //   '-hls_list_size', '0',
+      //   '-hls_segment_filename', 'segment_%03d.ts',
+      //   '-max_muxing_queue_size', '9999',
+      //   '-threads', '0',         // 利用可能なすべてのスレッドを使用
+      //   '-thread_type', 'slice', // スライスベースのスレッド処理を使用
+      //   'playlist.m3u8'
+      // ]);
+      console.log("segmentDuration: ", segmentDuration);
       await this.ffmpeg.exec([
         '-i', inputFileName,
         '-c:v', 'copy',          // ビデオコーデックをそのままコピー
@@ -208,22 +234,19 @@ export class FFmpegService {
         '-hls_time', segmentDuration.toString(),
         '-hls_segment_type', 'mpegts',
         '-hls_list_size', '0',
-        '-hls_segment_filename', 'segment_%03d.ts',
-        'playlist.m3u8'
+        '-hls_segment_filename', inputFileName + 'segment_%03d.ts',
+        playlistFileName
       ]);
       this.timer.split('hlsConversion');
 
-      // プレイリストとセグメントの処理
-      const playlist = await this.ffmpeg.readFile('playlist.m3u8');
+      const playlist = await this.ffmpeg.readFile(playlistFileName);
       const segments: { index: number; data: Uint8Array }[] = [];
       let segmentIndex = 0;
 
-      // セグメント読み込みの進捗計算
+      // セグメント読み込みの進捗を報告
+      let totalSegments = 0;
       const m3u8Content = new TextDecoder().decode(playlist as Uint8Array);
-      const totalSegments = (m3u8Content.match(/\.ts/g) || []).length;
-      const segmentProgressStart = 50;
-      const segmentProgressEnd = 90;
-      const segmentProgressRange = segmentProgressEnd - segmentProgressStart;
+      totalSegments = (m3u8Content.match(/\.ts/g) || []).length;
 
       while (true) {
         try {
@@ -237,17 +260,14 @@ export class FFmpegService {
             data: segmentData as Uint8Array
           });
           
-          if (this.onProgress) {
-            const segmentProgress = (segmentIndex + 1) / totalSegments;
-            const currentProgress = segmentProgressStart + (segmentProgress * segmentProgressRange);
-            
+          if (this.onProgress) {            
             this.onProgress({
               message: `Reading segment ${segmentIndex + 1}/${totalSegments}`,
               progress: {
                 type: 'processing',
                 current: segmentIndex + 1,
                 total: totalSegments,
-                percent: currentProgress
+                percent:  ((segmentIndex + 1) / totalSegments) * 100
               }
             });
           }
@@ -259,7 +279,6 @@ export class FFmpegService {
       }
       this.timer.split('segmentProcessing');
 
-      // クリーンアップ進捗
       if (this.onProgress) {
         this.onProgress({
           message: 'Cleaning up...',
@@ -273,14 +292,13 @@ export class FFmpegService {
       }
 
       await this.ffmpeg.deleteFile(inputFileName);
-      await this.ffmpeg.deleteFile('playlist.m3u8');
+      await this.ffmpeg.deleteFile(playlistFileName);
       for (let i = 0; i < segmentIndex; i++) {
         const segmentName = `segment_${String(i).padStart(3, '0')}.ts`;
         await this.ffmpeg.deleteFile(segmentName);
       }
       this.timer.split('cleanup');
 
-      // 完了進捗
       if (this.onProgress) {
         this.onProgress({
           message: 'Processing complete',
@@ -293,7 +311,6 @@ export class FFmpegService {
         });
       }
 
-      // 計測結果の出力
       const timings = this.timer.stop();
       const formattedTimings = this.timer.formatResults(timings);
       console.log('Processing timings:', formattedTimings);

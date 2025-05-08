@@ -98,17 +98,19 @@ export const VideoGallery: React.FC = () => {
         }
       };
 
+      console.log("start ffmpeg");
       // FFmpegで動画を処理
       const { playlist, segments, thumbnail } = await ffmpegService.current.processVideo(file);
+      console.log("end ffmpeg");
 
       // プレイリストをアップロード
       const playlistText = new TextDecoder().decode(playlist);
       await actor.upload_playlist(video_id, playlistText);
 
       // セグメントを順次アップロード（チャンクサイズとバッチサイズを最適化）
-      const CHUNK_SIZE = 256 * 1024; // 256KB
+      const CHUNK_SIZE = 1024 * 1024; // 1MB
       const BATCH_SIZE = 3; // 同時アップロード数を制限
-      const RETRY_COUNT = 3; // リトライ回数
+      const RETRY_COUNT = 5; // リトライ回数
 
       // 全セグメントの総チャンク数を計算
       let totalChunks = 0;

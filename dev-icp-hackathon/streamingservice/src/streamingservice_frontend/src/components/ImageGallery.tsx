@@ -79,6 +79,7 @@ export const ImageGallery: React.FC<ImageGalleryProps> = () => {
       if (Hls.isSupported()) {
         class CustomLoader extends Hls.DefaultConfig.loader {
           load(context: any, config: any, callbacks: any) {
+            console.log("context", context);
             if (context.url.startsWith('icsegment://')) {
               const match = context.url.match(/^icsegment:\/\/(.+)\/(\d+)$/);
               if (match) {

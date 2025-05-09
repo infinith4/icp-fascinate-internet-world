@@ -177,16 +177,30 @@ export const VideoGallery: React.FC = () => {
       };
 
       // バッチ処理でセグメントをアップロード
+      console.log(`Starting batch upload of ${segments.length} segments with batch size ${BATCH_SIZE}`);
+      
       for (let i = 0; i < segments.length; i += BATCH_SIZE) {
         const batch = segments.slice(i, Math.min(i + BATCH_SIZE, segments.length));
+        console.log(`Processing batch ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(segments.length / BATCH_SIZE)}`);
+        
         try {
-          await Promise.all(batch.map(uploadSegment));
-          console.log(`Successfully uploaded batch ${i / BATCH_SIZE + 1}`);
+          // バッチ内の各セグメントを並列でアップロード
+          const uploadPromises = batch.map(async (segment) => {
+            console.log(`Starting upload of segment ${segment.index}`);
+            await uploadSegment(segment);
+            console.log(`Completed upload of segment ${segment.index}`);
+          });
+
+          // バッチ内のすべてのアップロードが完了するまで待機
+          await Promise.all(uploadPromises);
+          console.log(`Completed batch ${Math.floor(i / BATCH_SIZE) + 1}`);
         } catch (error) {
-          console.error(`Failed to upload batch ${i / BATCH_SIZE + 1}:`, error);
-          throw error;
+          console.error(`Failed to upload batch ${Math.floor(i / BATCH_SIZE) + 1}:`, error);
+          throw new Error(`Batch upload failed: ${error}`);
         }
       }
+
+      console.log('All segments uploaded successfully');
 
       // サムネイルがある場合はアップロード
       if (thumbnail) {
@@ -357,7 +371,50 @@ export const VideoGallery: React.FC = () => {
           maxBufferSize: 60 * 1000 * 1000,
           maxBufferHole: 0.5,
           lowLatencyMode: false,
-          backBufferLength: 90
+          backBufferLength: 90,
+          // カスタムローダーの設定
+          xhrSetup: (xhr, url) => {
+            if (url.startsWith('icsegment://')) {
+              const [_, videoId, segmentIndex] = url.split('/');
+              console.log(`Loading segment ${segmentIndex} for video ${videoId}`);
+              
+              // セグメントの読み込みを試行
+              const loadSegment = async () => {
+                try {
+                  const segmentResult = await actor.get_hls_segment(videoId, parseInt(segmentIndex));
+                  if ('ok' in segmentResult) {
+                    const segmentData = new Uint8Array(segmentResult.ok);
+                    const blob = new Blob([segmentData], { type: 'video/MP2T' });
+                    const segmentUrl = URL.createObjectURL(blob);
+                    
+                    // セグメントURLを返す
+                    return segmentUrl;
+                  } else {
+                    throw new Error(`Failed to load segment: ${segmentResult.err}`);
+                  }
+                } catch (error) {
+                  console.error(`Error loading segment ${segmentIndex}:`, error);
+                  throw error;
+                }
+              };
+
+              // セグメントの読み込みを開始
+              loadSegment().then(segmentUrl => {
+                // セグメントURLを設定
+                Object.defineProperty(xhr, 'responseURL', { value: segmentUrl });
+                Object.defineProperty(xhr, 'response', { value: segmentUrl });
+                Object.defineProperty(xhr, 'status', { value: 200 });
+                Object.defineProperty(xhr, 'readyState', { value: 4 });
+                xhr.dispatchEvent(new Event('load'));
+              }).catch(error => {
+                Object.defineProperty(xhr, 'status', { value: 404 });
+                Object.defineProperty(xhr, 'readyState', { value: 4 });
+                xhr.dispatchEvent(new Event('error'));
+              });
+
+              return;
+            }
+          }
         });
 
         hls.on(Hls.Events.ERROR, (event, data) => {
@@ -406,8 +463,10 @@ export const VideoGallery: React.FC = () => {
           console.log('Fragment loaded:', data.frag.sn);
         });
 
-        hls.on(Hls.Events.FRAG_LOADING, (event: any, data: any) => {
-          console.error('Fragment load error:', data);
+        hls.on(Hls.Events.ERROR, (event, data) => {
+          if (data.type === Hls.ErrorTypes.NETWORK_ERROR && data.details === Hls.ErrorDetails.FRAG_LOAD_ERROR) {
+            console.error('Fragment load error:', data);
+          }
         });
 
         hls.loadSource(m3u8Url);

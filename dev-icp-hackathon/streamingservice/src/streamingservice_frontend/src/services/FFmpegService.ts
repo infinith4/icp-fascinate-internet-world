@@ -218,7 +218,6 @@ export class FFmpegService {
       }
 
       // HLS変換
-
       console.log("segmentDuration: ", segmentDuration);
       await this.ffmpeg.exec([
         '-i', inputFileName,
@@ -239,44 +238,107 @@ export class FFmpegService {
       ]);
       this.timer.split('hlsConversion');
 
-      const playlist = await this.ffmpeg.readFile(playlistFileName);
+      // 変換完了後、十分な待機時間を設定
+      await new Promise(resolve => setTimeout(resolve, 2000));
+
+      // プレイリストの読み込み
+      let playlist: Uint8Array;
+      try {
+        const playlistData = await this.ffmpeg.readFile(playlistFileName);
+        if (!playlistData) {
+          throw new Error('Failed to read playlist file');
+        }
+        playlist = playlistData as Uint8Array;
+      } catch (error) {
+        console.error('Error reading playlist:', error);
+        throw new Error('Failed to read playlist file: ' + error);
+      }
+
       const segments: { index: number; data: Uint8Array }[] = [];
-      let segmentIndex = 0;
 
       // セグメント読み込みの進捗を報告
-      let totalSegments = 0;
-      const m3u8Content = new TextDecoder().decode(playlist as Uint8Array);
-      totalSegments = (m3u8Content.match(/\.ts/g) || []).length;
+      const m3u8Content = new TextDecoder().decode(playlist);
+      console.log('M3U8 content:', m3u8Content);
+      
+      // プレイリストからセグメントファイル名を抽出
+      const segmentLines = m3u8Content.split('\n').filter(line => line.endsWith('.ts'));
+      console.log('Segment lines from playlist:', segmentLines);
+      
+      const totalSegments = segmentLines.length;
+      console.log('Total segments found:', totalSegments);
 
-      while (true) {
-        try {
-          const segmentName = `segment_${timestamp}_${String(segmentIndex).padStart(3, '0')}.ts`;
-          const segmentData = await this.ffmpeg.readFile(segmentName);
-          
-          if (!segmentData) break;
-          
-          segments.push({
-            index: segmentIndex,
-            data: segmentData as Uint8Array
-          });
-          
-          if (this.onProgress) {            
-            this.onProgress({
-              message: `Reading segment ${segmentIndex + 1}/${totalSegments}`,
-              progress: {
-                type: 'processing',
-                current: segmentIndex + 1,
-                total: totalSegments,
-                percent: ((segmentIndex + 1) / totalSegments) * 100
-              }
+      if (totalSegments === 0) {
+        throw new Error('No segments found in playlist');
+      }
+
+      // セグメントファイルの存在確認と読み込み
+      for (let i = 0; i < totalSegments; i++) {
+        let retries = 3;
+        let success = false;
+        let lastError: any = null;
+
+        while (retries > 0 && !success) {
+          try {
+            // プレイリストに記載されているセグメントファイル名を使用
+            const segmentName = segmentLines[i];
+            console.log(`Attempting to read segment: ${segmentName} (attempts remaining: ${retries})`);
+            
+            // セグメントファイルの読み込みを試行
+            const segmentData = await this.ffmpeg.readFile(segmentName);
+            if (!segmentData) {
+              throw new Error(`No data found for segment: ${segmentName}`);
+            }
+
+            // データの検証
+            const data = segmentData as Uint8Array;
+            if (data.length === 0) {
+              throw new Error(`Empty segment data for: ${segmentName}`);
+            }
+            
+            console.log(`Successfully read segment ${i}, size: ${data.length} bytes`);
+            segments.push({
+              index: i,
+              data: data
             });
+            
+            success = true;
+            
+            if (this.onProgress) {            
+              this.onProgress({
+                message: `Reading segment ${i + 1}/${totalSegments}`,
+                progress: {
+                  type: 'processing',
+                  current: i + 1,
+                  total: totalSegments,
+                  percent: ((i + 1) / totalSegments) * 100
+                }
+              });
+            }
+          } catch (e) {
+            lastError = e;
+            console.error(`Error reading segment ${i} (attempt ${4 - retries}/3):`, e);
+            retries--;
+            
+            if (retries > 0) {
+              // リトライ前に待機時間を増加
+              const waitTime = 2000 * (4 - retries); // 2秒、4秒、6秒と待機時間を増加
+              console.log(`Waiting ${waitTime}ms before retry...`);
+              await new Promise(resolve => setTimeout(resolve, waitTime));
+            }
           }
-          
-          segmentIndex++;
-        } catch (e) {
-          break;
+        }
+
+        if (!success) {
+          console.error(`Failed to read segment ${i} after all retries. Last error:`, lastError);
+          throw new Error(`Failed to read segment ${i} after all retries: ${lastError}`);
         }
       }
+
+      console.log(`Total segments processed: ${segments.length}`);
+      if (segments.length === 0) {
+        throw new Error('No segments were successfully processed');
+      }
+
       this.timer.split('segmentProcessing');
 
       if (this.onProgress) {
@@ -295,7 +357,7 @@ export class FFmpegService {
       try {
         await this.ffmpeg.deleteFile(inputFileName);
         await this.ffmpeg.deleteFile(playlistFileName);
-        for (let i = 0; i < segmentIndex; i++) {
+        for (let i = 0; i < totalSegments; i++) {
           const segmentName = `segment_${timestamp}_${String(i).padStart(3, '0')}.ts`;
           await this.ffmpeg.deleteFile(segmentName);
         }
@@ -321,7 +383,7 @@ export class FFmpegService {
       console.log('Processing timings:', formattedTimings);
 
       return { 
-        playlist: playlist as Uint8Array, 
+        playlist: playlist, 
         segments,
         thumbnail: thumbnail as Uint8Array
       };

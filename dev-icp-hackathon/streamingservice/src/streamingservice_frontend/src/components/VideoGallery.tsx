@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { Box, Paper, Typography, Stack, Modal } from '@mui/material';
+import { Box, Paper, Typography, Stack, Modal, IconButton, Dialog, DialogTitle, DialogContent, DialogActions, Button } from '@mui/material';
 import { useSearchParams } from 'react-router-dom';
 import { Actor, HttpAgent, Identity } from '@dfinity/agent';
 import { AuthClient } from '@dfinity/auth-client';
@@ -10,6 +10,7 @@ import { Header } from './Header';
 import { UploadModal } from './UploadModal';
 import { FFmpegService, FFmpegProgress } from '../services/FFmpegService';
 import { CustomLoader } from '../services/CustomLoader';
+import DeleteIcon from '@mui/icons-material/Delete';
 
 interface Image {
   id: string;
@@ -34,6 +35,8 @@ export const VideoGallery: React.FC = () => {
   const canisterId = searchParams.get('canisterId');
   const ffmpegService = useRef(new FFmpegService());
   const [ffmpegLoaded, setFfmpegLoaded] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [videoToDelete, setVideoToDelete] = useState<string | null>(null);
 
   useEffect(() => {
     initFFmpeg();
@@ -108,9 +111,10 @@ export const VideoGallery: React.FC = () => {
       await actor.upload_playlist(video_id, playlistText);
 
       // セグメントを順次アップロード（チャンクサイズとバッチサイズを最適化）
-      const CHUNK_SIZE = 1024 * 1024; // 1MB
-      const BATCH_SIZE = 3; // 同時アップロード数を制限
-      const RETRY_COUNT = 5; // リトライ回数
+      const CHUNK_SIZE = 512 * 1024; // 512KBに縮小
+      const BATCH_SIZE = 2; // 同時アップロード数を制限
+      const RETRY_COUNT = 3; // リトライ回数
+      const RETRY_DELAY = 1000; // リトライ間隔（ミリ秒）
 
       // 全セグメントの総チャンク数を計算
       let totalChunks = 0;
@@ -129,21 +133,40 @@ export const VideoGallery: React.FC = () => {
 
         for (let i = 0; i < chunks.length; i++) {
           let retries = 0;
-          while (retries < RETRY_COUNT) {
+          let success = false;
+
+          while (retries < RETRY_COUNT && !success) {
             try {
-              await actor.upload_ts_segment(
+              console.log(`Uploading segment ${segment.index}, chunk ${i + 1}/${chunks.length}`);
+              const result = await actor.upload_ts_segment(
                 video_id,
                 segment.index,
                 Array.from(chunks[i])
               );
-              break;
+
+              if ('ok' in result) {
+                success = true;
+                console.log(`Successfully uploaded segment ${segment.index}, chunk ${i + 1}`);
+              } else {
+                throw new Error(`Upload failed: ${result.err || 'Unknown error'}`);
+              }
             } catch (error) {
               retries++;
+              console.error(`Upload attempt ${retries} failed for segment ${segment.index}, chunk ${i + 1}:`, error);
+              
               if (retries === RETRY_COUNT) {
-                throw new Error(`Failed to upload segment ${segment.index} chunk ${i} after ${RETRY_COUNT} retries`);
+                throw new Error(`Failed to upload segment ${segment.index} chunk ${i + 1} after ${RETRY_COUNT} retries: ${error}`);
               }
-              await new Promise(resolve => setTimeout(resolve, 1000 * retries)); // exponential backoff
+              
+              // 指数バックオフで待機
+              const delay = RETRY_DELAY * Math.pow(2, retries - 1);
+              console.log(`Waiting ${delay}ms before retry...`);
+              await new Promise(resolve => setTimeout(resolve, delay));
             }
+          }
+
+          if (!success) {
+            throw new Error(`Failed to upload segment ${segment.index} chunk ${i + 1} after all retries`);
           }
 
           uploadedChunks++;
@@ -156,21 +179,60 @@ export const VideoGallery: React.FC = () => {
       // バッチ処理でセグメントをアップロード
       for (let i = 0; i < segments.length; i += BATCH_SIZE) {
         const batch = segments.slice(i, Math.min(i + BATCH_SIZE, segments.length));
-        await Promise.all(batch.map(uploadSegment));
+        try {
+          await Promise.all(batch.map(uploadSegment));
+          console.log(`Successfully uploaded batch ${i / BATCH_SIZE + 1}`);
+        } catch (error) {
+          console.error(`Failed to upload batch ${i / BATCH_SIZE + 1}:`, error);
+          throw error;
+        }
       }
 
       // サムネイルがある場合はアップロード
       if (thumbnail) {
+        console.log('Uploading thumbnail...');
         const thumbnailChunks: Uint8Array[] = [];
         for (let offset = 0; offset < thumbnail.length; offset += CHUNK_SIZE) {
           thumbnailChunks.push(thumbnail.slice(offset, Math.min(offset + CHUNK_SIZE, thumbnail.length)));
         }
 
-        for (const chunk of thumbnailChunks) {
-          await actor.upload_thumbnail(video_id, Array.from(chunk));
+        for (let i = 0; i < thumbnailChunks.length; i++) {
+          let retries = 0;
+          let success = false;
+
+          while (retries < RETRY_COUNT && !success) {
+            try {
+              console.log(`Uploading thumbnail chunk ${i + 1}/${thumbnailChunks.length}`);
+              const result = await actor.upload_thumbnail(video_id, Array.from(thumbnailChunks[i]));
+              
+              if ('ok' in result) {
+                success = true;
+                console.log(`Successfully uploaded thumbnail chunk ${i + 1}`);
+              } else {
+                throw new Error(`Thumbnail upload failed: ${result.err || 'Unknown error'}`);
+              }
+            } catch (error) {
+              retries++;
+              console.error(`Thumbnail upload attempt ${retries} failed for chunk ${i + 1}:`, error);
+              
+              if (retries === RETRY_COUNT) {
+                throw new Error(`Failed to upload thumbnail chunk ${i + 1} after ${RETRY_COUNT} retries: ${error}`);
+              }
+              
+              const delay = RETRY_DELAY * Math.pow(2, retries - 1);
+              console.log(`Waiting ${delay}ms before retry...`);
+              await new Promise(resolve => setTimeout(resolve, delay));
+            }
+          }
+
+          if (!success) {
+            throw new Error(`Failed to upload thumbnail chunk ${i + 1} after all retries`);
+          }
         }
+        console.log('Thumbnail upload completed');
       }
 
+      console.log('get_video_list');
       // 動画リストを更新
       const videoList = await actor.get_video_list();
       const videosWithThumbnails = await Promise.all(
@@ -264,7 +326,13 @@ export const VideoGallery: React.FC = () => {
         .map(line => line.replace(/,IV=0x[0-9a-fA-F]+/, ''))
         .join('\n');
       
-      const rewrittenM3u8 = cleanedM3u8.replace(/[^\n]*?(\d+)\.ts/g, (_, p1) => `icsegment://${videoId}/${p1}`);
+      // セグメントのパスを修正
+      const rewrittenM3u8 = cleanedM3u8.replace(/[^\n]*?(\d+)\.ts/g, (match, p1) => {
+        const segmentIndex = parseInt(p1);
+        return `icsegment://${videoId}/${segmentIndex}`;
+      });
+
+      console.log("Rewritten m3u8:", rewrittenM3u8);
       const blob = new Blob([rewrittenM3u8], { type: 'application/vnd.apple.mpegurl' });
       const m3u8Url = URL.createObjectURL(blob);
       
@@ -279,7 +347,17 @@ export const VideoGallery: React.FC = () => {
           manifestLoadingTimeOut: 20000,
           manifestLoadingMaxRetry: 3,
           levelLoadingTimeOut: 20000,
-          levelLoadingMaxRetry: 3
+          levelLoadingMaxRetry: 3,
+          fragLoadingTimeOut: 20000,
+          fragLoadingMaxRetry: 3,
+          startLevel: -1,
+          abrEwmaDefaultEstimate: 500000,
+          maxBufferLength: 30,
+          maxMaxBufferLength: 600,
+          maxBufferSize: 60 * 1000 * 1000,
+          maxBufferHole: 0.5,
+          lowLatencyMode: false,
+          backBufferLength: 90
         });
 
         hls.on(Hls.Events.ERROR, (event, data) => {
@@ -302,8 +380,13 @@ export const VideoGallery: React.FC = () => {
           }
         });
 
-        hls.loadSource(m3u8Url);
-        hls.attachMedia(videoPlayer);
+        hls.on(Hls.Events.MANIFEST_LOADING, () => {
+          console.log('Manifest loading...');
+        });
+
+        hls.on(Hls.Events.MANIFEST_LOADED, () => {
+          console.log('Manifest loaded successfully');
+        });
 
         hls.on(Hls.Events.MANIFEST_PARSED, () => {
           console.log('HLS manifest parsed, attempting to play...');
@@ -314,6 +397,21 @@ export const VideoGallery: React.FC = () => {
             }
           });
         });
+
+        hls.on(Hls.Events.FRAG_LOADING, (event, data) => {
+          console.log('Loading fragment:', data.frag.sn);
+        });
+
+        hls.on(Hls.Events.FRAG_LOADED, (event, data) => {
+          console.log('Fragment loaded:', data.frag.sn);
+        });
+
+        hls.on(Hls.Events.FRAG_LOADING, (event: any, data: any) => {
+          console.error('Fragment load error:', data);
+        });
+
+        hls.loadSource(m3u8Url);
+        hls.attachMedia(videoPlayer);
 
         // Cleanup function
         return () => {
@@ -397,6 +495,58 @@ export const VideoGallery: React.FC = () => {
     }
   }, [selectedVideo, videoPlayer]);
 
+  const handleDeleteClick = (e: React.MouseEvent, videoId: string) => {
+    e.stopPropagation(); // クリックイベントの伝播を停止
+    setVideoToDelete(videoId);
+    setDeleteDialogOpen(true);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!videoToDelete) return;
+
+    try {
+      const agent = new HttpAgent({
+        host: 'http://localhost:' + import.meta.env.VITE_LOCAL_CANISTER_PORT,
+      });
+
+      const actor = createActor(import.meta.env.VITE_CANISTER_ID_STREAMINGSERVICE_BACKEND, {
+        agent,
+      }) as Actor & _SERVICE;
+
+      await actor.delete_video(videoToDelete);
+      
+      // 削除後にリストを更新
+      const videoList = await actor.get_video_list();
+      const videosWithThumbnails = await Promise.all(
+        videoList.map(async ([id, title]) => {
+          try {
+            const thumbnailResult = await actor.get_thumbnail(id);
+            if ('ok' in thumbnailResult) {
+              const blob = new Blob([new Uint8Array(thumbnailResult.ok)], { type: 'image/jpeg' });
+              const thumbnailUrl = URL.createObjectURL(blob);
+              return { id, title, thumbnailUrl };
+            }
+          } catch (error) {
+            console.error(`Error loading thumbnail for video ${id}:`, error);
+          }
+          return { id, title };
+        })
+      );
+
+      setImages(videosWithThumbnails);
+      setDeleteDialogOpen(false);
+      setVideoToDelete(null);
+    } catch (error) {
+      console.error('Failed to delete video:', error);
+      alert('動画の削除に失敗しました。');
+    }
+  };
+
+  const handleDeleteCancel = () => {
+    setDeleteDialogOpen(false);
+    setVideoToDelete(null);
+  };
+
   return (
     <Box>
       <Header 
@@ -452,15 +602,29 @@ export const VideoGallery: React.FC = () => {
                       }
                     }}
                   >
-                    <Typography 
-                      variant="h6" 
-                      sx={{ 
-                        mb: 1,
-                        textAlign: 'center'
-                      }}
-                    >
-                      {image.title}
-                    </Typography>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+                      <Typography 
+                        variant="h6" 
+                        sx={{ 
+                          textAlign: 'center',
+                          flex: 1
+                        }}
+                      >
+                        {image.title}
+                      </Typography>
+                      <IconButton
+                        onClick={(e) => handleDeleteClick(e, image.id)}
+                        sx={{
+                          color: 'error.main',
+                          '&:hover': {
+                            backgroundColor: 'error.light',
+                            color: 'white'
+                          }
+                        }}
+                      >
+                        <DeleteIcon />
+                      </IconButton>
+                    </Box>
                     <Box
                       sx={{
                         position: 'relative',
@@ -552,13 +716,35 @@ export const VideoGallery: React.FC = () => {
         {/* Upload Modal */}
         <UploadModal
           open={uploadModalOpen}
-          onClose={() => {
-            setUploadModalOpen(false);
-            setUploadProgress(0);
-          }}
+          onClose={() => setUploadModalOpen(false)}
           onUpload={handleUpload}
           progress={uploadProgress}
+          ffmpegService={ffmpegService.current}
         />
+
+        {/* Delete Confirmation Dialog */}
+        <Dialog
+          open={deleteDialogOpen}
+          onClose={handleDeleteCancel}
+          aria-labelledby="delete-dialog-title"
+        >
+          <DialogTitle id="delete-dialog-title">
+            動画の削除
+          </DialogTitle>
+          <DialogContent>
+            <Typography>
+              この動画を削除してもよろしいですか？この操作は取り消せません。
+            </Typography>
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={handleDeleteCancel} color="primary">
+              キャンセル
+            </Button>
+            <Button onClick={handleDeleteConfirm} color="error" variant="contained">
+              削除
+            </Button>
+          </DialogActions>
+        </Dialog>
       </Box>
     </Box>
   );

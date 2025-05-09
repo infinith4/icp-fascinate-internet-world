@@ -24,10 +24,12 @@ export class FFmpegService {
   private timer: Timer;
   onProgress?: (progress: FFmpegProgress) => void;
   private lastProgress: number = 0;
+  private isInitializing: boolean = false;
 
   constructor() {
     this.ffmpeg = new FFmpeg();
     this.timer = new Timer();
+    this.isInitializing = true;
     
     this.ffmpeg.on('log', ({ message }: { message: string }) => {
       console.log('FFmpeg:', message);
@@ -81,6 +83,7 @@ export class FFmpegService {
     if (this.loaded) return;
 
     try {
+      this.isInitializing = true;
       if (!crossOriginIsolated) {
         console.warn('Cross-Origin Isolation is not enabled');
       }
@@ -112,10 +115,20 @@ export class FFmpegService {
       }
 
       this.loaded = true;
+      this.isInitializing = false;
     } catch (error) {
+      this.isInitializing = false;
       console.error('FFmpeg load error:', error);
       throw error;
     }
+  }
+
+  isFFmpegInitializing(): boolean {
+    return this.isInitializing;
+  }
+
+  isFFmpegLoaded(): boolean {
+    return this.loaded;
   }
 
   async processVideo(file: File, options: {

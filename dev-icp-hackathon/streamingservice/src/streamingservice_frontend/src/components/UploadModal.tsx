@@ -10,24 +10,30 @@ import {
 } from '@mui/material';
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 import CloseIcon from '@mui/icons-material/Close';
+import { FFmpegService } from '../services/FFmpegService';
 
 interface UploadModalProps {
   open: boolean;
   onClose: () => void;
   onUpload: (file: File, title: string) => Promise<void>;
   progress?: number;
+  ffmpegService: FFmpegService;
 }
 
 export const UploadModal: React.FC<UploadModalProps> = ({ 
   open, 
   onClose, 
   onUpload,
-  progress = 0 
+  progress = 0,
+  ffmpegService
 }) => {
   const [title, setTitle] = useState('');
   const [file, setFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const isFFmpegInitializing = ffmpegService.isFFmpegInitializing();
+  const isFFmpegLoaded = ffmpegService.isFFmpegLoaded();
 
   const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
@@ -158,15 +164,15 @@ export const UploadModal: React.FC<UploadModalProps> = ({
         )}
 
         <Box sx={{ mt: 3, display: 'flex', justifyContent: 'flex-end', gap: 2 }}>
-          <Button onClick={onClose} disabled={uploading}>
+          <Button onClick={onClose} disabled={uploading || isFFmpegInitializing}>
             キャンセル
           </Button>
           <Button
             variant="contained"
             onClick={handleUpload}
-            disabled={!file || !title || uploading}
+            disabled={!file || !title || uploading || isFFmpegInitializing || !isFFmpegLoaded}
           >
-            アップロード
+            {isFFmpegInitializing ? 'FFmpeg初期化中...' : 'アップロード'}
           </Button>
         </Box>
       </Box>

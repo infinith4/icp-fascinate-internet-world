@@ -278,7 +278,7 @@ avc1
 ffprobe -v error -select_streams v:0 -show_entries stream=codec_name,codec_tag_string -of default=noprint_wrappers=1:nokey=1 "./videos/You are coding a new exciting project  The Social Network YouTube - Brave 2025-04-23 23-55-47.mp4"
 
 
-ffmpeg -i "./videos/The-Social-Network.mp4" -b:v 1M -c:a copy -f hls -hls_playlist_type vod -hls_time 5 -g 24 -hls_segment_filename "./videos/The-Social-Network-1m%3d.ts" "./videos/The-Social-Network-1m.m3u8"
+ffmpeg -i "./videos/The-Social-Network.mp4" -b:v 1M -c:a copy -f hls -hls_playlist_type vod -hls_time 5 -g 24 -hls_segment_filename "./videos/The-Social-Network/The-Social-Network-1m%3d.ts" "./videos/The-Social-Network/The-Social-Network-1m.m3u8"
 
 
 

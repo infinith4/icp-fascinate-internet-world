@@ -103,14 +103,20 @@ export class FFmpegService {
       // HLS変換を実行
       await this.ffmpeg.exec([
         '-i', inputFileName,
-        '-c:v', 'copy',          // ビデオコーデックをそのままコピー
-        '-c:a', 'aac',          // オーディオをAACにエンコード
+        '-c:v', 'libx264',        // H.264エンコーダーを使用
+        '-preset', 'ultrafast',   // 高速エンコード
+        '-tune', 'fastdecode',    // デコード速度を優先
+        '-crf', '23',            // 品質設定（18-28の範囲、低いほど高品質）
+        '-maxrate', '10M',        // 最大ビットレート
+        '-bufsize', '10M',        // バッファサイズ
+        '-c:a', 'aac',           // オーディオをAACにエンコード
         '-b:a', audioBitrate,
         '-f', 'hls',
         '-hls_time', segmentDuration.toString(),
         '-hls_segment_type', 'mpegts',
         '-hls_list_size', '0',
         '-hls_segment_filename', 'segment_%03d.ts',
+        '-max_muxing_queue_size', '9999',
         'playlist.m3u8'
       ]);
       this.timer.split('hlsConversion');

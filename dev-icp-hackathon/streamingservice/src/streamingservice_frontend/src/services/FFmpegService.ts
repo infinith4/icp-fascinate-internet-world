@@ -151,16 +151,16 @@ export class FFmpegService {
         });
       }
 
-
       const timestamp = `${new Date().toISOString().replace(/[-:]/g, '').replace('T', '').replace(/\..+/, '')}`;
       const inputFileName = `input_${timestamp}.mp4`;
       const thumbnailFileName = `thumbnail_${timestamp}.jpg`;
-      const playlistFileName = `playlist${timestamp}.m3u8`
+      const playlistFileName = `playlist_${timestamp}.m3u8`;
+      const segmentPattern = `segment_${timestamp}_%03d.ts`;
 
       const inputData = await fetchFile(file);
       
       // メモリ使用量を制限するためにファイルサイズをチェック
-      const maxFileSize = 100 * 1024 * 1024; // 100MB
+      const maxFileSize = 1000 * 1024 * 1024; // 100MB
       if (file.size > maxFileSize) {
         throw new Error(`File size exceeds maximum limit of ${maxFileSize / (1024 * 1024)}MB`);
       }
@@ -188,8 +188,8 @@ export class FFmpegService {
         thumbnailFileName
       ]);
 
-      const thumbnail = await this.ffmpeg.readFile('thumbnail.jpg');
-      await this.ffmpeg.deleteFile('thumbnail.jpg');
+      const thumbnail = await this.ffmpeg.readFile(thumbnailFileName);
+      await this.ffmpeg.deleteFile(thumbnailFileName);
       this.timer.split('thumbnailGeneration');
 
       if (this.onProgress) {
@@ -204,37 +204,24 @@ export class FFmpegService {
         });
       }
 
-      // メモリ使用量を最適化するためのパラメータを追加
-      // await this.ffmpeg.exec([
-      //   '-i', inputFileName,
-      //   '-c:v', 'libx264',
-      //   '-preset', 'ultrafast',  // より高速なプリセットを使用
-      //   '-tune', 'fastdecode',   // デコード速度を優先
-      //   '-crf', '23',
-      //   '-b:v', videoBitrate,
-      //   '-c:a', 'aac',
-      //   '-b:a', audioBitrate,
-      //   '-f', 'hls',
-      //   '-hls_time', segmentDuration.toString(),
-      //   '-hls_segment_type', 'mpegts',
-      //   '-hls_list_size', '0',
-      //   '-hls_segment_filename', 'segment_%03d.ts',
-      //   '-max_muxing_queue_size', '9999',
-      //   '-threads', '0',         // 利用可能なすべてのスレッドを使用
-      //   '-thread_type', 'slice', // スライスベースのスレッド処理を使用
-      //   'playlist.m3u8'
-      // ]);
+      // HLS変換
+
       console.log("segmentDuration: ", segmentDuration);
       await this.ffmpeg.exec([
         '-i', inputFileName,
-        '-c:v', 'copy',          // ビデオコーデックをそのままコピー
-        '-c:a', 'aac',          // オーディオをAACにエンコード
+        '-c:v', 'copy',
+        '-c:a', 'aac',
         '-b:a', audioBitrate,
         '-f', 'hls',
         '-hls_time', segmentDuration.toString(),
         '-hls_segment_type', 'mpegts',
         '-hls_list_size', '0',
-        '-hls_segment_filename', inputFileName + 'segment_%03d.ts',
+        '-hls_segment_filename', segmentPattern,
+        '-hls_flags', 'independent_segments',
+        '-hls_playlist_type', 'event',
+        '-hls_start_number_source', 'epoch',
+        '-hls_init_time', '0',
+        '-hls_base_url', '',
         playlistFileName
       ]);
       this.timer.split('hlsConversion');
@@ -250,7 +237,7 @@ export class FFmpegService {
 
       while (true) {
         try {
-          const segmentName = `segment_${String(segmentIndex).padStart(3, '0')}.ts`;
+          const segmentName = `segment_${timestamp}_${String(segmentIndex).padStart(3, '0')}.ts`;
           const segmentData = await this.ffmpeg.readFile(segmentName);
           
           if (!segmentData) break;
@@ -267,7 +254,7 @@ export class FFmpegService {
                 type: 'processing',
                 current: segmentIndex + 1,
                 total: totalSegments,
-                percent:  ((segmentIndex + 1) / totalSegments) * 100
+                percent: ((segmentIndex + 1) / totalSegments) * 100
               }
             });
           }
@@ -291,11 +278,16 @@ export class FFmpegService {
         });
       }
 
-      await this.ffmpeg.deleteFile(inputFileName);
-      await this.ffmpeg.deleteFile(playlistFileName);
-      for (let i = 0; i < segmentIndex; i++) {
-        const segmentName = `segment_${String(i).padStart(3, '0')}.ts`;
-        await this.ffmpeg.deleteFile(segmentName);
+      // クリーンアップ
+      try {
+        await this.ffmpeg.deleteFile(inputFileName);
+        await this.ffmpeg.deleteFile(playlistFileName);
+        for (let i = 0; i < segmentIndex; i++) {
+          const segmentName = `segment_${timestamp}_${String(i).padStart(3, '0')}.ts`;
+          await this.ffmpeg.deleteFile(segmentName);
+        }
+      } catch (cleanupError) {
+        console.warn('Cleanup error:', cleanupError);
       }
       this.timer.split('cleanup');
 

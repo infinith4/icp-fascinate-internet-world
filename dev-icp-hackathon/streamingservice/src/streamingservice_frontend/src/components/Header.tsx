@@ -66,6 +66,13 @@ export const Header: React.FC<HeaderProps> = ({ onUploadClick, identity, onAuthC
           >
             Videos
           </Button>
+          <Button 
+            color="inherit" 
+            onClick={() => navigate(`/image-gallery?canisterId=${import.meta.env.VITE_CANISTER_ID_STREAMINGSERVICE_FRONTEND}`)}
+            sx={{ ml: 2 }}
+          >
+            Images
+          </Button>
         </Box>
 
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>

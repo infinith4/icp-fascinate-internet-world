@@ -172,7 +172,7 @@ function App() {
 
       // プレイリストのアップロード
       const playlistText = new TextDecoder().decode(playlist);
-      console.log('playlist:', playlistText);
+      console.log('--------------playlist:', playlistText);
       setUploadProgress({ message: 'Uploading playlist...', progress: 0 });
       const playlistResult = await actor.upload_playlist(video_id, playlistText);
       
@@ -395,14 +395,16 @@ function App() {
         .join('\n');
       
       const rewrittenM3u8 = cleanedM3u8.replace(/[^\n]*?(\d+)\.ts/g, (_, p1) => `icsegment://${videoId}/${p1}`);
-      console.log('Processed m3u8:', rewrittenM3u8);
+      console.log('------------------------------------------------------------------Processed m3u8:', rewrittenM3u8);
       
       const blob = new Blob([rewrittenM3u8], { type: 'application/vnd.apple.mpegurl' });
       const m3u8Url = URL.createObjectURL(blob);
       
+      console.log("m3u8Url", m3u8Url);
       if (Hls.isSupported()) {
         class CustomLoader extends Hls.DefaultConfig.loader {
           load(context: any, config: any, callbacks: any) {
+            console.log("context", context);
             if (context.url.startsWith('icsegment://')) {
               const match = context.url.match(/^icsegment:\/\/(.+)\/(\d+)$/);
               if (match) {

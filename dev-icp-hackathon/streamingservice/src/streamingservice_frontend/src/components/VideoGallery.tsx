@@ -351,6 +351,19 @@ export const VideoGallery: React.FC = () => {
       const blob = new Blob([rewrittenM3u8], { type: 'application/vnd.apple.mpegurl' });
       const m3u8Url = URL.createObjectURL(blob);
       
+      //NOTE:
+      // for (let i = 0; i < segmentLines.length; i++) {
+      //   const segmentResult = await actor.get_hls_segment(videoId, i);
+      //   if ('ok' in segmentResult) {
+      //     segments.push({
+      //       index: i,
+      //       data: new Uint8Array(segmentResult.ok)
+      //     });
+      //   } else {
+      //     throw new Error(`Failed to get segment ${i}`);
+      //   }
+      // }
+
       if (Hls.isSupported()) {
         console.log("HLS.js is supported, initializing...");
         const hls = new Hls({

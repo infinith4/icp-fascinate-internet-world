@@ -18,6 +18,10 @@ export interface ProcessedVideo {
   thumbnail?: Uint8Array;
 }
 
+export interface HlsToMp4Result {
+  data: Uint8Array;
+}
+
 export class FFmpegService {
   private ffmpeg: FFmpeg;
   private loaded: boolean = false;
@@ -389,6 +393,60 @@ export class FFmpegService {
       };
     } catch (error) {
       console.error('Video processing error:', error);
+      throw error;
+    }
+  }
+
+  async convertHlsToMp4(playlist: string, segments: { index: number; data: Uint8Array }[]): Promise<HlsToMp4Result> {
+    if (!this.loaded) {
+      await this.load();
+    }
+
+    const timestamp = `${new Date().toISOString().replace(/[-:]/g, '').replace('T', '').replace(/\..+/, '')}`;
+    const segmentPattern = `segment_${timestamp}_%03d.ts`;
+    const playlistFileName = `playlist_${timestamp}.m3u8`;
+    const outputFileName = `output_${timestamp}.mp4`;
+
+    try {
+      // セグメントファイルを書き込み
+      for (const segment of segments) {
+        const segmentName = `segment_${timestamp}_${String(segment.index).padStart(3, '0')}.ts`;
+        await this.ffmpeg.writeFile(segmentName, segment.data);
+      }
+
+      // プレイリストを書き込み
+      await this.ffmpeg.writeFile(playlistFileName, new TextEncoder().encode(playlist));
+
+      // MP4に変換
+      await this.ffmpeg.exec([
+        '-i', playlistFileName,
+        '-c:v', 'copy',
+        '-c:a', 'copy',
+        '-f', 'mp4',
+        outputFileName
+      ]);
+
+      // 変換されたファイルを読み込み
+      const outputData = await this.ffmpeg.readFile(outputFileName);
+      if (!outputData) {
+        throw new Error('Failed to read converted file');
+      }
+
+      // クリーンアップ
+      try {
+        await this.ffmpeg.deleteFile(playlistFileName);
+        await this.ffmpeg.deleteFile(outputFileName);
+        for (const segment of segments) {
+          const segmentName = `segment_${timestamp}_${String(segment.index).padStart(3, '0')}.ts`;
+          await this.ffmpeg.deleteFile(segmentName);
+        }
+      } catch (cleanupError) {
+        console.warn('Cleanup error:', cleanupError);
+      }
+
+      return { data: outputData as Uint8Array };
+    } catch (error) {
+      console.error('HLS to MP4 conversion error:', error);
       throw error;
     }
   }

@@ -81,6 +81,14 @@ enum ThumbnailResult {
     Err(String),
 }
 
+#[derive(CandidType, Deserialize)]
+enum DownloadVideoResult {
+    #[serde(rename = "ok")]
+    Ok(Vec<u8>),
+    #[serde(rename = "err")]
+    Err(String),
+}
+
 thread_local! {
     static VIDEOS: RefCell<HashMap<String, Video>> = RefCell::new(HashMap::new());
 }
@@ -338,6 +346,43 @@ fn get_thumbnail(video_id: String) -> ThumbnailResult {
             }
         } else {
             ThumbnailResult::Err("Video not found".to_string())
+        }
+    })
+}
+
+#[query]
+fn download_video(video_id: String) -> DownloadVideoResult {
+    VIDEOS.with(|videos| {
+        let videos = videos.borrow();
+        if let Some(video) = videos.get(&video_id) {
+            // プレイリストを取得
+            if let Some(playlist) = &video.playlist {
+                // セグメントを結合して1つのバイナリデータを作成
+                let mut combined_data = Vec::new();
+                
+                // プレイリストからセグメントの順序を取得
+                let segment_lines: Vec<&str> = playlist
+                    .split('\n')
+                    .filter(|line| line.ends_with(".ts"))
+                    .collect();
+
+                // セグメントを順番に結合
+                for (index, _) in segment_lines.iter().enumerate() {
+                    if let Some(chunk) = video.chunks.get(index) {
+                        combined_data.extend_from_slice(chunk);
+                    }
+                }
+
+                if combined_data.is_empty() {
+                    return DownloadVideoResult::Err("No video data found".to_string());
+                }
+
+                DownloadVideoResult::Ok(combined_data)
+            } else {
+                DownloadVideoResult::Err("Playlist not found".to_string())
+            }
+        } else {
+            DownloadVideoResult::Err("Video not found".to_string())
         }
     })
 }

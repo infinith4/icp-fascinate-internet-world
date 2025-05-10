@@ -13,4 +13,5 @@ service : {
     "upload_thumbnail": (text, vec nat8) -> (variant { ok: text; err: text });
     "get_thumbnail": (text) -> (variant { ok: vec nat8; err: text }) query;
     "delete_video": (text) -> (variant { ok: text; err: text });
+    "download_video": (text) -> (variant { ok: vec nat8; err: text }) query;
 }

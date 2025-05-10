@@ -11,6 +11,7 @@ import { UploadModal } from './UploadModal';
 import { FFmpegService, FFmpegProgress } from '../services/FFmpegService';
 import { CustomLoader } from '../services/CustomLoader';
 import DeleteIcon from '@mui/icons-material/Delete';
+import DownloadIcon from '@mui/icons-material/Download';
 
 interface Image {
   id: string;
@@ -319,7 +320,7 @@ export const VideoGallery: React.FC = () => {
         host: 'http://localhost:' + import.meta.env.VITE_LOCAL_CANISTER_PORT,
       });
 
-      const actor = createActor(import.meta.env.VITE_CANISTER_ID_STREAMINGSERVICE_BACKEND || '', {
+      const actor = createActor(import.meta.env.VITE_CANISTER_ID_STREAMINGSERVICE_BACKEND, {
         agent,
       }) as Actor & _SERVICE;
 
@@ -606,6 +607,60 @@ export const VideoGallery: React.FC = () => {
     setVideoToDelete(null);
   };
 
+  const handleDownloadClick = async (e: React.MouseEvent, videoId: string) => {
+    e.stopPropagation(); // クリックイベントの伝播を停止
+    try {
+      const agent = new HttpAgent({
+        host: 'http://localhost:' + import.meta.env.VITE_LOCAL_CANISTER_PORT,
+      });
+
+      const actor = createActor(import.meta.env.VITE_CANISTER_ID_STREAMINGSERVICE_BACKEND, {
+        agent,
+      }) as Actor & _SERVICE;
+
+      // プレイリストを取得
+      const playlistResult = await actor.get_hls_playlist(videoId, import.meta.env.VITE_CANISTER_ID_STREAMINGSERVICE_BACKEND ?? '');
+      if (!('ok' in playlistResult)) {
+        throw new Error('Failed to get playlist');
+      }
+
+      // セグメントを取得
+      const m3u8Content = playlistResult.ok;
+      const segmentLines = m3u8Content.split('\n').filter(line => line.endsWith('.ts'));
+      const segments: { index: number; data: Uint8Array }[] = [];
+
+      for (let i = 0; i < segmentLines.length; i++) {
+        const segmentResult = await actor.get_hls_segment(videoId, i);
+        if ('ok' in segmentResult) {
+          segments.push({
+            index: i,
+            data: new Uint8Array(segmentResult.ok)
+          });
+        } else {
+          throw new Error(`Failed to get segment ${i}`);
+        }
+      }
+
+      // FFmpegでMP4に変換
+      const result = await ffmpegService.current.convertHlsToMp4(m3u8Content, segments);
+
+      // ダウンロード
+      const blob = new Blob([result.data], { type: 'video/mp4' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `video-${videoId}.mp4`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+    } catch (error) {
+      console.error('Error downloading video:', error);
+      alert('動画のダウンロード中にエラーが発生しました。');
+    }
+  };
+
   return (
     <Box>
       <Header 
@@ -671,18 +726,32 @@ export const VideoGallery: React.FC = () => {
                       >
                         {image.title}
                       </Typography>
-                      <IconButton
-                        onClick={(e) => handleDeleteClick(e, image.id)}
-                        sx={{
-                          color: 'error.main',
-                          '&:hover': {
-                            backgroundColor: 'error.light',
-                            color: 'white'
-                          }
-                        }}
-                      >
-                        <DeleteIcon />
-                      </IconButton>
+                      <Box sx={{ display: 'flex', gap: 1 }}>
+                        <IconButton
+                          onClick={(e) => handleDownloadClick(e, image.id)}
+                          sx={{
+                            color: 'primary.main',
+                            '&:hover': {
+                              backgroundColor: 'primary.light',
+                              color: 'white'
+                            }
+                          }}
+                        >
+                          <DownloadIcon />
+                        </IconButton>
+                        <IconButton
+                          onClick={(e) => handleDeleteClick(e, image.id)}
+                          sx={{
+                            color: 'error.main',
+                            '&:hover': {
+                              backgroundColor: 'error.light',
+                              color: 'white'
+                            }
+                          }}
+                        >
+                          <DeleteIcon />
+                        </IconButton>
+                      </Box>
                     </Box>
                     <Box
                       sx={{

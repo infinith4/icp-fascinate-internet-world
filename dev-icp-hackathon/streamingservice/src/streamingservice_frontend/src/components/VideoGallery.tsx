@@ -305,7 +305,7 @@ export const VideoGallery: React.FC = () => {
   }, [selectedVideo, videoPlayer]);
 
   const playHlsStream = async (videoId: string) => {
-    console.log("Attempting to play videoId:", videoId);
+    console.log("------------------------------------------Attempting to play videoId:", videoId);
     if (!videoPlayer) {
       console.error('Video player not initialized yet');
       return;
@@ -341,164 +341,84 @@ export const VideoGallery: React.FC = () => {
         .map(line => line.replace(/,IV=0x[0-9a-fA-F]+/, ''))
         .join('\n');
       
+      // セグメントの数をカウント
+      const segmentCount = cleanedM3u8.split('\n').filter(line => line.endsWith('.ts')).length;
+      console.log(`Total segments found: ${segmentCount}`);
+      
       // セグメントのパスを修正
+      let segmentCounter = 0;
       const rewrittenM3u8 = cleanedM3u8.replace(/[^\n]*?(\d+)\.ts/g, (match, p1) => {
-        const segmentIndex = parseInt(p1);
-        return `icsegment://${videoId}/${segmentIndex}`;
+        const currentIndex = segmentCounter;
+        segmentCounter++;
+        console.log(`Processing segment ${currentIndex + 1} of ${segmentCount}`);
+        return `icsegment://${videoId}/${currentIndex}`;
       });
 
       console.log("Rewritten m3u8:", rewrittenM3u8);
       const blob = new Blob([rewrittenM3u8], { type: 'application/vnd.apple.mpegurl' });
       const m3u8Url = URL.createObjectURL(blob);
       
-      //NOTE:
-      // for (let i = 0; i < segmentLines.length; i++) {
-      //   const segmentResult = await actor.get_hls_segment(videoId, i);
-      //   if ('ok' in segmentResult) {
-      //     segments.push({
-      //       index: i,
-      //       data: new Uint8Array(segmentResult.ok)
-      //     });
-      //   } else {
-      //     throw new Error(`Failed to get segment ${i}`);
-      //   }
-      // }
+      // 最初のセグメントのみを取得
+      console.log("Fetching first segment...");
+      const firstSegmentResult = await actor.get_hls_segment(videoId, 0);
+      if (!('ok' in firstSegmentResult)) {
+        throw new Error('Failed to get first segment');
+      }
 
-      if (Hls.isSupported()) {
-        console.log("HLS.js is supported, initializing...");
-        const hls = new Hls({
-          debug: true,
-          enableWorker: false,
-          enableSoftwareAES: false,
-          emeEnabled: false,
-          loader: CustomLoader,
-          manifestLoadingTimeOut: 20000,
-          manifestLoadingMaxRetry: 3,
-          levelLoadingTimeOut: 20000,
-          levelLoadingMaxRetry: 3,
-          fragLoadingTimeOut: 20000,
-          fragLoadingMaxRetry: 3,
-          startLevel: -1,
-          abrEwmaDefaultEstimate: 500000,
-          maxBufferLength: 30,
-          maxMaxBufferLength: 600,
-          maxBufferSize: 60 * 1000 * 1000,
-          maxBufferHole: 0.5,
-          lowLatencyMode: false,
-          backBufferLength: 90,
-          // カスタムローダーの設定
-          xhrSetup: (xhr, url) => {
-            if (url.startsWith('icsegment://')) {
-              const [_, videoId, segmentIndex] = url.split('/');
-              console.log(`Loading segment ${segmentIndex} for video ${videoId}`);
-              
-              // セグメントの読み込みを試行
-              const loadSegment = async () => {
-                try {
-                  const segmentResult = await actor.get_hls_segment(videoId, parseInt(segmentIndex));
-                  if ('ok' in segmentResult) {
-                    const segmentData = new Uint8Array(segmentResult.ok);
-                    const blob = new Blob([segmentData], { type: 'video/MP2T' });
-                    const segmentUrl = URL.createObjectURL(blob);
-                    
-                    // セグメントURLを返す
-                    return segmentUrl;
-                  } else {
-                    throw new Error(`Failed to load segment: ${segmentResult.err}`);
-                  }
-                } catch (error) {
-                  console.error(`Error loading segment ${segmentIndex}:`, error);
-                  throw error;
-                }
-              };
+      const firstSegmentData = new Uint8Array(firstSegmentResult.ok);
+      console.log("First segment data size:", firstSegmentData.length);
+      
+      // FFmpegでMP4に変換
+      if (!ffmpegService.current.isFFmpegLoaded()) {
+        await ffmpegService.current.load();
+      }
 
-              // セグメントの読み込みを開始
-              loadSegment().then(segmentUrl => {
-                // セグメントURLを設定
-                Object.defineProperty(xhr, 'responseURL', { value: segmentUrl });
-                Object.defineProperty(xhr, 'response', { value: segmentUrl });
-                Object.defineProperty(xhr, 'status', { value: 200 });
-                Object.defineProperty(xhr, 'readyState', { value: 4 });
-                xhr.dispatchEvent(new Event('load'));
-              }).catch(error => {
-                Object.defineProperty(xhr, 'status', { value: 404 });
-                Object.defineProperty(xhr, 'readyState', { value: 4 });
-                xhr.dispatchEvent(new Event('error'));
-              });
+      try {
+        // TSセグメントをMP4に変換
+        const mp4Data = await ffmpegService.current.convertTsToMp4(firstSegmentData);
+        console.log("Converted to MP4, data size:", mp4Data.length);
 
-              return;
+        // 変換されたデータをBlobとして保存
+        const mp4Blob = new Blob([mp4Data], { type: 'video/mp4' });
+        const mp4Url = URL.createObjectURL(mp4Blob);
+        console.log("Created MP4 URL:", mp4Url);
+
+        // 変換されたMP4を再生
+        if (videoPlayer) {
+          console.log("Setting video source...");
+          videoPlayer.src = mp4Url;
+          videoPlayer.load();
+          
+          // 再生準備が完了したら再生を開始
+          videoPlayer.oncanplay = async () => {
+            console.log("Video can play, starting playback...");
+            try {
+              await videoPlayer.play();
+              console.log("Playback started successfully");
+            } catch (error) {
+              console.error("Playback failed:", error);
             }
-          }
-        });
+          };
 
-        hls.on(Hls.Events.ERROR, (event, data) => {
-          console.error('HLS error:', event, data);
-          if (data.fatal) {
-            switch (data.type) {
-              case Hls.ErrorTypes.NETWORK_ERROR:
-                console.log('Fatal network error encountered, trying to recover...');
-                hls.startLoad();
-                break;
-              case Hls.ErrorTypes.MEDIA_ERROR:
-                console.log('Fatal media error encountered, trying to recover...');
-                hls.recoverMediaError();
-                break;
-              default:
-                console.log('Fatal error, cannot recover');
-                hls.destroy();
-                break;
-            }
-          }
-        });
+          // エラーハンドリング
+          videoPlayer.onerror = (e) => {
+            console.error("Video playback error:", videoPlayer.error);
+          };
+        }
 
-        hls.on(Hls.Events.MANIFEST_LOADING, () => {
-          console.log('Manifest loading...');
-        });
-
-        hls.on(Hls.Events.MANIFEST_LOADED, () => {
-          console.log('Manifest loaded successfully');
-        });
-
-        hls.on(Hls.Events.MANIFEST_PARSED, () => {
-          console.log('HLS manifest parsed, attempting to play...');
-          videoPlayer.play().catch(e => {
-            console.error('Play error:', e);
-            if (e.name === 'NotAllowedError') {
-              console.log('Playback requires user interaction');
-            }
-          });
-        });
-
-        hls.on(Hls.Events.FRAG_LOADING, (event, data) => {
-          console.log('Loading fragment:', data.frag.sn);
-        });
-
-        hls.on(Hls.Events.FRAG_LOADED, (event, data) => {
-          console.log('Fragment loaded:', data.frag.sn);
-        });
-
-        hls.on(Hls.Events.ERROR, (event, data) => {
-          if (data.type === Hls.ErrorTypes.NETWORK_ERROR && data.details === Hls.ErrorDetails.FRAG_LOAD_ERROR) {
-            console.error('Fragment load error:', data);
-          }
-        });
-
-        hls.loadSource(m3u8Url);
-        hls.attachMedia(videoPlayer);
-
-        // Cleanup function
+        // クリーンアップ関数
         return () => {
-          hls.destroy();
+          if (videoPlayer) {
+            videoPlayer.pause();
+            videoPlayer.removeAttribute('src');
+            videoPlayer.load();
+          }
+          URL.revokeObjectURL(mp4Url);
           URL.revokeObjectURL(m3u8Url);
         };
-      } else if (videoPlayer.canPlayType('application/vnd.apple.mpegurl')) {
-        console.log("Native HLS playback supported");
-        videoPlayer.src = m3u8Url;
-        await videoPlayer.play().catch(e => {
-          console.error('Native playback error:', e);
-        });
-      } else {
-        console.error('HLS playback is not supported in this browser');
+      } catch (error) {
+        console.error('Error converting segment:', error);
+        throw error;
       }
     } catch (error) {
       console.error('Error in playHlsStream:', error);

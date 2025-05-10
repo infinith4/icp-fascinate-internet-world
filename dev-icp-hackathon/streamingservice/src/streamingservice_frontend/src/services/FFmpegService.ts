@@ -450,4 +450,76 @@ export class FFmpegService {
       throw error;
     }
   }
+
+  async convertTsToMp4(tsData: Uint8Array): Promise<Uint8Array> {
+    if (!this.loaded) {
+      await this.load();
+    }
+
+    const timestamp = `${new Date().toISOString().replace(/[-:]/g, '').replace('T', '').replace(/\..+/, '')}`;
+    const inputFileName = `input_${timestamp}.ts`;
+    const outputFileName = `output_${timestamp}.mp4`;
+
+    try {
+      console.log("Writing input file...");
+      // セグメントを一時ファイルとして書き込み
+      await this.ffmpeg.writeFile(inputFileName, tsData);
+      console.log("Input file written successfully");
+
+      // 入力ファイルの存在確認
+      const inputFileExists = await this.ffmpeg.readFile(inputFileName);
+      if (!inputFileExists) {
+        throw new Error('Failed to write input file');
+      }
+      console.log("Input file verified");
+
+      console.log("Starting MP4 conversion...");
+      // MP4に変換（より互換性の高いオプションを使用）
+      await this.ffmpeg.exec([
+        '-i', inputFileName,
+        '-c:v', 'libx264',  // H.264エンコーダーを使用
+        '-preset', 'ultrafast',  // 高速エンコード
+        '-tune', 'zerolatency',  // 低レイテンシー
+        '-profile:v', 'baseline',  // 基本的なプロファイル
+        '-level', '3.0',  // 互換性の高いレベル
+        '-c:a', 'aac',  // AACオーディオコーデック
+        '-b:a', '128k',  // オーディオビットレート
+        '-f', 'mp4',
+        '-movflags', '+faststart',  // 高速スタート
+        outputFileName
+      ]);
+      console.log("MP4 conversion completed");
+
+      // 出力ファイルの存在確認
+      console.log("Reading output file...");
+      const outputData = await this.ffmpeg.readFile(outputFileName);
+      if (!outputData) {
+        throw new Error('Failed to read converted file');
+      }
+      console.log("Output file read successfully");
+
+      // クリーンアップ
+      console.log("Cleaning up temporary files...");
+      try {
+        await this.ffmpeg.deleteFile(inputFileName);
+        await this.ffmpeg.deleteFile(outputFileName);
+        console.log("Cleanup completed");
+      } catch (cleanupError) {
+        console.warn('Cleanup error:', cleanupError);
+        // クリーンアップエラーは無視して続行
+      }
+
+      return outputData as Uint8Array;
+    } catch (error) {
+      console.error('TS to MP4 conversion error:', error);
+      // エラー発生時もクリーンアップを試みる
+      try {
+        await this.ffmpeg.deleteFile(inputFileName);
+        await this.ffmpeg.deleteFile(outputFileName);
+      } catch (cleanupError) {
+        console.warn('Cleanup error during error handling:', cleanupError);
+      }
+      throw error;
+    }
+  }
 }

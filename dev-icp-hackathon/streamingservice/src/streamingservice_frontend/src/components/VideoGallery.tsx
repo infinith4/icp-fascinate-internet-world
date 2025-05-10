@@ -1,17 +1,19 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, MutableRefObject } from 'react';
 import { Box, Paper, Typography, Stack, Modal, IconButton, Dialog, DialogTitle, DialogContent, DialogActions, Button } from '@mui/material';
 import { useSearchParams } from 'react-router-dom';
 import { Actor, HttpAgent, Identity } from '@dfinity/agent';
 import { AuthClient } from '@dfinity/auth-client';
 import { _SERVICE } from '../../../declarations/streamingservice_backend/streamingservice_backend.did';
 import { createActor } from '../../../declarations/streamingservice_backend';
-import Hls from 'hls.js';
+import Hls, { LoaderContext, LoaderConfiguration, LoaderCallbacks, LoaderStats, LoaderResponse } from 'hls.js';
 import { Header } from './Header';
 import { UploadModal } from './UploadModal';
 import { FFmpegService, FFmpegProgress } from '../services/FFmpegService';
 import { CustomLoader } from '../services/CustomLoader';
 import DeleteIcon from '@mui/icons-material/Delete';
 import DownloadIcon from '@mui/icons-material/Download';
+import QueueMusicIcon from '@mui/icons-material/QueueMusic';
+import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 
 interface Image {
   id: string;
@@ -38,6 +40,7 @@ export const VideoGallery: React.FC = () => {
   const [ffmpegLoaded, setFfmpegLoaded] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [videoToDelete, setVideoToDelete] = useState<string | null>(null);
+  const hlsInstance = useRef<Hls | null>(null);
 
   useEffect(() => {
     initFFmpeg();
@@ -138,7 +141,7 @@ export const VideoGallery: React.FC = () => {
 
           while (retries < RETRY_COUNT && !success) {
             try {
-              console.log(`Uploading segment ${segment.index}, chunk ${i + 1}/${chunks.length}`);
+              console.log(`--------------Uploading segment ${segment.index}, chunk ${i + 1}/${chunks.length}`);
               const result = await actor.upload_ts_segment(
                 video_id,
                 segment.index,
@@ -285,6 +288,13 @@ export const VideoGallery: React.FC = () => {
       videoPlayer.removeAttribute('src');
       videoPlayer.load();
     }
+    
+    // HLSインスタンスがあれば破棄
+    if (hlsInstance.current) {
+      hlsInstance.current.destroy();
+      hlsInstance.current = null;
+    }
+    
     setSelectedVideo(null);
   };
 
@@ -306,16 +316,13 @@ export const VideoGallery: React.FC = () => {
 
   const playHlsStream = async (videoId: string) => {
     console.log("------------------------------------------Attempting to play videoId:", videoId);
+    
     if (!videoPlayer) {
-      console.error('Video player not initialized yet');
+      console.error("Video player element is not available");
       return;
     }
-    
-    try {
-      videoPlayer.pause();
-      videoPlayer.removeAttribute('src');
-      videoPlayer.load();
 
+    try {
       const agent = new HttpAgent({
         host: 'http://localhost:' + import.meta.env.VITE_LOCAL_CANISTER_PORT,
       });
@@ -324,104 +331,290 @@ export const VideoGallery: React.FC = () => {
         agent,
       }) as Actor & _SERVICE;
 
-      console.log("Fetching playlist for video:", videoId);
+      // プレイリストを取得
       const playlistResult = await actor.get_hls_playlist(videoId, import.meta.env.VITE_CANISTER_ID_STREAMINGSERVICE_BACKEND ?? '');
+      if (!('ok' in playlistResult)) {
+        throw new Error('Failed to get playlist');
+      }
       
-      if (!playlistResult || !('ok' in playlistResult)) {
-        console.error('Failed to fetch playlist:', playlistResult);
-        return;
+      const m3u8Content = playlistResult.ok;
+      console.log("Retrieved m3u8 content:", m3u8Content);
+
+      // プレイリストからセグメント情報を解析
+      const segmentLines = m3u8Content.split('\n').filter(line => line.endsWith('.ts'));
+      console.log("Segment lines:", segmentLines);
+      const totalSegments = segmentLines.length;
+      
+      if (totalSegments === 0) {
+        throw new Error('No segments found in playlist');
       }
 
-      const m3u8Text = String(playlistResult.ok);
-      console.log("Received m3u8 content:", m3u8Text.substring(0, 100) + "...");
+      // セグメントをプリロード
+      console.log(`Preloading ${totalSegments} segments...`);
+      const segments: { index: number; data: Uint8Array }[] = [];
       
-      const cleanedM3u8 = m3u8Text
-        .split('\n')
-        .filter(line => !line.startsWith('#EXT-X-KEY') && !line.includes('IV='))
-        .map(line => line.replace(/,IV=0x[0-9a-fA-F]+/, ''))
-        .join('\n');
-      
-      // セグメントの数をカウント
-      const segmentCount = cleanedM3u8.split('\n').filter(line => line.endsWith('.ts')).length;
-      console.log(`Total segments found: ${segmentCount}`);
-      
-      // セグメントのパスを修正
-      let segmentCounter = 0;
-      const rewrittenM3u8 = cleanedM3u8.replace(/[^\n]*?(\d+)\.ts/g, (match, p1) => {
-        const currentIndex = segmentCounter;
-        segmentCounter++;
-        console.log(`Processing segment ${currentIndex + 1} of ${segmentCount}`);
-        return `icsegment://${videoId}/${currentIndex}`;
-      });
-
-      console.log("Rewritten m3u8:", rewrittenM3u8);
-      const blob = new Blob([rewrittenM3u8], { type: 'application/vnd.apple.mpegurl' });
-      const m3u8Url = URL.createObjectURL(blob);
-      
-      // 最初のセグメントのみを取得
-      console.log("Fetching first segment...");
-      const firstSegmentResult = await actor.get_hls_segment(videoId, 0);
-      if (!('ok' in firstSegmentResult)) {
-        throw new Error('Failed to get first segment');
-      }
-
-      const firstSegmentData = new Uint8Array(firstSegmentResult.ok);
-      console.log("First segment data size:", firstSegmentData.length);
-      
-      // FFmpegでMP4に変換
-      if (!ffmpegService.current.isFFmpegLoaded()) {
-        await ffmpegService.current.load();
-      }
-
-      try {
-        // TSセグメントをMP4に変換
-        const mp4Data = await ffmpegService.current.convertTsToMp4(firstSegmentData);
-        console.log("Converted to MP4, data size:", mp4Data.length);
-
-        // 変換されたデータをBlobとして保存
-        const mp4Blob = new Blob([mp4Data], { type: 'video/mp4' });
-        const mp4Url = URL.createObjectURL(mp4Blob);
-        console.log("Created MP4 URL:", mp4Url);
-
-        // 変換されたMP4を再生
-        if (videoPlayer) {
-          console.log("Setting video source...");
-          videoPlayer.src = mp4Url;
-          videoPlayer.load();
-          
-          // 再生準備が完了したら再生を開始
-          videoPlayer.oncanplay = async () => {
-            console.log("Video can play, starting playback...");
-            try {
-              await videoPlayer.play();
-              console.log("Playback started successfully");
-            } catch (error) {
-              console.error("Playback failed:", error);
-            }
-          };
-
-          // エラーハンドリング
-          videoPlayer.onerror = (e) => {
-            console.error("Video playback error:", videoPlayer.error);
-          };
+      // 最初の数セグメントだけをプリロード（再生開始を早くするため）
+      const preloadCount = Math.min(3, totalSegments);
+      for (let i = 0; i < preloadCount; i++) {
+        console.log(`Fetching segment ${i}...`);
+        const segmentResult = await actor.get_hls_segment(videoId, i);
+        if ('ok' in segmentResult) {
+          segments.push({
+            index: i,
+            data: new Uint8Array(segmentResult.ok)
+          });
+        } else {
+          console.error(`Failed to get segment ${i}`);
         }
-
-        // クリーンアップ関数
-        return () => {
-          if (videoPlayer) {
-            videoPlayer.pause();
-            videoPlayer.removeAttribute('src');
-            videoPlayer.load();
-          }
-          URL.revokeObjectURL(mp4Url);
-          URL.revokeObjectURL(m3u8Url);
+      }
+      
+      // HLS.jsがサポートされているか確認
+      if (Hls.isSupported()) {
+        console.log("HLS.js is supported, initializing player");
+        
+        // 既存のHlsインスタンスがあれば破棄
+        if (hlsInstance.current) {
+          hlsInstance.current.destroy();
+          hlsInstance.current = null;
+        }
+        
+        // カスタムローダーを作成
+        const customLoader = {
+          load: async function(context:any, config:any, callbacks:any) {
+            const { type, url } = context;
+            
+            try {
+              if (type === 'manifest') {
+                // マニフェスト（プレイリスト）の場合は既に取得済みのデータを返す
+                // 型キャストを使用して型エラーを回避
+                const stats = {
+                  loading: { start: performance.now() },
+                  loaded: performance.now()
+                } as LoaderStats;
+                
+                const response = { url: url, data: m3u8Content } as LoaderResponse;
+                callbacks.onSuccess(response, stats, context);
+              } else if (type === 'segment') {
+                // セグメントの場合、URLからセグメントインデックスを抽出
+                const segmentMatch = url.match(/segment_(\d+)\.ts/);
+                if (!segmentMatch) {
+                  callbacks.onError(new Error(`Invalid segment URL: ${url}`), context, undefined);
+                  return;
+                }
+                
+                const segmentIndex = parseInt(segmentMatch[1], 10);
+                console.log(`Loading segment ${segmentIndex} via custom loader`);
+                
+                // キャッシュされたセグメントを確認
+                const cachedSegment = segments.find(s => s.index === segmentIndex);
+                if (cachedSegment) {
+                  console.log(`Using cached segment ${segmentIndex}`);
+                  // 型キャストを使用して型エラーを回避
+                  const stats = {
+                    loading: { start: performance.now() },
+                    loaded: performance.now()
+                  } as LoaderStats;
+                  
+                  const arrayBuffer = cachedSegment.data.buffer;
+                  const response = { url: url, data: arrayBuffer } as LoaderResponse;
+                  callbacks.onSuccess(response, stats, context);
+                  return;
+                }
+                
+                // キャッシュにない場合はバックエンドから取得
+                console.log(`Fetching segment ${segmentIndex} from backend`);
+                const segmentResult = await actor.get_hls_segment(videoId, segmentIndex);
+                if ('ok' in segmentResult) {
+                  const segmentData = new Uint8Array(segmentResult.ok);
+                  
+                  // キャッシュに追加
+                  segments.push({
+                    index: segmentIndex,
+                    data: segmentData
+                  });
+                  
+                  // 型キャストを使用して型エラーを回避
+                  const stats = {
+                    loading: { start: performance.now() },
+                    loaded: performance.now()
+                  } as LoaderStats;
+                  
+                  const arrayBuffer = segmentData.buffer;
+                  const response = { url: url, data: arrayBuffer } as LoaderResponse;
+                  callbacks.onSuccess(response, stats, context);
+                } else {
+                  callbacks.onError(new Error(`Failed to get segment ${segmentIndex}`), context, undefined);
+                }
+              } else {
+                // その他のタイプはデフォルトのローダーに任せる
+                console.log(`Using default loader for ${type}`);
+                // デフォルトローダーの代わりに標準的なXHRリクエストを実行
+                const xhr = new XMLHttpRequest();
+                xhr.open('GET', url, true);
+                xhr.responseType = 'arraybuffer';
+                
+                xhr.onload = function() {
+                  if (xhr.status === 200) {
+                    // 型キャストを使用して型エラーを回避
+                    const stats = {
+                      loading: { start: performance.now() },
+                      loaded: performance.now()
+                    } as LoaderStats;
+                    
+                    const response: LoaderResponse = {
+                      url: url,
+                      data: xhr.response
+                    };
+                    callbacks.onSuccess(response, stats, context);
+                  } else {
+                    callbacks.onError(new Error(`HTTP error ${xhr.status}`), context, undefined);
+                  }
+                };
+                
+                xhr.onerror = function() {
+                  callbacks.onError(new Error('XHR error'), context, undefined);
+                };
+                
+                xhr.send();
+              }
+            } catch (error) {
+              console.error('Custom loader error:', error);
+              callbacks.onError(error as Error, context, undefined);
+            }
+          },
+          // 必須メソッド
+          abort: function() {},
+          destroy: function() {},
+          stats: {} as LoaderStats
         };
-      } catch (error) {
-        console.error('Error converting segment:', error);
-        throw error;
+        
+        // 新しいHlsインスタンスを作成（カスタムローダーを使用）
+        const hls = new Hls({
+          debug: false,
+          enableWorker: true,
+          lowLatencyMode: true,
+          backBufferLength: 90,
+          loader: customLoader as any
+        });
+        
+        // hlsInstanceに保存
+        hlsInstance.current = hls;
+        
+        // メディアをアタッチ
+        hls.attachMedia(videoPlayer);
+        
+        // マニフェストがロードされたらメディアを再生
+        hls.on(Hls.Events.MANIFEST_PARSED, () => {
+          console.log("HLS manifest parsed, starting playback");
+          videoPlayer.play().catch(e => {
+            console.warn("Autoplay prevented:", e);
+          });
+        });
+        
+        // エラーハンドリング
+        hls.on(Hls.Events.ERROR, (event, data) => {
+          console.error("HLS error:", data);
+          if (data.fatal) {
+            switch(data.type) {
+              case Hls.ErrorTypes.NETWORK_ERROR:
+                console.error("Fatal network error, trying to recover");
+                hls.startLoad();
+                break;
+              case Hls.ErrorTypes.MEDIA_ERROR:
+                console.error("Fatal media error, trying to recover");
+                hls.recoverMediaError();
+                break;
+              default:
+                console.error("Fatal error, cannot recover");
+                hls.destroy();
+                hlsInstance.current = null;
+                break;
+            }
+          }
+        });
+        
+        // プレイリストをロード（セグメントURLをカスタム形式に変更）
+        const modifiedM3u8 = m3u8Content.replace(/^(.+\.ts)$/gm, (match) => {
+          // セグメントファイル名を抽出
+          const segmentName = match.trim();
+          // インデックスを抽出（ファイル名のパターンに依存）
+          const segmentMatch = segmentName.match(/segment_(\d+)\.ts/);
+          if (segmentMatch) {
+            const segmentIndex = segmentMatch[1];
+            return `segment_${segmentIndex}.ts`;
+          }
+          return match;
+        });
+        
+        // Blobからプレイリストを作成してURLを生成
+        const blob = new Blob([modifiedM3u8], { type: 'application/x-mpegURL' });
+        const url = URL.createObjectURL(blob);
+        
+        // プレイリストをロード
+        hls.loadSource(url);
+        console.log("HLS source loaded:", url);
+        
+      } else if (videoPlayer.canPlayType('application/vnd.apple.mpegurl')) {
+        // HLS.jsがサポートされていない場合、ネイティブHLSサポートを試みる（Safari等）
+        // 注意: この方法ではカスタムローダーが使えないため、すべてのセグメントを先に取得する必要がある
+        
+        console.log("Using native HLS support with preloaded segments");
+        
+        // すべてのセグメントを取得
+        for (let i = preloadCount; i < totalSegments; i++) {
+          console.log(`Fetching remaining segment ${i}...`);
+          const segmentResult = await actor.get_hls_segment(videoId, i);
+          if ('ok' in segmentResult) {
+            segments.push({
+              index: i,
+              data: new Uint8Array(segmentResult.ok)
+            });
+          } else {
+            console.error(`Failed to get segment ${i}`);
+          }
+        }
+        
+        // メモリ内でBlobURLを作成
+        const urls: string[] = [];
+        
+        // プレイリストを修正して、Blobベースのセグメントを参照
+        let modifiedM3u8 = m3u8Content;
+        
+        for (const segment of segments) {
+          const segmentBlob = new Blob([segment.data], { type: 'video/mp2t' });
+          const segmentUrl = URL.createObjectURL(segmentBlob);
+          urls.push(segmentUrl);
+          
+          // プレイリスト内のセグメント参照を置き換え
+          const segmentPattern = new RegExp(`segment_${segment.index}\\.ts`, 'g');
+          modifiedM3u8 = modifiedM3u8.replace(segmentPattern, segmentUrl);
+        }
+        
+        // 修正したプレイリストをBlobとして作成
+        const playlistBlob = new Blob([modifiedM3u8], { type: 'application/vnd.apple.mpegurl' });
+        const playlistUrl = URL.createObjectURL(playlistBlob);
+        
+        // ビデオプレーヤーにセット
+        videoPlayer.src = playlistUrl;
+        videoPlayer.addEventListener('loadedmetadata', () => {
+          videoPlayer.play().catch(e => {
+            console.warn("Autoplay prevented:", e);
+          });
+        });
+        
+        // クリーンアップ関数を設定
+        videoPlayer.addEventListener('ended', () => {
+          // 再生終了時にBlobURLを解放
+          URL.revokeObjectURL(playlistUrl);
+          urls.forEach(url => URL.revokeObjectURL(url));
+        });
+      } else {
+        console.error("HLS playback is not supported in this browser");
+        alert("このブラウザではHLS再生がサポートされていません。");
       }
     } catch (error) {
-      console.error('Error in playHlsStream:', error);
+      console.error("Error playing HLS stream:", error);
+      alert("動画の再生中にエラーが発生しました。");
     }
   };
 
@@ -540,6 +733,54 @@ export const VideoGallery: React.FC = () => {
     setVideoToDelete(null);
   };
 
+  
+
+  // プレイリストをダウンロード
+  const handleDownloadPlaylistClick = async (e: React.MouseEvent, videoId: string) => {
+    e.stopPropagation(); // クリックイベントの伝播を停止
+    try {
+      const agent = new HttpAgent({
+        host: 'http://localhost:' + import.meta.env.VITE_LOCAL_CANISTER_PORT,
+      });
+      const actor = createActor(import.meta.env.VITE_CANISTER_ID_STREAMINGSERVICE_BACKEND, {
+        agent,
+      }) as Actor & _SERVICE;
+
+      // プレイリストを取得
+      const playlistResult = await actor.get_hls_playlist(videoId, import.meta.env.VITE_CANISTER_ID_STREAMINGSERVICE_BACKEND ?? '');
+      if (!('ok' in playlistResult)) {
+        throw new Error('Failed to get playlist');
+      }
+      const m3u8Content = playlistResult.ok;
+      const blob = new Blob([m3u8Content], { type: 'application/x-mpegURL' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `playlist-${videoId}.m3u8`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    
+    } catch (error) {
+      console.error('Error downloading Playlist:', error);
+      alert('Playlist のダウンロード中にエラーが発生しました。');
+    }
+  };
+
+  // プレイリストをストリーミング再生用に処理して既存のvideoPlayerで再生する
+  const handleStreamPlaylistClick = async (e: React.MouseEvent, videoId: string) => {
+    e.stopPropagation(); // クリックイベントの伝播を停止
+    try {
+      // ビデオを選択して、モーダルを開く
+      setSelectedVideo(videoId);
+      
+    } catch (error) {
+      console.error('Error streaming playlist:', error);
+      alert('プレイリストのストリーミング準備中にエラーが発生しました。');
+    }
+  };
+
   const handleDownloadClick = async (e: React.MouseEvent, videoId: string) => {
     e.stopPropagation(); // クリックイベントの伝播を停止
     try {
@@ -577,7 +818,7 @@ export const VideoGallery: React.FC = () => {
       // FFmpegでMP4に変換
       const result = await ffmpegService.current.convertHlsToMp4(m3u8Content, segments);
 
-      // ダウンロード
+      // MP4としてダウンロード
       const blob = new Blob([result.data], { type: 'video/mp4' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -661,6 +902,32 @@ export const VideoGallery: React.FC = () => {
                       </Typography>
                       <Box sx={{ display: 'flex', gap: 1 }}>
                         <IconButton
+                          onClick={(e) => handleDownloadPlaylistClick(e, image.id)}
+                          sx={{
+                            color: 'primary.main',
+                            '&:hover': {
+                              backgroundColor: 'primary.light',
+                              color: 'white'
+                            }
+                          }}
+                          title="プレイリストをダウンロード"
+                        >
+                          <QueueMusicIcon />
+                        </IconButton>
+                        <IconButton
+                          onClick={(e) => handleStreamPlaylistClick(e, image.id)}
+                          sx={{
+                            color: 'success.main',
+                            '&:hover': {
+                              backgroundColor: 'success.light',
+                              color: 'white'
+                            }
+                          }}
+                          title="ブラウザでストリーミング再生"
+                        >
+                          <PlayArrowIcon />
+                        </IconButton>
+                        <IconButton
                           onClick={(e) => handleDownloadClick(e, image.id)}
                           sx={{
                             color: 'primary.main',
@@ -669,6 +936,7 @@ export const VideoGallery: React.FC = () => {
                               color: 'white'
                             }
                           }}
+                          title="MP4としてダウンロード"
                         >
                           <DownloadIcon />
                         </IconButton>

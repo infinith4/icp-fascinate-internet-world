@@ -9,7 +9,8 @@ import Hls, { LoaderContext, LoaderConfiguration, LoaderCallbacks, LoaderStats, 
 import { Header } from './Header';
 import { UploadModal } from './UploadModal';
 import { FFmpegService, FFmpegProgress } from '../services/FFmpegService';
-import { CustomLoader } from '../services/CustomLoader';
+import { createCustomLoader } from '../services/CustomLoader';
+import { ErrorTypes, ErrorDetails } from 'hls.js';
 import DeleteIcon from '@mui/icons-material/Delete';
 import DownloadIcon from '@mui/icons-material/Download';
 import QueueMusicIcon from '@mui/icons-material/QueueMusic';
@@ -368,41 +369,78 @@ export const VideoGallery: React.FC = () => {
         return -1;
       };
 
-      // 単純なアプローチ: すべてのセグメントを取得してメモリ内でURLを作成
-      console.log(`Fetching all ${totalSegments} segments...`);
-      const segmentUrls: string[] = [];
+      // プレイリストの内容を検証
+      console.log("Validating m3u8 content...");
       
-      // すべてのセグメントを取得
-      for (let i = 0; i < totalSegments; i++) {
-        const segmentName = segmentLines[i];
-        const segmentIndex = getSegmentIndex(segmentName);
-        
-        if (segmentIndex === -1) {
-          console.error(`Could not parse segment index from ${segmentName}`);
-          continue;
-        }
-        
-        console.log(`Fetching segment ${segmentIndex}... i: ${i}`);
-        const segmentResult = await actor.get_hls_segment(videoId, i);
-        
-        if ('ok' in segmentResult) {
-          const segmentData = new Uint8Array(segmentResult.ok);
-          const segmentBlob = new Blob([segmentData], { type: 'video/mp2t' });
-          const segmentUrl = URL.createObjectURL(segmentBlob);
-          segmentUrls.push(segmentUrl);
-          
-          // プレイリスト内のセグメント参照を置き換え
-          m3u8Content = m3u8Content.replace(segmentName, segmentUrl);
-        } else {
-          console.error(`Failed to get segment ${segmentIndex}`);
-        }
+      // 必須のヘッダーが含まれているか確認
+      if (!m3u8Content.includes('#EXTM3U')) {
+        console.warn("Adding missing #EXTM3U header");
+        m3u8Content = '#EXTM3U\n' + m3u8Content;
       }
       
-      console.log("All segments fetched, creating playlist URL");
+      // セグメント継続時間が指定されているか確認
+      if (!m3u8Content.includes('#EXTINF:')) {
+        console.warn("Adding missing segment duration information");
+        // 各セグメント行の前に継続時間情報を追加
+        const lines = m3u8Content.split('\n');
+        const newLines = [];
+        
+        for (const line of lines) {
+          if (line.endsWith('.ts') && !lines[lines.indexOf(line) - 1].includes('#EXTINF:')) {
+            // デフォルトの継続時間を4秒に設定
+            newLines.push('#EXTINF:4.0,');
+          }
+          newLines.push(line);
+        }
+        
+        m3u8Content = newLines.join('\n');
+      }
       
-      // 修正したプレイリストをBlobとして作成
-      const playlistBlob = new Blob([m3u8Content], { type: 'application/vnd.apple.mpegurl' });
-      const playlistUrl = URL.createObjectURL(playlistBlob);
+      // EXT-X-VERSION が含まれているか確認
+      if (!m3u8Content.includes('#EXT-X-VERSION:')) {
+        console.warn("Adding missing version information");
+        const lines = m3u8Content.split('\n');
+        // #EXTM3U の後にバージョン情報を追加
+        const extM3uIndex = lines.indexOf('#EXTM3U');
+        if (extM3uIndex !== -1) {
+          lines.splice(extM3uIndex + 1, 0, '#EXT-X-VERSION:3');
+        } else {
+          lines.unshift('#EXT-X-VERSION:3');
+        }
+        m3u8Content = lines.join('\n');
+      }
+      
+      // EXT-X-TARGETDURATION が含まれているか確認
+      if (!m3u8Content.includes('#EXT-X-TARGETDURATION:')) {
+        console.warn("Adding missing target duration");
+        const lines = m3u8Content.split('\n');
+        // バージョン情報の後にターゲット継続時間を追加
+        const versionIndex = lines.findIndex(line => line.includes('#EXT-X-VERSION:'));
+        if (versionIndex !== -1) {
+          lines.splice(versionIndex + 1, 0, '#EXT-X-TARGETDURATION:4');
+        } else {
+          // バージョン情報がない場合は先頭に追加
+          lines.unshift('#EXT-X-TARGETDURATION:4');
+        }
+        m3u8Content = lines.join('\n');
+      }
+      
+      // EXT-X-MEDIA-SEQUENCE が含まれているか確認
+      if (!m3u8Content.includes('#EXT-X-MEDIA-SEQUENCE:')) {
+        console.warn("Adding missing media sequence");
+        const lines = m3u8Content.split('\n');
+        // ターゲット継続時間の後にメディアシーケンスを追加
+        const targetDurationIndex = lines.findIndex(line => line.includes('#EXT-X-TARGETDURATION:'));
+        if (targetDurationIndex !== -1) {
+          lines.splice(targetDurationIndex + 1, 0, '#EXT-X-MEDIA-SEQUENCE:0');
+        } else {
+          // ターゲット継続時間がない場合は先頭に追加
+          lines.unshift('#EXT-X-MEDIA-SEQUENCE:0');
+        }
+        m3u8Content = lines.join('\n');
+      }
+      
+      console.log("Final m3u8 content:", m3u8Content);
       
       // HLS.jsがサポートされているか確認
       if (Hls.isSupported()) {
@@ -414,12 +452,25 @@ export const VideoGallery: React.FC = () => {
           hlsInstance.current = null;
         }
         
-        // 新しいHlsインスタンスを作成（標準設定）
+        // カスタムローダーを作成
+        const customLoader = createCustomLoader(actor, videoId, m3u8Content, segmentLines);
+        
+        // 新しいHlsインスタンスを作成（改善された設定）
         const hls = new Hls({
-          debug: false,
+          debug: true, // デバッグを有効化して詳細なログを確認
           enableWorker: true,
-          lowLatencyMode: true,
-          backBufferLength: 90
+          lowLatencyMode: false, // 低遅延モードを無効化して安定性を向上
+          backBufferLength: 90,
+          maxBufferLength: 30, // バッファ長を調整
+          maxMaxBufferLength: 60,
+          maxBufferSize: 60 * 1000 * 1000, // バッファサイズを増加 (60MB)
+          fragLoadingMaxRetry: 8, // フラグメントロードの再試行回数を増加
+          manifestLoadingMaxRetry: 8, // マニフェストロードの再試行回数を増加
+          levelLoadingMaxRetry: 8,
+          fragLoadingRetryDelay: 1000, // 再試行間隔を調整
+          fragLoadingMaxRetryTimeout: 10000, // 最大タイムアウト時間を設定
+          // カスタムローダーを使用
+          loader: customLoader
         });
         
         // hlsInstanceに保存
@@ -436,35 +487,107 @@ export const VideoGallery: React.FC = () => {
           });
         });
         
-        // エラーハンドリング
+        // 改善されたエラーハンドリング
         hls.on(Hls.Events.ERROR, (event, data) => {
           console.error("HLS error:", data);
+          
+          // フラグメント解析エラーの特別処理
+          if (data.details === 'fragParsingError') {
+            console.warn("Fragment parsing error detected, attempting to recover");
+            
+            // 現在のフラグメントをスキップして次へ進む
+            if (data.frag) {
+              console.log(`Skipping problematic fragment: ${data.frag.sn}, level: ${data.frag.level}`);
+              
+              // 現在の再生位置を少し進める
+              videoPlayer.currentTime += 0.5;
+              
+              // 次のフラグメントから再開を試みる
+              hls.startLoad();
+            }
+            
+            // 致命的なエラーの場合はメディアエラーリカバリーを試みる
+            if (data.fatal) {
+              console.error("Fatal fragment parsing error, attempting media recovery");
+              hls.recoverMediaError();
+            }
+            return;
+          }
+          
+          // バッファエラーの処理
+          if (data.details === 'bufferAddCodecError' || data.details === 'bufferAppendError') {
+            console.warn(`Buffer error detected: ${data.details}, attempting to recover`);
+            
+            // バッファをクリアして再開
+            hls.recoverMediaError();
+            return;
+          }
+          
+          // その他の致命的なエラー処理
           if (data.fatal) {
             switch(data.type) {
               case Hls.ErrorTypes.NETWORK_ERROR:
                 console.error("Fatal network error, trying to recover");
-                hls.startLoad();
+                // ネットワークエラーの場合は少し待ってから再ロード
+                setTimeout(() => {
+                  hls.startLoad();
+                }, 1000);
                 break;
               case Hls.ErrorTypes.MEDIA_ERROR:
                 console.error("Fatal media error, trying to recover");
+                // メディアエラーの場合は複数回リカバリーを試みる
                 hls.recoverMediaError();
+                // 2回目のリカバリー試行
+                setTimeout(() => {
+                  videoPlayer.currentTime += 0.5; // 少し時間を進めてみる
+                  hls.recoverMediaError();
+                }, 1000);
                 break;
               default:
                 console.error("Fatal error, cannot recover");
+                // 最後の手段としてプレーヤーを再初期化
                 hls.destroy();
                 hlsInstance.current = null;
+                
+                // 1秒後に再初期化を試みる
+                setTimeout(() => {
+                  playHlsStream(selectedVideo as string);
+                }, 1000);
                 break;
             }
           }
         });
         
+        // 追加のイベントリスナー
+        hls.on(Hls.Events.FRAG_LOADING, (event, data) => {
+          console.log("Fragment loading:", data.frag.sn);
+        });
+        
+        hls.on(Hls.Events.FRAG_LOADED, (event, data) => {
+          console.log("Fragment loaded successfully:", data.frag.sn);
+        });
+        
+        // プレイリストをBlobとして作成し、URLを生成
+        const playlistBlob = new Blob([m3u8Content], { type: 'application/vnd.apple.mpegurl' });
+        const playlistUrl = URL.createObjectURL(playlistBlob);
+        
         // プレイリストをロード
         hls.loadSource(playlistUrl);
-        console.log("HLS source loaded:", playlistUrl);
+        console.log("HLS source loaded with Blob URL:", playlistUrl);
+        
+        // クリーンアップ関数を設定
+        videoPlayer.addEventListener('ended', () => {
+          // 再生終了時にBlobURLを解放
+          URL.revokeObjectURL(playlistUrl);
+        });
         
       } else if (videoPlayer.canPlayType('application/vnd.apple.mpegurl')) {
         // HLS.jsがサポートされていない場合、ネイティブHLSサポートを試みる（Safari等）
         console.log("Using native HLS support");
+        
+        // ネイティブ再生用にプレイリストをBlobとして作成
+        const playlistBlob = new Blob([m3u8Content], { type: 'application/vnd.apple.mpegurl' });
+        const playlistUrl = URL.createObjectURL(playlistBlob);
         
         // ビデオプレーヤーにセット
         videoPlayer.src = playlistUrl;
@@ -473,17 +596,16 @@ export const VideoGallery: React.FC = () => {
             console.warn("Autoplay prevented:", e);
           });
         });
+        
+        // クリーンアップ関数を設定
+        videoPlayer.addEventListener('ended', () => {
+          // 再生終了時にBlobURLを解放
+          URL.revokeObjectURL(playlistUrl);
+        });
       } else {
         console.error("HLS playback is not supported in this browser");
         alert("このブラウザではHLS再生がサポートされていません。");
       }
-      
-      // クリーンアップ関数を設定
-      videoPlayer.addEventListener('ended', () => {
-        // 再生終了時にBlobURLを解放
-        URL.revokeObjectURL(playlistUrl);
-        segmentUrls.forEach(url => URL.revokeObjectURL(url));
-      });
     } catch (error) {
       console.error("Error playing HLS stream:", error);
       alert("動画の再生中にエラーが発生しました。");

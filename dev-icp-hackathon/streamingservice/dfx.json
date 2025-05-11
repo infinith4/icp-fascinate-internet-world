@@ -16,9 +16,20 @@
       "package": "streamingservice_backend",
       "type": "rust"
     },
+    "greet_backend": {
+      "candid": "src/greet_backend/greet_backend.did",
+      "package": "greet_backend",
+      "type": "rust"
+    },
+    "streamingservice_manager": {
+      "candid": "src/streamingservice_manager/streamingservice_manager.did",
+      "package": "streamingservice_manager",
+      "type": "rust"
+    },
     "streamingservice_frontend": {
       "dependencies": [
-        "streamingservice_backend"
+        "streamingservice_backend",
+        "streamingservice_manager"
       ],
       "source": [
         "src/streamingservice_frontend/dist"

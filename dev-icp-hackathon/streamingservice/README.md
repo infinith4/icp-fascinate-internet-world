@@ -83,3 +83,29 @@ https://trust-coms.com/trust-note/756/
 
 npm install @mui/material @emotion/react @emotion/styled
 
+
+
+cd /src/streamingservice/src/greet_backend
+cargo build --release --target wasm32-unknown-unknown --package greet_backend
+
+
+
+ローカルのcanisterにcycleを追加するには、以下の手順で行います：
+
+まず、対象のcanisterのIDを確認します：
+
+dfx canister id <canister_name>
+
+vscode ➜ /src/streamingservice $ dfx canister id streamingservice_manager
+ulvla-h7777-77774-qaacq-cai
+
+cycleを追加するには以下のコマンドを使用します：
+
+dfx canister deposit-cycles <amount> <canister_id>
+
+
+dfx canister deposit-cycles 1000000000000 ulvla-h7777-77774-qaacq-cai
+
+
+
+dfx canister call --update vpyes-67777-77774-qaaeq-cai greet '("test")'

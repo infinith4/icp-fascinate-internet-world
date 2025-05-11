@@ -337,7 +337,7 @@ export const VideoGallery: React.FC = () => {
         throw new Error('Failed to get playlist');
       }
       
-      const m3u8Content = playlistResult.ok;
+      let m3u8Content = playlistResult.ok;
       console.log("Retrieved m3u8 content:", m3u8Content);
 
       // プレイリストからセグメント情報を解析
@@ -349,24 +349,60 @@ export const VideoGallery: React.FC = () => {
         throw new Error('No segments found in playlist');
       }
 
-      // セグメントをプリロード
-      console.log(`Preloading ${totalSegments} segments...`);
-      const segments: { index: number; data: Uint8Array }[] = [];
+      // セグメントファイル名からインデックスを抽出する関数
+      const getSegmentIndex = (segmentName: string): number => {
+        // segment_20250510135854_1746885534.ts のような形式からインデックスを抽出
+        // 2つ目の_以降の数字がインデックス
+        const match = segmentName.match(/segment_[^_]+_(\d+)\.ts/);
+        if (match) {
+          return parseInt(match[1], 10);
+        }
+        
+        // 古い形式もサポート
+        const oldFormatMatch = segmentName.match(/segment_(\d+)\.ts/);
+        if (oldFormatMatch) {
+          return parseInt(oldFormatMatch[1], 10);
+        }
+        
+        console.error(`Could not parse index from segment name: ${segmentName}`);
+        return -1;
+      };
+
+      // 単純なアプローチ: すべてのセグメントを取得してメモリ内でURLを作成
+      console.log(`Fetching all ${totalSegments} segments...`);
+      const segmentUrls: string[] = [];
       
-      // 最初の数セグメントだけをプリロード（再生開始を早くするため）
-      const preloadCount = Math.min(3, totalSegments);
-      for (let i = 0; i < preloadCount; i++) {
-        console.log(`Fetching segment ${i}...`);
+      // すべてのセグメントを取得
+      for (let i = 0; i < totalSegments; i++) {
+        const segmentName = segmentLines[i];
+        const segmentIndex = getSegmentIndex(segmentName);
+        
+        if (segmentIndex === -1) {
+          console.error(`Could not parse segment index from ${segmentName}`);
+          continue;
+        }
+        
+        console.log(`Fetching segment ${segmentIndex}... i: ${i}`);
         const segmentResult = await actor.get_hls_segment(videoId, i);
+        
         if ('ok' in segmentResult) {
-          segments.push({
-            index: i,
-            data: new Uint8Array(segmentResult.ok)
-          });
+          const segmentData = new Uint8Array(segmentResult.ok);
+          const segmentBlob = new Blob([segmentData], { type: 'video/mp2t' });
+          const segmentUrl = URL.createObjectURL(segmentBlob);
+          segmentUrls.push(segmentUrl);
+          
+          // プレイリスト内のセグメント参照を置き換え
+          m3u8Content = m3u8Content.replace(segmentName, segmentUrl);
         } else {
-          console.error(`Failed to get segment ${i}`);
+          console.error(`Failed to get segment ${segmentIndex}`);
         }
       }
+      
+      console.log("All segments fetched, creating playlist URL");
+      
+      // 修正したプレイリストをBlobとして作成
+      const playlistBlob = new Blob([m3u8Content], { type: 'application/vnd.apple.mpegurl' });
+      const playlistUrl = URL.createObjectURL(playlistBlob);
       
       // HLS.jsがサポートされているか確認
       if (Hls.isSupported()) {
@@ -378,123 +414,12 @@ export const VideoGallery: React.FC = () => {
           hlsInstance.current = null;
         }
         
-        // カスタムローダーを作成
-        const customLoader = {
-          load: async function(context:any, config:any, callbacks:any) {
-            const { type, url } = context;
-            
-            try {
-              if (type === 'manifest') {
-                // マニフェスト（プレイリスト）の場合は既に取得済みのデータを返す
-                // 型キャストを使用して型エラーを回避
-                const stats = {
-                  loading: { start: performance.now() },
-                  loaded: performance.now()
-                } as LoaderStats;
-                
-                const response = { url: url, data: m3u8Content } as LoaderResponse;
-                callbacks.onSuccess(response, stats, context);
-              } else if (type === 'segment') {
-                // セグメントの場合、URLからセグメントインデックスを抽出
-                const segmentMatch = url.match(/segment_(\d+)\.ts/);
-                if (!segmentMatch) {
-                  callbacks.onError(new Error(`Invalid segment URL: ${url}`), context, undefined);
-                  return;
-                }
-                
-                const segmentIndex = parseInt(segmentMatch[1], 10);
-                console.log(`Loading segment ${segmentIndex} via custom loader`);
-                
-                // キャッシュされたセグメントを確認
-                const cachedSegment = segments.find(s => s.index === segmentIndex);
-                if (cachedSegment) {
-                  console.log(`Using cached segment ${segmentIndex}`);
-                  // 型キャストを使用して型エラーを回避
-                  const stats = {
-                    loading: { start: performance.now() },
-                    loaded: performance.now()
-                  } as LoaderStats;
-                  
-                  const arrayBuffer = cachedSegment.data.buffer;
-                  const response = { url: url, data: arrayBuffer } as LoaderResponse;
-                  callbacks.onSuccess(response, stats, context);
-                  return;
-                }
-                
-                // キャッシュにない場合はバックエンドから取得
-                console.log(`Fetching segment ${segmentIndex} from backend`);
-                const segmentResult = await actor.get_hls_segment(videoId, segmentIndex);
-                if ('ok' in segmentResult) {
-                  const segmentData = new Uint8Array(segmentResult.ok);
-                  
-                  // キャッシュに追加
-                  segments.push({
-                    index: segmentIndex,
-                    data: segmentData
-                  });
-                  
-                  // 型キャストを使用して型エラーを回避
-                  const stats = {
-                    loading: { start: performance.now() },
-                    loaded: performance.now()
-                  } as LoaderStats;
-                  
-                  const arrayBuffer = segmentData.buffer;
-                  const response = { url: url, data: arrayBuffer } as LoaderResponse;
-                  callbacks.onSuccess(response, stats, context);
-                } else {
-                  callbacks.onError(new Error(`Failed to get segment ${segmentIndex}`), context, undefined);
-                }
-              } else {
-                // その他のタイプはデフォルトのローダーに任せる
-                console.log(`Using default loader for ${type}`);
-                // デフォルトローダーの代わりに標準的なXHRリクエストを実行
-                const xhr = new XMLHttpRequest();
-                xhr.open('GET', url, true);
-                xhr.responseType = 'arraybuffer';
-                
-                xhr.onload = function() {
-                  if (xhr.status === 200) {
-                    // 型キャストを使用して型エラーを回避
-                    const stats = {
-                      loading: { start: performance.now() },
-                      loaded: performance.now()
-                    } as LoaderStats;
-                    
-                    const response: LoaderResponse = {
-                      url: url,
-                      data: xhr.response
-                    };
-                    callbacks.onSuccess(response, stats, context);
-                  } else {
-                    callbacks.onError(new Error(`HTTP error ${xhr.status}`), context, undefined);
-                  }
-                };
-                
-                xhr.onerror = function() {
-                  callbacks.onError(new Error('XHR error'), context, undefined);
-                };
-                
-                xhr.send();
-              }
-            } catch (error) {
-              console.error('Custom loader error:', error);
-              callbacks.onError(error as Error, context, undefined);
-            }
-          },
-          // 必須メソッド
-          abort: function() {},
-          destroy: function() {},
-          stats: {} as LoaderStats
-        };
-        
-        // 新しいHlsインスタンスを作成（カスタムローダーを使用）
+        // 新しいHlsインスタンスを作成（標準設定）
         const hls = new Hls({
           debug: false,
           enableWorker: true,
           lowLatencyMode: true,
-          backBufferLength: 90,
-          loader: customLoader as any
+          backBufferLength: 90
         });
         
         // hlsInstanceに保存
@@ -533,66 +458,13 @@ export const VideoGallery: React.FC = () => {
           }
         });
         
-        // プレイリストをロード（セグメントURLをカスタム形式に変更）
-        const modifiedM3u8 = m3u8Content.replace(/^(.+\.ts)$/gm, (match) => {
-          // セグメントファイル名を抽出
-          const segmentName = match.trim();
-          // インデックスを抽出（ファイル名のパターンに依存）
-          const segmentMatch = segmentName.match(/segment_(\d+)\.ts/);
-          if (segmentMatch) {
-            const segmentIndex = segmentMatch[1];
-            return `segment_${segmentIndex}.ts`;
-          }
-          return match;
-        });
-        
-        // Blobからプレイリストを作成してURLを生成
-        const blob = new Blob([modifiedM3u8], { type: 'application/x-mpegURL' });
-        const url = URL.createObjectURL(blob);
-        
         // プレイリストをロード
-        hls.loadSource(url);
-        console.log("HLS source loaded:", url);
+        hls.loadSource(playlistUrl);
+        console.log("HLS source loaded:", playlistUrl);
         
       } else if (videoPlayer.canPlayType('application/vnd.apple.mpegurl')) {
         // HLS.jsがサポートされていない場合、ネイティブHLSサポートを試みる（Safari等）
-        // 注意: この方法ではカスタムローダーが使えないため、すべてのセグメントを先に取得する必要がある
-        
-        console.log("Using native HLS support with preloaded segments");
-        
-        // すべてのセグメントを取得
-        for (let i = preloadCount; i < totalSegments; i++) {
-          console.log(`Fetching remaining segment ${i}...`);
-          const segmentResult = await actor.get_hls_segment(videoId, i);
-          if ('ok' in segmentResult) {
-            segments.push({
-              index: i,
-              data: new Uint8Array(segmentResult.ok)
-            });
-          } else {
-            console.error(`Failed to get segment ${i}`);
-          }
-        }
-        
-        // メモリ内でBlobURLを作成
-        const urls: string[] = [];
-        
-        // プレイリストを修正して、Blobベースのセグメントを参照
-        let modifiedM3u8 = m3u8Content;
-        
-        for (const segment of segments) {
-          const segmentBlob = new Blob([segment.data], { type: 'video/mp2t' });
-          const segmentUrl = URL.createObjectURL(segmentBlob);
-          urls.push(segmentUrl);
-          
-          // プレイリスト内のセグメント参照を置き換え
-          const segmentPattern = new RegExp(`segment_${segment.index}\\.ts`, 'g');
-          modifiedM3u8 = modifiedM3u8.replace(segmentPattern, segmentUrl);
-        }
-        
-        // 修正したプレイリストをBlobとして作成
-        const playlistBlob = new Blob([modifiedM3u8], { type: 'application/vnd.apple.mpegurl' });
-        const playlistUrl = URL.createObjectURL(playlistBlob);
+        console.log("Using native HLS support");
         
         // ビデオプレーヤーにセット
         videoPlayer.src = playlistUrl;
@@ -601,17 +473,17 @@ export const VideoGallery: React.FC = () => {
             console.warn("Autoplay prevented:", e);
           });
         });
-        
-        // クリーンアップ関数を設定
-        videoPlayer.addEventListener('ended', () => {
-          // 再生終了時にBlobURLを解放
-          URL.revokeObjectURL(playlistUrl);
-          urls.forEach(url => URL.revokeObjectURL(url));
-        });
       } else {
         console.error("HLS playback is not supported in this browser");
         alert("このブラウザではHLS再生がサポートされていません。");
       }
+      
+      // クリーンアップ関数を設定
+      videoPlayer.addEventListener('ended', () => {
+        // 再生終了時にBlobURLを解放
+        URL.revokeObjectURL(playlistUrl);
+        segmentUrls.forEach(url => URL.revokeObjectURL(url));
+      });
     } catch (error) {
       console.error("Error playing HLS stream:", error);
       alert("動画の再生中にエラーが発生しました。");
@@ -805,6 +677,7 @@ export const VideoGallery: React.FC = () => {
 
       for (let i = 0; i < segmentLines.length; i++) {
         const segmentResult = await actor.get_hls_segment(videoId, i);
+        console.log(`--------------------segmentResult: ${segmentResult}`);
         if ('ok' in segmentResult) {
           segments.push({
             index: i,

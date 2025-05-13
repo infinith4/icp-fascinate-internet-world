@@ -42,6 +42,7 @@ export const VideoGallery: React.FC = () => {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [videoToDelete, setVideoToDelete] = useState<string | null>(null);
   const hlsInstance = useRef<Hls | null>(null);
+  const backendApiVersion = import.meta.env.VITE_BACKEND_API_VERSION;
 
   useEffect(() => {
     initFFmpeg();
@@ -96,7 +97,7 @@ export const VideoGallery: React.FC = () => {
       }) as Actor & _SERVICE;
 
       // 動画IDを作成
-      const video_id = await actor.create_video(title, '');
+      const video_id = await actor.create_video(backendApiVersion, title, '');
 
       // FFmpegの進捗ハンドラーを設定
       ffmpegService.current.onProgress = (progress: FFmpegProgress) => {
@@ -113,13 +114,13 @@ export const VideoGallery: React.FC = () => {
 
       // プレイリストをアップロード
       const playlistText = new TextDecoder().decode(playlist);
-      await actor.upload_playlist(video_id, playlistText);
+      await actor.upload_playlist(backendApiVersion, video_id, playlistText);
 
       // セグメントを順次アップロード（チャンクサイズとバッチサイズを最適化）
-      const CHUNK_SIZE = 512 * 1024; // 512KBに縮小
+      const CHUNK_SIZE = 1024 * 1024; // 512KBに縮小
       const BATCH_SIZE = 2; // 同時アップロード数を制限
       const RETRY_COUNT = 3; // リトライ回数
-      const RETRY_DELAY = 1000; // リトライ間隔（ミリ秒）
+      const RETRY_DELAY = 2000; // リトライ間隔（ミリ秒）
 
       // 全セグメントの総チャンク数を計算
       let totalChunks = 0;
@@ -142,8 +143,9 @@ export const VideoGallery: React.FC = () => {
 
           while (retries < RETRY_COUNT && !success) {
             try {
-              console.log(`--------------Uploading segment ${segment.index}, chunk ${i + 1}/${chunks.length}`);
+              console.log(`--------------Uploading segment ${segment.index} / ${segments.length}, chunk ${i + 1}/${chunks.length}`);
               const result = await actor.upload_ts_segment(
+                backendApiVersion,
                 video_id,
                 segment.index,
                 Array.from(chunks[i])
@@ -151,7 +153,7 @@ export const VideoGallery: React.FC = () => {
 
               if ('ok' in result) {
                 success = true;
-                console.log(`Successfully uploaded segment ${segment.index}, chunk ${i + 1}`);
+                console.log(`--------------Successfully uploaded segment ${segment.index} / ${segments.length}, chunk ${i + 1}/${chunks.length}`);
               } else {
                 throw new Error(`Upload failed: ${result.err || 'Unknown error'}`);
               }
@@ -205,7 +207,7 @@ export const VideoGallery: React.FC = () => {
         }
       }
 
-      console.log('All segments uploaded successfully');
+      console.log(`All segments uploaded successfully. segments: ${segments.length}`);
 
       // サムネイルがある場合はアップロード
       if (thumbnail) {
@@ -222,7 +224,7 @@ export const VideoGallery: React.FC = () => {
           while (retries < RETRY_COUNT && !success) {
             try {
               console.log(`Uploading thumbnail chunk ${i + 1}/${thumbnailChunks.length}`);
-              const result = await actor.upload_thumbnail(video_id, Array.from(thumbnailChunks[i]));
+              const result = await actor.upload_thumbnail(backendApiVersion, video_id, Array.from(thumbnailChunks[i]));
               
               if ('ok' in result) {
                 success = true;
@@ -830,6 +832,58 @@ export const VideoGallery: React.FC = () => {
     }
   };
 
+  const handleDownloadTsFilesClick = async (e: React.MouseEvent, videoId: string) => {
+    e.stopPropagation(); // クリックイベントの伝播を停止
+    try {
+      const agent = new HttpAgent({
+        host: 'http://localhost:' + import.meta.env.VITE_LOCAL_CANISTER_PORT,
+      });
+
+      const actor = createActor(import.meta.env.VITE_CANISTER_ID_STREAMINGSERVICE_BACKEND, {
+        agent,
+      }) as Actor & _SERVICE;
+
+      // プレイリストを取得
+      const playlistResult = await actor.get_hls_playlist(videoId, import.meta.env.VITE_CANISTER_ID_STREAMINGSERVICE_BACKEND ?? '');
+      if (!('ok' in playlistResult)) {
+        throw new Error('Failed to get playlist');
+      }
+
+      // セグメントを取得
+      const m3u8Content = playlistResult.ok;
+      const segmentLines = m3u8Content.split('\n').filter(line => line.endsWith('.ts'));
+      const segments: { index: number; data: Uint8Array }[] = [];
+
+      for (let i = 0; i < segmentLines.length; i++) {
+        const segmentResult = await actor.get_hls_segment(videoId, i);
+        console.log(`--------------------segmentResult: ${segmentResult}`);
+        if ('ok' in segmentResult) {
+          segments.push({
+            index: i,
+            data: new Uint8Array(segmentResult.ok)
+          });
+        } else {
+          throw new Error(`Failed to get segment ${i}`);
+        }
+        // TSとしてダウンロード
+        const blob = new Blob([new Uint8Array(segmentResult.ok)], { type: 'video/mp4' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `video-${videoId}-${i}.ts`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      }
+
+
+    } catch (error) {
+      console.error('Error downloading video:', error);
+      alert('動画のダウンロード中にエラーが発生しました。');
+    }
+  };
+
   return (
     <Box>
       <Header 
@@ -932,6 +986,19 @@ export const VideoGallery: React.FC = () => {
                             }
                           }}
                           title="MP4としてダウンロード"
+                        >
+                          <DownloadIcon />
+                        </IconButton>
+                        <IconButton
+                          onClick={(e) => handleDownloadTsFilesClick(e, image.id)}
+                          sx={{
+                            color: 'primary.main',
+                            '&:hover': {
+                              backgroundColor: 'primary.light',
+                              color: 'white'
+                            }
+                          }}
+                          title="TSとしてダウンロード"
                         >
                           <DownloadIcon />
                         </IconButton>

@@ -1,15 +1,15 @@
+"use client";
 import React, { useState, useEffect } from 'react';
 import { Navigate, Outlet } from 'react-router-dom';
 import { AuthClient } from '@dfinity/auth-client';
 import { Identity } from '@dfinity/agent';
+// import "userSWR" from 'swr';
 
 function App() {
   const [identity, setIdentity] = useState<Identity | null>(null);
   const [isInitialized, setIsInitialized] = useState(false);
 
-  useEffect(() => {
-    initAuth();
-  }, []);
+
 
   const initAuth = async () => {
     try {
@@ -57,6 +57,7 @@ function App() {
     setIdentity(newIdentity);
   };
 
+  initAuth();
   if (!isInitialized) {
     return <div>Loading...</div>;
   }

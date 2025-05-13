@@ -1,16 +1,16 @@
 service : {
     "greet": (text) -> (text) query;
-    "create_video": (text, text) -> (text);
-    "upload_video_chunk": (text, nat32, vec nat8) -> (variant { ok: text; err: text });
-    "upload_video_segment": (text, nat32, vec nat8) -> (variant { ok; err: text });
+    "create_video": (text, text, text) -> (text);
+    "upload_video_chunk": (text, text, nat32, vec nat8) -> (variant { ok: text; err: text });
+    "upload_video_segment": (text, text, nat32, vec nat8) -> (variant { ok; err: text });
     "get_video_chunk": (text, nat32) -> (variant { ok: vec nat8; err: text }) query;
     "get_video_info": (text) -> (variant { ok: text; err: text }) query;
     "get_video_list": () -> (vec record { text; text; text; text }) query;
     "get_hls_playlist": (text, text) -> (variant { ok: text; err: text }) query;
     "get_hls_segment": (text, nat32) -> (variant { ok: vec nat8; err: text }) query;
-    "upload_playlist": (text, text) -> (variant { ok: text; err: text });
-    "upload_ts_segment": (text, nat32, vec nat8) -> (variant { ok: text; err: text });
-    "upload_thumbnail": (text, vec nat8) -> (variant { ok: text; err: text });
+    "upload_playlist": (text, text, text) -> (variant { ok: text; err: text });
+    "upload_ts_segment": (text, text, nat32, vec nat8) -> (variant { ok: text; err: text });
+    "upload_thumbnail": (text, text, vec nat8) -> (variant { ok: text; err: text });
     "get_thumbnail": (text) -> (variant { ok: vec nat8; err: text }) query;
     "delete_video": (text) -> (variant { ok: text; err: text });
     "download_video": (text) -> (variant { ok: vec nat8; err: text }) query;

@@ -109,3 +109,67 @@ dfx canister deposit-cycles 1000000000000 ulvla-h7777-77774-qaacq-cai
 
 
 dfx canister call --update vpyes-67777-77774-qaaeq-cai greet '("test")'
+
+
+
+cd /src/streamingservice/src/streamingservice_backend
+cargo build --release --target wasm32-unknown-unknown --package streamingservice_backend
+
+
+
+reload するとMp4 でダウンロードできない
+TS自体はReload してもダウンロードできるのでFFMpeg での変換に問題がありそう。
+
+
+index-e2a1f387.js:340 --------------------segmentResult: [object Object]
+index-e2a1f387.js:319 FFmpeg: ffmpeg version 5.1.4 Copyright (c) 2000-2023 the FFmpeg developers
+index-e2a1f387.js:319 FFmpeg:   built with emcc (Emscripten gcc/clang-like replacement + linker emulating GNU ld) 3.1.40 (5c27e79dd0a9c4e27ef2326841698cdd4f6b5784)
+index-e2a1f387.js:319 FFmpeg:   configuration: --target-os=none --arch=x86_32 --enable-cross-compile --disable-asm --disable-stripping --disable-programs --disable-doc --disable-debug --disable-runtime-cpudetect --disable-autodetect --nm=emnm --ar=emar --ranlib=emranlib --cc=emcc --cxx=em++ --objcc=emcc --dep-cc=emcc --extra-cflags='-I/opt/include -O3 -msimd128' --extra-cxxflags='-I/opt/include -O3 -msimd128' --disable-pthreads --disable-w32threads --disable-os2threads --enable-gpl --enable-libx264 --enable-libx265 --enable-libvpx --enable-libmp3lame --enable-libtheora --enable-libvorbis --enable-libopus --enable-zlib --enable-libwebp --enable-libfreetype --enable-libfribidi --enable-libass --enable-libzimg
+index-e2a1f387.js:319 FFmpeg:   libavutil      57. 28.100 / 57. 28.100
+index-e2a1f387.js:319 FFmpeg:   libavcodec     59. 37.100 / 59. 37.100
+index-e2a1f387.js:319 FFmpeg:   libavformat    59. 27.100 / 59. 27.100
+index-e2a1f387.js:319 FFmpeg:   libavdevice    59.  7.100 / 59.  7.100
+index-e2a1f387.js:319 FFmpeg:   libavfilter     8. 44.100 /  8. 44.100
+index-e2a1f387.js:319 FFmpeg:   libswscale      6.  7.100 /  6.  7.100
+index-e2a1f387.js:319 FFmpeg:   libswresample   4.  7.100 /  4.  7.100
+index-e2a1f387.js:319 FFmpeg:   libpostproc    56.  6.100 / 56.  6.100
+index-e2a1f387.js:319 FFmpeg: [hls @ 0xdeec80] Skip ('#EXT-X-VERSION:6')
+index-e2a1f387.js:319 FFmpeg: [hls @ 0xdeec80] Skip ('#EXT-X-INDEPENDENT-SEGMENTS')
+index-e2a1f387.js:319 FFmpeg: [hls @ 0xdeec80] Opening 'segment_20250513151927_1747149568.ts' for reading
+index-e2a1f387.js:319 FFmpeg: [hls @ 0xdeec80] Failed to open segment 1747149568 of playlist 0
+index-e2a1f387.js:319 FFmpeg: [hls @ 0xdeec80] Error when loading first segment 'segment_20250513151927_1747149568.ts'
+index-e2a1f387.js:319 FFmpeg: playlist_20250513152216.m3u8: Invalid data found when processing input
+index-e2a1f387.js:319 FFmpeg: Aborted()
+index-e2a1f387.js:320 HLS to MP4 conversion error: ErrnoError: FS error
+convertHlsToMp4 @ index-e2a1f387.js:320
+await in convertHlsToMp4
+N @ index-e2a1f387.js:340
+await in N
+onClick @ index-e2a1f387.js:340
+TP @ index-e2a1f387.js:37
+AP @ index-e2a1f387.js:37
+RP @ index-e2a1f387.js:37
+jx @ index-e2a1f387.js:37
+EA @ index-e2a1f387.js:37
+(anonymous) @ index-e2a1f387.js:37
+P1 @ index-e2a1f387.js:40
+j_ @ index-e2a1f387.js:37
+Eg @ index-e2a1f387.js:37
+o1 @ index-e2a1f387.js:37
+jP @ index-e2a1f387.js:37
+index-e2a1f387.js:340 Error downloading video: ErrnoError: FS error
+N @ index-e2a1f387.js:340
+await in N
+onClick @ index-e2a1f387.js:340
+TP @ index-e2a1f387.js:37
+AP @ index-e2a1f387.js:37
+RP @ index-e2a1f387.js:37
+jx @ index-e2a1f387.js:37
+EA @ index-e2a1f387.js:37
+(anonymous) @ index-e2a1f387.js:37
+P1 @ index-e2a1f387.js:40
+j_ @ index-e2a1f387.js:37
+Eg @ index-e2a1f387.js:37
+o1 @ index-e2a1f387.js:37
+jP @ index-e2a1f387.js:37
+

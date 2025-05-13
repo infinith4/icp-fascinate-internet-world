@@ -10,8 +10,9 @@ struct Video {
     description: String,
     chunks: Vec<Vec<u8>>,
     hash: String,
-    playlist: Option<String>, // 追加
-    thumbnail: Option<Vec<u8>>, // 追加
+    playlist: Option<String>,
+    thumbnail: Option<Vec<u8>>,
+    version: String
 }
 
 #[derive(CandidType, Deserialize)]
@@ -100,7 +101,7 @@ fn greet(name: String) -> String {
 }
 
 #[update]
-fn upload_video_chunk(video_id: String, chunk_index: u32, chunk: Vec<u8>) -> UploadResult {
+fn upload_video_chunk(version: String, video_id: String, chunk_index: u32, chunk: Vec<u8>) -> UploadResult {
     VIDEOS.with(|videos| {
         ic_cdk::println!("Starting upload_video_chunk for video_id: {}", video_id);
         let mut videos = videos.borrow_mut();
@@ -115,7 +116,8 @@ fn upload_video_chunk(video_id: String, chunk_index: u32, chunk: Vec<u8>) -> Upl
                 chunks: Vec::new(),
                 hash: "".to_string(),
                 playlist: None,
-                thumbnail: None
+                thumbnail: None,
+                version: version.to_string(),
             });
         }
         
@@ -140,7 +142,7 @@ fn upload_video_chunk(video_id: String, chunk_index: u32, chunk: Vec<u8>) -> Upl
 
 // HLS用: TSセグメントアップロードAPI
 #[update]
-fn upload_video_segment(video_id: String, ts_segment: Vec<u8>, segment_index: u32) -> UploadResult {
+fn upload_video_segment(version: String, video_id: String, ts_segment: Vec<u8>, segment_index: u32) -> UploadResult {
     VIDEOS.with(|videos| {
         let mut videos = videos.borrow_mut();
         if !videos.contains_key(&video_id) {
@@ -151,7 +153,8 @@ fn upload_video_segment(video_id: String, ts_segment: Vec<u8>, segment_index: u3
                 chunks: Vec::new(),
                 hash: "".to_string(),
                 playlist: None,
-                thumbnail: None
+                thumbnail: None,
+                version: version.to_string()
             });
         }
         match videos.get_mut(&video_id) {
@@ -184,7 +187,7 @@ fn get_video_chunk(video_id: String, chunk_index: u32) -> VideoChunkResult {
 }
 
 #[update]
-fn create_video(title: String, description: String) -> String {
+fn create_video(version: String, title: String, description: String) -> String {
     let video_id = ic_cdk::api::time().to_string();
     let hash = "";
     let video = Video {
@@ -194,7 +197,8 @@ fn create_video(title: String, description: String) -> String {
         chunks: Vec::new(),
         hash: hash.to_string(),
         playlist: None,
-        thumbnail: None
+        thumbnail: None,
+        version: version.to_string()
     };
     
     VIDEOS.with(|videos| {
@@ -210,7 +214,7 @@ fn get_video_info(video_id: String) -> VideoInfoResult {
     VIDEOS.with(|videos| {
         let videos = videos.borrow();
         videos.iter()
-            .map(|(id, video)| (
+            .map(|(_id, video)| (
                 ic_cdk::println!("{}", format!("title: {}, description: {}", video.title.clone(), video.description.clone())
             )));
         if let Some(video) = videos.get(&video_id) {
@@ -277,7 +281,7 @@ fn get_hls_segment(video_id: String, segment_index: u32) -> GetHlsSegmentResult 
 }
 
 #[update]
-fn upload_playlist(video_id: String, playlist_text: String) -> UploadResult {
+fn upload_playlist(version: String,video_id: String, playlist_text: String) -> UploadResult {
     VIDEOS.with(|videos| {
         let mut videos: std::cell::RefMut<'_, HashMap<String, Video>> = videos.borrow_mut();
         if let Some(video) = videos.get_mut(&video_id) {
@@ -292,7 +296,7 @@ fn upload_playlist(video_id: String, playlist_text: String) -> UploadResult {
 }
 
 #[update]
-fn upload_ts_segment(video_id: String, segment_index: u32, ts_data: Vec<u8>) -> UploadResult {
+fn upload_ts_segment(version: String, video_id: String, segment_index: u32, ts_data: Vec<u8>) -> UploadResult {
     VIDEOS.with(|videos| {
         let mut videos = videos.borrow_mut();
         if let Some(video) = videos.get_mut(&video_id) {
@@ -322,7 +326,7 @@ fn delete_video(video_id: String) -> DeleteVideoResult {
 }
 
 #[update]
-fn upload_thumbnail(video_id: String, thumbnail_data: Vec<u8>) -> UploadResult {
+fn upload_thumbnail(version: String, video_id: String, thumbnail_data: Vec<u8>) -> UploadResult {
     VIDEOS.with(|videos| {
         let mut videos = videos.borrow_mut();
         if let Some(video) = videos.get_mut(&video_id) {

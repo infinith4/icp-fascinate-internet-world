@@ -267,6 +267,10 @@ dfx start --clean --host 127.0.0.1:4949
 cd streamingservice
 dfx deploy
 
+
+
+dfx deploy streamingservice_frontend
+
 sudo apt update
 sudo apt install ffmpeg
 
@@ -276,6 +280,8 @@ h264
 avc1
 
 ffprobe -v error -select_streams v:0 -show_entries stream=codec_name,codec_tag_string -of default=noprint_wrappers=1:nokey=1 "./videos/You are coding a new exciting project  The Social Network YouTube - Brave 2025-04-23 23-55-47.mp4"
+
+https://www.ffmpeg.org/ffmpeg-all.html
 
 
 ffmpeg -i "./videos/The-Social-Network.mp4" -b:v 1M -c:a copy -f hls -hls_playlist_type vod -hls_time 5 -g 24 -hls_segment_filename "./videos/The-Social-Network-1m%3d.ts" "./videos/The-Social-Network-1m.m3u8"
@@ -288,6 +294,11 @@ ffmpeg -i "./videos/IC-Hello-Starter.mp4" -b:v 1M -c:a copy -f hls -hls_playlist
 
 ffmpeg -i "./videos/Narita.mp4" -b:v 1M -c:a copy -f hls -hls_playlist_type vod -hls_time 5 -g 24 -hls_segment_filename "./videos/Narita-1m%3d.ts" "./videos/Narita-1m.m3u8"
 
+
+ffmpeg -i "./videos/270940.mp4" -b:v 1M -c:a copy -f hls -hls_playlist_type vod -hls_time 5 -g 24 -hls_segment_filename "./videos/270940-1m%3d.ts" "./videos/270940-1m.m3u8"
+
+
+ffmpeg -i "./270940.mp4" -c:v copy -c:a copy -b:a 128k -f hls -hls_playlist_type vod -hls_time 2 -g 24 -hls_segment_filename "./270940%3d.ts" "./270940.m3u8"
 
 
 https://ffmpegwasm.netlify.app/docs/getting-started/usage

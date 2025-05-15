@@ -83,36 +83,76 @@ export class CustomSegmentLoader {
 
   /**
    * サーバーからセグメントをフェッチする
+   * get_segment_chunkを使用して全てのチャンクを取得し結合する
    */
   private async fetchSegment(index: number): Promise<Uint8Array> {
-    console.log(`Fetching segment ${index} from server`);
+    console.log(`Fetching segment ${index} from server using chunks`);
     try {
-      const segmentResult = await this.actor.get_hls_segment(this.videoId, index);
-      
-      if ('ok' in segmentResult) {
-        const segmentData = new Uint8Array(segmentResult.ok);
-        
-        // セグメントデータの検証
-        if (segmentData.length === 0) {
-          throw new Error(`Segment ${index} is empty`);
+      // セグメントのチャンクを格納する配列
+      const segmentDataChunks: Uint8Array[] = [];
+      let totalChunksInSegment = 0;
+
+      // 最初のチャンクを取得して、そのセグメントの総チャンク数を確認
+      // TypeScript doesn't recognize get_segment_chunk in the type definition, so we need to use type assertion
+      const firstChunkResult = await (this.actor as any).get_segment_chunk(this.videoId, index, 0);
+
+      if (!('ok' in firstChunkResult)) {
+        let errorDetails = 'Unknown error';
+        if (firstChunkResult.err) {
+          errorDetails = JSON.stringify(firstChunkResult.err);
         }
-        
-        // MPEG-TS ヘッダーの検証 (0x47 で始まるべき)
-        if (segmentData[0] !== 0x47) {
-          console.warn(`Segment ${index} does not start with valid MPEG-TS sync byte (0x47), found: ${segmentData[0].toString(16)}`);
-          
-          // 無効なセグメントの場合、有効なMPEG-TSヘッダーを持つダミーセグメントを返す
-          // これにより、HLS.jsがエラーを回避できる可能性がある
-          return this.createDummySegment();
-        }
-        
-        console.log(`Segment ${index} fetched successfully, size: ${segmentData.length} bytes`);
-        return segmentData;
-      } else {
-        console.error(`Failed to get segment ${index}: ${segmentResult.err}`);
-        // エラーの場合もダミーセグメントを返す
+        console.error(`Failed to get first chunk for segment ${index}. Details: ${errorDetails}`);
         return this.createDummySegment();
       }
+      
+      const firstChunkResponse = firstChunkResult.ok;
+      totalChunksInSegment = firstChunkResponse.total_chunk_count;
+      console.log(`Segment ${index}: Total chunks expected: ${totalChunksInSegment}`);
+      segmentDataChunks.push(new Uint8Array(firstChunkResponse.segment_chunk_data as number[]));
+
+      // 残りのチャンクを取得 (総チャンク数が1より大きい場合)
+      for (let chunkIndex = 1; chunkIndex < totalChunksInSegment; chunkIndex++) {
+        console.log(`Segment ${index}: Fetching chunk ${chunkIndex + 1}/${totalChunksInSegment}`);
+        const chunkResult = await (this.actor as any).get_segment_chunk(this.videoId, index, chunkIndex);
+        if ('ok' in chunkResult) {
+          segmentDataChunks.push(new Uint8Array(chunkResult.ok.segment_chunk_data as number[]));
+        } else {
+          let errorDetails = 'Unknown error';
+          if (chunkResult.err) {
+            errorDetails = JSON.stringify(chunkResult.err);
+          }
+          console.error(`Failed to get chunk ${chunkIndex} for segment ${index}. Details: ${errorDetails}`);
+          // チャンク取得に失敗した場合でも、これまでに取得したチャンクで処理を続行
+          break;
+        }
+      }
+
+      // すべてのチャンクを1つの Uint8Array に結合
+      // まず、結合後の合計サイズを計算
+      const combinedLength = segmentDataChunks.reduce((acc, chunk) => acc + chunk.length, 0);
+      const combinedSegmentData = new Uint8Array(combinedLength);
+
+      // 各チャンクを結合後の配列にコピー
+      let offset = 0;
+      for (const chunk of segmentDataChunks) {
+        combinedSegmentData.set(chunk, offset);
+        offset += chunk.length;
+      }
+
+      // セグメントデータの検証
+      if (combinedSegmentData.length === 0) {
+        console.error(`Combined segment ${index} is empty`);
+        return this.createDummySegment();
+      }
+      
+      // MPEG-TS ヘッダーの検証 (0x47 で始まるべき)
+      if (combinedSegmentData[0] !== 0x47) {
+        console.warn(`Segment ${index} does not start with valid MPEG-TS sync byte (0x47), found: ${combinedSegmentData[0].toString(16)}`);
+        return this.createDummySegment();
+      }
+      
+      console.log(`Segment ${index} fetched successfully, size: ${combinedSegmentData.length} bytes from ${segmentDataChunks.length} chunks`);
+      return combinedSegmentData;
     } catch (error) {
       console.error(`Error fetching segment ${index}:`, error);
       // エラーの場合もダミーセグメントを返す
@@ -278,6 +318,7 @@ export class CustomHlsLoader {
 
   load(context: HlsTypes.LoaderContext, config: any, callbacks: any): void {
     const { url } = context;
+    console.log("--------------------------load url ", url );
     const stats = this.stats;
     
     // リクエスト開始時間を記録

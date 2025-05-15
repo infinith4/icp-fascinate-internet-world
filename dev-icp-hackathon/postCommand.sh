@@ -53,5 +53,11 @@ cd /src
 # cd bats
 # sudo ./install.sh /usr/local
 
+
+sudo apt update -y
+sudo apt install ffmpeg -y
+
 cd /src/icpassproj
 exec bash
+
+

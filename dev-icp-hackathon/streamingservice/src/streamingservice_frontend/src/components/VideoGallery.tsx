@@ -337,8 +337,10 @@ export const VideoGallery: React.FC = () => {
       }) as Actor & _SERVICE;
 
       // プレイリストを取得
+      console.log("Fetching HLS playlist...");
       const playlistResult = await actor.get_hls_playlist(videoId, import.meta.env.VITE_CANISTER_ID_STREAMINGSERVICE_BACKEND ?? '');
       if (!('ok' in playlistResult)) {
+        console.error("Failed to get playlist:", playlistResult.err);
         throw new Error('Failed to get playlist');
       }
       
@@ -351,6 +353,7 @@ export const VideoGallery: React.FC = () => {
       const totalSegments = segmentLines.length;
       
       if (totalSegments === 0) {
+        console.error("No segments found in playlist");
         throw new Error('No segments found in playlist');
       }
 
@@ -362,13 +365,6 @@ export const VideoGallery: React.FC = () => {
         if (match) {
           return parseInt(match[1], 10);
         }
-        
-        // 古い形式もサポート
-        const oldFormatMatch = segmentName.match(/segment_(\d+)\.ts/);
-        if (oldFormatMatch) {
-          return parseInt(oldFormatMatch[1], 10);
-        }
-        
         console.error(`Could not parse index from segment name: ${segmentName}`);
         return -1;
       };
@@ -456,9 +452,10 @@ export const VideoGallery: React.FC = () => {
           hlsInstance.current = null;
         }
         
-        // カスタムローダーを作成
+        console.log("Creating custom loader...");
         const customLoader = createCustomLoader(actor, videoId, m3u8Content, segmentLines);
         
+        console.log("Initializing HLS.js with custom configuration...");
         // 新しいHlsインスタンスを作成（改善された設定）
         const hls = new Hls({
           debug: true, // デバッグを有効化して詳細なログを確認
@@ -531,38 +528,21 @@ export const VideoGallery: React.FC = () => {
           if (data.fatal) {
             switch(data.type) {
               case Hls.ErrorTypes.NETWORK_ERROR:
-                console.error("Fatal network error, trying to recover");
-                // ネットワークエラーの場合は少し待ってから再ロード
-                setTimeout(() => {
-                  hls.startLoad();
-                }, 1000);
+                console.log("Fatal network error encountered, trying to recover");
+                hls.startLoad();
                 break;
               case Hls.ErrorTypes.MEDIA_ERROR:
-                console.error("Fatal media error, trying to recover");
-                // メディアエラーの場合は複数回リカバリーを試みる
+                console.log("Fatal media error encountered, trying to recover");
                 hls.recoverMediaError();
-                // 2回目のリカバリー試行
-                setTimeout(() => {
-                  videoPlayer.currentTime += 0.5; // 少し時間を進めてみる
-                  hls.recoverMediaError();
-                }, 1000);
                 break;
               default:
-                console.error("Fatal error, cannot recover");
-                // 最後の手段としてプレーヤーを再初期化
+                console.log("Fatal error, cannot recover");
                 hls.destroy();
-                hlsInstance.current = null;
-                
-                // 1秒後に再初期化を試みる
-                setTimeout(() => {
-                  playHlsStream(selectedVideo as string);
-                }, 1000);
                 break;
             }
           }
         });
         
-        // 追加のイベントリスナー
         hls.on(Hls.Events.FRAG_LOADING, (event, data) => {
           console.log("Fragment loading:", data.frag.sn);
         });
@@ -571,8 +551,17 @@ export const VideoGallery: React.FC = () => {
           console.log("Fragment loaded successfully:", data.frag.sn);
         });
         
-        // プレイリストをBlobとして作成し、URLを生成
-        const playlistBlob = new Blob([m3u8Content], { type: 'application/vnd.apple.mpegurl' });
+        const cleanedM3u8 = m3u8Content
+          .split('\n')
+          .filter(line => !line.startsWith('#EXT-X-KEY') && !line.includes('IV='))
+          .map(line => line.replace(/,IV=0x[0-9a-fA-F]+/, ''))
+          .join('\n');
+        console.log("Cleaned m3u8 content:", cleanedM3u8);
+        
+        const rewrittenM3u8 = cleanedM3u8.replace(/[^\n]*?(\d+)\.ts/g, (_, p1) => `icsegment://${videoId}/${p1}`);
+        console.log("Rewritten m3u8 content:", rewrittenM3u8);
+        
+        const playlistBlob = new Blob([rewrittenM3u8], { type: 'application/vnd.apple.mpegurl' });
         const playlistUrl = URL.createObjectURL(playlistBlob);
         
         // プレイリストをロード
@@ -612,7 +601,7 @@ export const VideoGallery: React.FC = () => {
       }
     } catch (error) {
       console.error("Error playing HLS stream:", error);
-      alert("動画の再生中にエラーが発生しました。");
+      alert("動画の再生中にエラーが発生しました。詳細はコンソールを確認してください。");
     }
   };
 

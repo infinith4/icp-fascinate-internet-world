@@ -117,8 +117,8 @@ export const VideoGallery: React.FC = () => {
       await actor.upload_playlist(backendApiVersion, video_id, playlistText);
 
       // セグメントを順次アップロード（チャンクサイズとバッチサイズを最適化）
-      const CHUNK_SIZE = 1024 * 1024; // 512KBに縮小
-      const BATCH_SIZE = 2; // 同時アップロード数を制限
+      const CHUNK_SIZE = 1.5 * 1024 * 1024; // 512KBに縮小
+      const BATCH_SIZE = 1; // 同時アップロード数を制限
       const RETRY_COUNT = 3; // リトライ回数
       const RETRY_DELAY = 2000; // リトライ間隔（ミリ秒）
 
@@ -137,32 +137,34 @@ export const VideoGallery: React.FC = () => {
           chunks.push(segment.data.slice(offset, Math.min(offset + CHUNK_SIZE, segment.data.length)));
         }
 
-        for (let i = 0; i < chunks.length; i++) {
+        for (let chunk_index = 0; chunk_index < chunks.length; chunk_index++) {
           let retries = 0;
           let success = false;
 
           while (retries < RETRY_COUNT && !success) {
             try {
-              console.log(`--------------Uploading segment ${segment.index} / ${segments.length}, chunk ${i + 1}/${chunks.length}`);
-              const result = await actor.upload_ts_segment(
+              console.log(`--------------Uploading segment ${segment.index} / ${segments.length}, chunk ${chunk_index + 1}/${chunks.length}`);
+              const result = await actor.upload_ts_segment_chunk(
                 backendApiVersion,
                 video_id,
                 segment.index,
-                Array.from(chunks[i])
+                chunk_index,
+                chunks.length,
+                Array.from(chunks[chunk_index])
               );
 
               if ('ok' in result) {
                 success = true;
-                console.log(`--------------Successfully uploaded segment ${segment.index} / ${segments.length}, chunk ${i + 1}/${chunks.length}`);
+                console.log(`--------------Successfully uploaded segment ${segment.index} / ${segments.length}, chunk ${chunk_index + 1}/${chunks.length}`);
               } else {
                 throw new Error(`Upload failed: ${result.err || 'Unknown error'}`);
               }
             } catch (error) {
               retries++;
-              console.error(`Upload attempt ${retries} failed for segment ${segment.index}, chunk ${i + 1}:`, error);
+              console.error(`Upload attempt ${retries} failed for segment ${segment.index}, chunk ${chunk_index + 1}:`, error);
               
               if (retries === RETRY_COUNT) {
-                throw new Error(`Failed to upload segment ${segment.index} chunk ${i + 1} after ${RETRY_COUNT} retries: ${error}`);
+                throw new Error(`Failed to upload segment ${segment.index} chunk ${chunk_index + 1} after ${RETRY_COUNT} retries: ${error}`);
               }
               
               // 指数バックオフで待機
@@ -173,7 +175,7 @@ export const VideoGallery: React.FC = () => {
           }
 
           if (!success) {
-            throw new Error(`Failed to upload segment ${segment.index} chunk ${i + 1} after all retries`);
+            throw new Error(`Failed to upload segment ${segment.index} chunk ${chunk_index + 1} after all retries`);
           }
 
           uploadedChunks++;
@@ -797,15 +799,36 @@ export const VideoGallery: React.FC = () => {
       // セグメントを取得
       const m3u8Content = playlistResult.ok;
       const segmentLines = m3u8Content.split('\n').filter(line => line.endsWith('.ts'));
-      const segments: { index: number; data: Uint8Array }[] = [];
+      const segments: { index: number; data: Uint8Array, original_segment_name: String }[] = [];
 
       for (let i = 0; i < segmentLines.length; i++) {
-        const segmentResult = await actor.get_hls_segment(videoId, i);
-        console.log(`--------------------segmentResult: ${segmentResult}`);
+        const segmentResult = await actor.get_segment_chunk(videoId, i, 0);
+        console.log(`--------------------segmentResult: ${JSON.stringify(segmentResult)}`);
         if ('ok' in segmentResult) {
+          console.table(`original_segment_name: ${segmentLines[i]}`);
+          const responseData = segmentResult.ok; // responseData は SegmentChunkResponse オブジェクト
+
+          console.table(`original_segment_name: ${segmentLines[i]}`);
+          // responseData オブジェクトから total_chunk_count にアクセス
+          console.log(`Total chunks expected for segment ${i}: ${responseData.total_chunk_count}`);
+  
+          // responseData オブジェクトから実際のチャンクデータ (segment_chunk_data) にアクセス
+          // Vec<u8> は TypeScript では Uint8Array もしくは number[] にマッピングされます。
+          // Uint8Array コンストラクタは number[] を受け付けるため、多くの場合 new Uint8Array() に渡せます。
+          // Candid生成によっては `as number[]` のような型アサーションが必要になる場合があります。
+          const chunkData = new Uint8Array(responseData.segment_chunk_data as number[]);
+  
+          // ここで取得したデータは、あくまでセグメント i の「チャンク 0」のデータです。
+          // もしセグメント i の全てのチャンクを結合して完全なセグメントデータを作りたい場合は、
+          // responseData.total_chunk_count を使って、chunk_index = 0 から total_chunk_count - 1 まで
+          // ループして全てのチャンクを取得し、それらを結合する必要があります。
+  
           segments.push({
-            index: i,
-            data: new Uint8Array(segmentResult.ok)
+            index: i, // これはセグメントのインデックス
+            original_segment_name: segmentLines[i].toString(),
+            data: chunkData, // 取得したチャンクデータ (ここではチャンク0のみ)
+            // 必要であれば、セグメントの合計チャンク数もクライアント側で保持
+            //total_chunk_count: responseData.total_chunk_count,
           });
         } else {
           throw new Error(`Failed to get segment ${i}`);
@@ -831,7 +854,6 @@ export const VideoGallery: React.FC = () => {
       alert('動画のダウンロード中にエラーが発生しました。');
     }
   };
-
   const handleDownloadTsFilesClick = async (e: React.MouseEvent, videoId: string) => {
     e.stopPropagation(); // クリックイベントの伝播を停止
     try {
@@ -849,38 +871,77 @@ export const VideoGallery: React.FC = () => {
         throw new Error('Failed to get playlist');
       }
 
-      // セグメントを取得
       const m3u8Content = playlistResult.ok;
       const segmentLines = m3u8Content.split('\n').filter(line => line.endsWith('.ts'));
-      const segments: { index: number; data: Uint8Array }[] = [];
 
+      // 各セグメントについて処理
       for (let i = 0; i < segmentLines.length; i++) {
-        const segmentResult = await actor.get_hls_segment(videoId, i);
-        console.log(`--------------------segmentResult: ${segmentResult}`);
-        if ('ok' in segmentResult) {
-          segments.push({
-            index: i,
-            data: new Uint8Array(segmentResult.ok)
-          });
-        } else {
-          throw new Error(`Failed to get segment ${i}`);
+        console.log(`Processing segment ${i + 1}/${segmentLines.length}: ${segmentLines[i]}`);
+        const segmentDataChunks: Uint8Array[] = [];
+        let totalChunksInSegment = 0;
+
+        // 最初のチャンクを取得して、そのセグメントの総チャンク数を確認
+        const firstChunkResult = await actor.get_segment_chunk(videoId, i, 0);
+
+        if (!('ok' in firstChunkResult)) {
+          let errorDetails = 'Unknown error';
+          if (firstChunkResult.err) {
+            errorDetails = JSON.stringify(firstChunkResult.err); // エラー内容を文字列化
+          }
+          console.error(`Failed to get first chunk for segment ${i}. Details: ${errorDetails}`);
+          throw new Error(`Failed to get first chunk for segment ${i}. Error: ${errorDetails}`);
         }
-        // TSとしてダウンロード
-        const blob = new Blob([new Uint8Array(segmentResult.ok)], { type: 'video/mp4' });
+        
+        const firstChunkResponse = firstChunkResult.ok;
+        totalChunksInSegment = firstChunkResponse.total_chunk_count;
+        console.log(`Segment ${i}: Total chunks expected: ${totalChunksInSegment}`);
+        segmentDataChunks.push(new Uint8Array(firstChunkResponse.segment_chunk_data as number[]));
+
+        // 残りのチャンクを取得 (総チャンク数が1より大きい場合)
+        for (let chunkIndex = 1; chunkIndex < totalChunksInSegment; chunkIndex++) {
+          console.log(`Segment ${i}: Fetching chunk ${chunkIndex + 1}/${totalChunksInSegment}`);
+          const chunkResult = await actor.get_segment_chunk(videoId, i, chunkIndex);
+          if ('ok' in chunkResult) {
+            segmentDataChunks.push(new Uint8Array(chunkResult.ok.segment_chunk_data as number[]));
+          } else {
+            let errorDetails = 'Unknown error';
+            if (chunkResult.err) {
+                errorDetails = JSON.stringify(chunkResult.err); // エラー内容を文字列化
+            }
+            console.error(`Failed to get chunk ${chunkIndex} for segment ${i}. Details: ${errorDetails}`);
+            throw new Error(`Failed to get chunk ${chunkIndex} for segment ${i}. Error: ${errorDetails}`);
+          }
+        }
+
+        // すべてのチャンクを1つの Uint8Array に結合
+        // まず、結合後の合計サイズを計算
+        const combinedLength = segmentDataChunks.reduce((acc, chunk) => acc + chunk.length, 0);
+        const combinedSegmentData = new Uint8Array(combinedLength);
+
+        // 各チャンクを結合後の配列にコピー
+        let offset = 0;
+        for (const chunk of segmentDataChunks) {
+          combinedSegmentData.set(chunk, offset);
+          offset += chunk.length;
+        }
+
+        // 結合されたTSセグメントとしてダウンロード
+        const blob = new Blob([combinedSegmentData], { type: 'video/mp2t' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `video-${videoId}-${i}.ts`;
+        // ダウンロードファイル名をセグメントのインデックスに基づいて命名
+        a.download = `video-${videoId}-segment-${i}.ts`;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
+        console.log(`Segment ${i} (video-${videoId}-segment-${i}.ts) downloaded successfully.`);
       }
 
-
     } catch (error) {
-      console.error('Error downloading video:', error);
-      alert('動画のダウンロード中にエラーが発生しました。');
+      console.error('Error downloading TS files:', error);
+      alert('TSファイルのダウンロード中にエラーが発生しました。');
     }
   };
 

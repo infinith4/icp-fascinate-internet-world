@@ -221,25 +221,42 @@ export class FFmpegService {
         });
       }
 
+      //すべてのセグメントが厳密に指定のサイズ以下になることを100%保証できない。
+      //ffmpeg -i "./270940.mp4" -c:v copy -c:a copy -f hls -hls_playlist_type event -hls_time 2 -g 24 -hls_segment_type mpegts -hls_segment_filename "./270940%3d.ts" "./270940.m3u8"
+      //ffmpeg -i "./270940.mp4" -c:v copy -c:a copy -b:a 128k -f hls -hls_playlist_type vod -hls_time 2 -g 24 -hls_segment_filename "./270940%3d.ts" "./270940.m3u8"
       // HLS変換
       console.log("segmentDuration: ", segmentDuration);
       await this.ffmpeg.exec([
-        '-i', inputFileName,
+        '-i', inputFileName, // 入力ファイル名 (元のコマンドに合わせる)
+        //'-b:v', '1M', // 動画ビットレートを 1M に設定 (元のコマンドに合わせる)
         '-c:v', 'copy',
-        '-c:a', 'aac',
-        '-b:a', audioBitrate,
-        '-f', 'hls',
-        '-hls_time', segmentDuration.toString(),
+        '-c:a', 'copy', // 音声コーデックをコピーに設定 (元のコマンドに合わせる)
+        //'-b:a', audioBitrate,
+        '-f', 'hls', // フォーマットを hls に設定
+        '-hls_playlist_type', 'event', // プレイリストタイプを vod に設定 (元のコマンドに合わせる)
+        '-hls_time', segmentDuration.toString(), // セグメント長を 5秒 に設定 (元のコマンドに合わせる)
+        '-g', '24', // GOPサイズを 24 に設定 (元のコマンドに合わせる)
         '-hls_segment_type', 'mpegts',
-        '-hls_list_size', '0',
-        '-hls_segment_filename', segmentPattern,
-        '-hls_flags', 'independent_segments',
-        '-hls_playlist_type', 'event',
-        '-hls_start_number_source', 'epoch',
-        '-hls_init_time', '0',
-        '-hls_base_url', '',
-        playlistFileName
-      ]);
+        '-hls_segment_filename', segmentPattern,// セグメントファイル名パターン (元のコマンドに合わせる)
+        playlistFileName // プレイリストファイル名 (元のコマンドに合わせる)
+    ]);
+      // await this.ffmpeg.exec([
+      //   '-i', inputFileName,
+      //   '-c:v', 'copy',
+      //   '-c:a', 'aac',
+      //   '-b:a', audioBitrate,
+      //   '-f', 'hls',
+      //   '-hls_time', segmentDuration.toString(),
+      //   '-hls_segment_type', 'mpegts',
+      //   '-hls_list_size', '0',
+      //   '-hls_segment_filename', segmentPattern,
+      //   '-hls_flags', 'independent_segments',
+      //   '-hls_playlist_type', 'event',
+      //   '-hls_start_number_source', 'epoch',
+      //   '-hls_init_time', '0',
+      //   '-hls_base_url', '',
+      //   playlistFileName
+      // ]);
       this.timer.split('hlsConversion');
 
       // 変換完了後、十分な待機時間を設定
@@ -275,6 +292,8 @@ export class FFmpegService {
         throw new Error('No segments found in playlist');
       }
 
+      let totalBytes = 0;
+
       // セグメントファイルの存在確認と読み込み
       for (let i = 0; i < totalSegments; i++) {
         let retries = 3;
@@ -300,6 +319,7 @@ export class FFmpegService {
             }
             
             console.log(`Successfully read segment ${i}, size: ${data.length} bytes`);
+            totalBytes += data.length;
             segments.push({
               index: i,
               data: data
@@ -331,6 +351,7 @@ export class FFmpegService {
             }
           }
         }
+        console.log(`----------------------totalBytes: ${totalBytes} bytes`);
 
         if (!success) {
           console.error(`Failed to read segment ${i} after all retries. Last error:`, lastError);
@@ -397,26 +418,27 @@ export class FFmpegService {
     }
   }
 
-  async convertHlsToMp4(playlist: string, segments: { index: number; data: Uint8Array }[]): Promise<HlsToMp4Result> {
+  async convertHlsToMp4(playlist: string, segments: { index: number; original_segment_name: String; data: Uint8Array }[]): Promise<HlsToMp4Result> {
     if (!this.loaded) {
       await this.load();
     }
 
     const timestamp = `${new Date().toISOString().replace(/[-:]/g, '').replace('T', '').replace(/\..+/, '')}`;
-    const segmentPattern = `segment_${timestamp}_%03d.ts`;
     const playlistFileName = `playlist_${timestamp}.m3u8`;
     const outputFileName = `output_${timestamp}.mp4`;
 
     try {
       // セグメントファイルを書き込み
       for (const segment of segments) {
-        const segmentName = `segment_${timestamp}_${String(segment.index).padStart(3, '0')}.ts`;
+        const segmentName = segment.original_segment_name.toString();
+        console.log(`segmentName: ${segmentName}`);
         await this.ffmpeg.writeFile(segmentName, segment.data);
+        console.log(`writed File: ${segmentName}`);
       }
 
       // プレイリストを書き込み
       await this.ffmpeg.writeFile(playlistFileName, new TextEncoder().encode(playlist));
-
+      //ffmpeg -i your_playlist.m3u8 -c copy output.mp4
       // MP4に変換
       await this.ffmpeg.exec([
         '-i', playlistFileName,

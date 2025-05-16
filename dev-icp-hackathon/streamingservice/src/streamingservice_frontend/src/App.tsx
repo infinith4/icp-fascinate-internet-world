@@ -3,13 +3,6 @@ import { Actor, HttpAgent } from '@dfinity/agent';
 import { _SERVICE } from '../../declarations/streamingservice_backend/streamingservice_backend.did';
 import { createActor } from '../../declarations/streamingservice_backend';
 import Hls from 'hls.js';
-import { FFmpegService, FFmpegProgress } from './services/FFmpegService';
-import { Timer } from './utils/Timer';
-import { Button, Stack } from '@mui/material';
-import PlayArrowIcon from '@mui/icons-material/PlayArrow';
-import DeleteIcon from '@mui/icons-material/Delete';
-import DownloadIcon from '@mui/icons-material/Download';
-import VideoFileIcon from '@mui/icons-material/VideoFile';
 
 type VideoInfo = {
   id: string;
@@ -18,105 +11,43 @@ type VideoInfo = {
   hash: string;
 };
 
-interface ProgressBarProps {
-  progress: number;
-  message: string;
-}
-
-const ProgressBar: React.FC<ProgressBarProps> = ({ progress, message }) => (
-  <div style={{ marginBottom: '20px' }}>
-    <div style={{ marginBottom: '5px' }}>{message}</div>
-    <div style={{ 
-      width: '100%', 
-      height: '20px', 
-      backgroundColor: '#eee',
-      borderRadius: '10px',
-      overflow: 'hidden'
-    }}>
-      <div style={{
-        width: `${Math.min(100, Math.max(0, progress))}%`,
-        height: '100%',
-        backgroundColor: '#4CAF50',
-        transition: 'width 0.3s ease'
-      }} />
-    </div>
-    <div style={{ textAlign: 'right' }}>{progress.toFixed(1)}%</div>
-  </div>
-);
-
 function App() {
+
   const [videos, setVideos] = useState<VideoInfo[]>([]);
   const [currentVideo, setCurrentVideo] = useState<string | null>(null);
   const [videoPlayer, setVideoPlayer] = useState<HTMLVideoElement | null>(null);
+  const [mediaSource, setMediaSource] = useState<MediaSource | null>(null);
+  const [sourceBuffer, setSourceBuffer] = useState<SourceBuffer | null>(null);
   const [loading, setLoading] = useState(false);
-  const [ffmpegLoaded, setFfmpegLoaded] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState<{ message: string; progress: number } | null>(null);
-  const ffmpegService = useRef(new FFmpegService());
-  const ffmpegMessageRef = useRef<HTMLParagraphElement>(null);
 
-  const timer = new Timer();
   const agent = HttpAgent.createSync({
     host: 'http://localhost:' + import.meta.env.VITE_LOCAL_CANISTER_PORT,
     callOptions: {
       update: {
-        timeout: 300000,
+        timeout: 300000, // 5 minutes
       },
     },
   });
-  
   const actor = createActor(import.meta.env.VITE_CANISTER_ID_STREAMINGSERVICE_BACKEND, {
     agent,
   }) as Actor & _SERVICE;
 
   useEffect(() => {
-    initFFmpeg();
-    const videoContainer = document.getElementById('video-container');
-    console.log('videoContainer:', videoContainer);
-    if (!videoContainer) return;
-
-    // video要素を作成
+    // Initialize video player
     const player = document.createElement('video');
     player.controls = true;
-    player.playsInline = true;
-    player.autoplay = true;
-    
-    // video要素のスタイルを設定
-    player.style.width = '100%';
-    player.style.height = '100%';
-    player.style.objectFit = 'contain'; // アスペクト比を保持しながらコンテナに収める
-    player.style.backgroundColor = '#000';
-    player.style.display = 'block';
-    
-    // video-containerにvideo要素を追加
-    videoContainer.appendChild(player);
     setVideoPlayer(player);
+    document.body.appendChild(player);
 
+    // Load video list
     loadVideos();
 
     return () => {
-      console.log('Cleaning up video player');
-      if (player && videoContainer.contains(player)) {
-        console.log('remove Cleaning up video player');
-        videoContainer.removeChild(player);
+      if (player) {
+        document.body.removeChild(player);
       }
     };
   }, []);
-
-  const initFFmpeg = async () => {
-    try {
-      const ffmpeg = ffmpegService.current;
-      ffmpeg.onProgress = ({ message }) => {
-        if (ffmpegMessageRef.current) {
-          ffmpegMessageRef.current.innerHTML = message;
-        }
-      };
-      
-      await ffmpeg.load();
-      setFfmpegLoaded(true);
-    } catch (error) {
-      console.error('FFmpeg initialization error:', error);
-    }
-  };
 
   const loadVideos = async () => {
     try {
@@ -132,114 +63,10 @@ function App() {
     }
   };
 
-  const handleFileUploadWithFfmpeg = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-    setLoading(true);
-    setUploadProgress({ message: 'Starting upload...', progress: 0 });
-
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     try {
-      console.log('create_video:');
-      const video_id = await actor.create_video(file.name, '');
-
-      // FFmpeg処理の進捗表示を設定
-      ffmpegService.current.onProgress = (progress: FFmpegProgress) => {
-        if (progress.progress) {
-          setUploadProgress({
-            message: progress.message,
-            progress: progress.progress.percent
-          });
-        } else {
-          setUploadProgress({
-            message: progress.message,
-            progress: uploadProgress?.progress || 0
-          });
-        }
-      };
-
-      const { playlist, segments, thumbnail } = await ffmpegService.current.processVideo(file);
-      console.log('processVideo:');
-      console.log('thumbnail:', thumbnail);
-      // サムネイルのアップロード
-      if (thumbnail) {
-        setUploadProgress({ message: 'Uploading thumbnail...', progress: 0 });
-        const thumbnailResult = await actor.upload_thumbnail(video_id, Array.from(thumbnail));
-        console.log('thumbnailResult:', thumbnailResult);
-        if ('err' in thumbnailResult) {
-          throw new Error(`Failed to upload thumbnail: ${thumbnailResult.err}`);
-        }
-      }
-
-      // プレイリストのアップロード
-      const playlistText = new TextDecoder().decode(playlist);
-      console.log('--------------playlist:', playlistText);
-      setUploadProgress({ message: 'Uploading playlist...', progress: 0 });
-      const playlistResult = await actor.upload_playlist(video_id, playlistText);
-      
-      if ('err' in playlistResult) {
-        throw new Error(`Failed to upload playlist: ${playlistResult.err}`);
-      }
-
-      // セグメントのアップロード
-      const totalSegments = segments.length;
-      const CHUNK_SIZE = 1024 * 1024; // 1MB
-      let uploadedSegments = 0;
-      let totalChunks = 0;
-      let uploadedChunks = 0;
-
-      // 総チャンク数を計算
-      for (const segment of segments) {
-        totalChunks += Math.ceil(segment.data.length / CHUNK_SIZE);
-      }
-
-      for (const segment of segments) {
-        const uint8Array = new Uint8Array(segment.data);
-        const segmentChunks = Math.ceil(uint8Array.length / CHUNK_SIZE);
-        let uploadedSegmentChunks = 0;
-
-        for (let offset = 0; offset < uint8Array.length; offset += CHUNK_SIZE) {
-          const chunk = uint8Array.slice(offset, offset + CHUNK_SIZE);
-          console.log('upload_ts_segment:', segment.index);
-          const result = await actor.upload_ts_segment(
-            video_id,
-            segment.index,
-            Array.from(chunk)
-          );
-          
-          if ('err' in result) {
-            throw new Error(`Failed to upload segment ${segment.index}: ${result.err}`);
-          }
-
-          uploadedSegmentChunks++;
-          uploadedChunks++;
-          
-          const totalProgress = (uploadedChunks / totalChunks) * 100;
-          setUploadProgress({
-            message: `Uploading segment ${uploadedSegments + 1}/${totalSegments} (${uploadedSegmentChunks}/${segmentChunks} chunks)`,
-            progress: totalProgress
-          });
-        }
-
-        uploadedSegments++;
-      }
-
-      await loadVideos();
-      setUploadProgress({ message: 'Upload completed!', progress: 100 });
-      alert('アップロード成功');
-    } catch (e) {
-      console.error('Error during upload:', e);
-      alert('アップロード中にエラーが発生しました: ' + (e as Error).message);
-    } finally {
-      setLoading(false);
-      setTimeout(() => setUploadProgress(null), 2000); // 2秒後にプログレスバーを非表示
-    }
-    
-    const resulttimer = timer.stop();
-    console.log('Timer results:', timer.formatResults(resulttimer));
-  };
-
-  const handleFileUploadHls = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    try {
+      //TODO: mp4 から m3u8ファイルとtsファイル を生成
+      // handleFileUpload内
       // m3u8ファイルとtsファイルをアップロード
       const files = event.target.files;
       console.log('files:', files);
@@ -301,84 +128,57 @@ function App() {
     }
     setLoading(false);
   };
-  
-  //ファイルアップロード処理（チャンク分割＆upload_video_segment呼び出し）
-  const handleFileUploadOriginal = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
 
-    setLoading(true);
-    const title = prompt('Enter video title:') || 'Untitled';
-    const description = prompt('Enter video description:') || 'No description';
 
-    try {
-      const videoId = await actor.create_video(title, description);
-      console.log(videoId);
-      // Split video into chunks and upload
-      const chunkSize = 1024 * 1024; // 1MB chunks
-      const totalChunks = Math.ceil(file.size / chunkSize);
-      
-      for (let i = 0; i < totalChunks; i++) {
-        const chunk = file.slice(i * chunkSize, (i + 1) * chunkSize);
-        const chunkBuffer = await chunk.arrayBuffer();
-        console.log("------------chunk", i);
-        console.log(chunk);
-        const result = await actor.upload_video_chunk(videoId, i, Array.from(new Uint8Array(chunkBuffer)));
-        if ('err' in result) {
-          throw new Error(result.err);
-        }
-      }
+  // ファイルアップロード処理（チャンク分割＆upload_video_segment呼び出し）
+  // const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+  //   const file = event.target.files?.[0];
+  //   if (!file) return;
+  //   setLoading(true);
+  //   try {
+  //     // 動画エントリ作成
+  //     const title = file.name;
+  //     const description = '';
+  //     const video_id = await actor.create_video(title, description);
+  //     // チャンクサイズ（例: 1MB）
+  //     const CHUNK_SIZE = 1024 * 1024;
+  //     const arrayBuffer = await file.arrayBuffer();
+  //     const uint8Array = new Uint8Array(arrayBuffer);
+  //     const totalChunks = Math.ceil(uint8Array.length / CHUNK_SIZE);
+  //     for (let i = 0; i < totalChunks; i++) {
+  //       const start = i * CHUNK_SIZE;
+  //       const end = Math.min(start + CHUNK_SIZE, uint8Array.length);
+  //       const chunk = Array.from(uint8Array.slice(start, end));
+  //       console.log('Uploading chunk', i + 1, 'of', totalChunks);
+  //       const result = await actor.upload_video_segment(video_id, chunk, i);
+  //       console.log('Chunk upload result:', result);
+  //       if (!('ok' in result)) {
+  //         alert('アップロード失敗: ' + (result.err ?? 'unknown error'));
+  //         setLoading(false);
+  //         return;
+  //       }
+  //     }
+  //     await loadVideos();
+  //     alert('アップロード成功');
+  //   } catch (e) {
+  //     alert('アップロード中にエラーが発生しました');
+  //     console.error(e);
+  //   }
+  //   setLoading(false);
+  // };
 
-      await loadVideos(); // Reload video list
-    } catch (error) {
-      console.error('Error uploading video:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const playVideoOriginal = async (videoId: string) => {
+  const playTsSegment = (segmentData: Uint8Array) => {
     if (!videoPlayer) return;
-
-    setLoading(true);
-    try {
-      const chunks: Blob[] = [];
-      let chunkIndex = 0;
-      
-      while (true) {
-        try {
-          const result = await actor.get_video_chunk(videoId, chunkIndex);
-          console.log("----------------------");
-          console.log(result);
-          
-          if ('err' in result) {
-            break;
-          }
-          chunks.push(new Blob([new Uint8Array(result.ok)]));
-          chunkIndex++;
-        } catch (error) {
-          break;
-        }
-      }
-
-      const videoBlob = new Blob(chunks, { type: 'video/mp4' });
-      videoPlayer.src = URL.createObjectURL(videoBlob);
-      console.log("URL.createObjectURL(videoBlob)");
-      console.log(URL.createObjectURL(videoBlob));
-      setCurrentVideo(videoId);
-    } catch (error) {
-      console.error('Error playing video:', error);
-    } finally {
-      setLoading(false);
-    }
+    const blob = new Blob([segmentData], { type: 'video/mp2t' });
+    const url = URL.createObjectURL(blob);
+    videoPlayer.src = url;
+    videoPlayer.play();
   };
 
   // HLS.jsによるHLSストリーミング再生関数（MediaSource APIは使わない）
   const playHlsStream = async (videoId: string) => {
-    console.log('playHlsStream:', videoId);
     setCurrentVideo(videoId);
     const video = videoPlayer;
-    console.log('video:', video);
     if (!video) return;
     video.pause();
     video.removeAttribute('src');
@@ -395,16 +195,14 @@ function App() {
         .join('\n');
       
       const rewrittenM3u8 = cleanedM3u8.replace(/[^\n]*?(\d+)\.ts/g, (_, p1) => `icsegment://${videoId}/${p1}`);
-      console.log('------------------------------------------------------------------Processed m3u8:', rewrittenM3u8);
+      console.log('Processed m3u8:', rewrittenM3u8);
       
       const blob = new Blob([rewrittenM3u8], { type: 'application/vnd.apple.mpegurl' });
       const m3u8Url = URL.createObjectURL(blob);
       
-      console.log("m3u8Url", m3u8Url);
       if (Hls.isSupported()) {
         class CustomLoader extends Hls.DefaultConfig.loader {
           load(context: any, config: any, callbacks: any) {
-            console.log("context", context);
             if (context.url.startsWith('icsegment://')) {
               const match = context.url.match(/^icsegment:\/\/(.+)\/(\d+)$/);
               if (match) {
@@ -456,7 +254,7 @@ function App() {
 
         const hls = new Hls({
           debug: true,
-          enableWorker: true,
+          enableWorker: false,
           enableSoftwareAES: false,
           emeEnabled: false,
           loader: CustomLoader,
@@ -563,221 +361,44 @@ function App() {
     }
   };
 
-  const deleteVideo = async (videoId: string) => {
-    if (!confirm('Are you sure you want to delete this video?')) {
-      return;
-    }
-    
-    setLoading(true);
-    try {
-      const result = await actor.delete_video(videoId);
-      if ('ok' in result) {
-        await loadVideos(); // 動画リストを再読み込み
-        if (currentVideo === videoId) {
-          setCurrentVideo(null); // 現在再生中の動画が削除された場合、再生を停止
-          if (videoPlayer) {
-            videoPlayer.pause();
-            videoPlayer.removeAttribute('src');
-            videoPlayer.load();
-          }
-        }
-      } else {
-        alert('削除失敗: ' + result.err);
-      }
-    } catch (e) {
-      alert('削除中にエラーが発生しました');
-      console.error(e);
-    }
-    setLoading(false);
-  };
-
   return (
     <div className="App">
-      <header style={{
-        backgroundColor: '#1976d2',
-        color: 'white',
-        padding: '1rem',
-        marginBottom: '2rem'
-      }}>
-        <h1 style={{ margin: 0 }}>Video Streaming Service</h1>
+      <header>
+        <h1>Video Streaming Service</h1>
       </header>
       <main>
-        <nav style={{ 
-          display: 'flex',
-          justifyContent: 'center',
-          gap: '2rem',
-          marginBottom: '2rem'
-        }}>
-          <a href={`/video-viewer?canisterId=${import.meta.env.VITE_CANISTER_ID_STREAMINGSERVICE_FRONTEND}`} style={{ 
-            textDecoration: 'none',
-            color: '#1976d2',
-            fontWeight: 'bold',
-            fontSize: '1.2rem',
-            padding: '0.5rem 1rem',
-            borderRadius: '4px',
-            border: '2px solid #1976d2',
-            transition: 'all 0.3s ease'
-          }}>Video Gallery</a>
-          <a href={`/image-gallery?canisterId=${import.meta.env.VITE_CANISTER_ID_STREAMINGSERVICE_FRONTEND}`} style={{ 
-            textDecoration: 'none',
-            color: '#1976d2',
-            fontWeight: 'bold',
-            fontSize: '1.2rem',
-            padding: '0.5rem 1rem',
-            borderRadius: '4px',
-            border: '2px solid #1976d2',
-            transition: 'all 0.3s ease'
-          }}>Image Gallery</a>
-        </nav>
-        <div className="upload-section-hls">
-          <label>upload-section-hls: 
-            <input
-              type="file"
-              accept=".m3u8,.ts,video/*"
-              multiple
-              onChange={handleFileUploadHls}
-              disabled={loading}
-            />
-          </label>
+        <div className="upload-section">
+          <input
+            type="file"
+            accept=".m3u8,.ts,video/*"
+            multiple
+            onChange={handleFileUpload}
+            disabled={loading}
+          />
           {loading && <p>Loading...</p>}
         </div>
-        <div className="upload-section-ffmpeg">
-          <label>upload-section-ffmpeg: 
-            <input
-              type="file"
-              accept=".mp4,video/*"
-              multiple
-              onChange={handleFileUploadWithFfmpeg}
-              disabled={loading}
-            />
-          </label>
-          {loading && <p>Loading...</p>}
-        </div>
-        <div className="upload-section-original">
-          <label>upload-section-original: 
-            <input
-              type="file"
-              accept=".mp4,video/*"
-              multiple
-              onChange={handleFileUploadOriginal}
-              disabled={loading}
-            />
-          </label>
-          {loading && <p>Loading...</p>}
-        </div>
-        {uploadProgress && (
-            <ProgressBar
-              progress={uploadProgress.progress}
-              message={uploadProgress.message}
-            />
-          )}
         <div className="video-list">
           <h2>Available Videos</h2>
-          <p ref={ffmpegMessageRef}></p>
           <ul>
             {videos.map((video) => (
               <li key={video.id}>
                 <h3>{video.title}</h3>
                 <p>{video.description}</p>
-                <Stack direction="row" spacing={2}>
-                  <Button
-                    variant="contained"
-                    startIcon={<PlayArrowIcon />}
-                    onClick={() => playHlsStream(video.id)}
-                    disabled={loading}
-                  >
-                    {currentVideo === video.id ? 'Playing...' : 'Play HLS'}
-                  </Button>
-                  <Button
-                    variant="contained"
-                    color="secondary"
-                    startIcon={<DownloadIcon />}
-                    onClick={() => downloadStream(video.id)}
-                    disabled={loading}
-                  >
-                    {currentVideo === video.id ? 'Downloading...' : 'Download'}
-                  </Button>
-                  <Button
-                    variant="contained"
-                    color="error"
-                    startIcon={<DeleteIcon />}
-                    onClick={() => deleteVideo(video.id)}
-                    disabled={loading}
-                  >
-                    Delete
-                  </Button>
-                  <Button
-                    variant="outlined"
-                    startIcon={<VideoFileIcon />}
-                    onClick={() => playVideoOriginal(video.id)}
-                    disabled={loading}
-                  >
-                    {currentVideo === video.id ? 'Playing...' : 'Play Original MP4'}
-                  </Button>
-                </Stack>
+                <button 
+                  onClick={() => playHlsStream(video.id)}
+                  disabled={loading}
+                >
+                  {currentVideo === video.id ? 'Playing...' : 'Play'}
+                </button>
+                <button 
+                  onClick={() => downloadStream(video.id)}
+                  disabled={loading}
+                >
+                  {currentVideo === video.id ? 'Downloading...' : 'Download'}
+                </button>
               </li>
             ))}
           </ul>
-          <div 
-            id="video-container" 
-            style={{
-              width: '100%',
-              backgroundColor: '#000',
-              aspectRatio: '16/9',
-              overflow: 'hidden',
-              cursor: 'pointer'
-            }}
-          />
-          
-          {/* 3つのvideo-containerを横に並べる */}
-          <div style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            gap: '20px',
-            marginBottom: '20px'
-          }}>
-            <div 
-              id="video-container-1" 
-              style={{
-                width: 'calc(33.33% - 14px)',
-                backgroundColor: '#000',
-                aspectRatio: '16/9',
-                overflow: 'hidden',
-                cursor: 'pointer'
-              }}
-            />
-            <div 
-              id="video-container-2" 
-              style={{
-                width: 'calc(33.33% - 14px)',
-                backgroundColor: '#000',
-                aspectRatio: '16/9',
-                overflow: 'hidden',
-                cursor: 'pointer'
-              }}
-            />
-            <div 
-              id="video-container-3" 
-              style={{
-                width: 'calc(33.33% - 14px)',
-                backgroundColor: '#000',
-                aspectRatio: '16/9',
-                overflow: 'hidden',
-                cursor: 'pointer'
-              }}
-            />
-          </div>
-          
-          {/* サンプル動画部分も同様に横並びに */}
-          <div style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            gap: '20px'
-          }}>
-            <video controls src="https://webdesign-trends.net/wp/wp-content/uploads/2021/09/sample-video.mp4" style={{ width: 'calc(33.33% - 14px)' }} />
-            <video controls src="https://webdesign-trends.net/wp/wp-content/uploads/2021/09/sample-video.mp4" style={{ width: 'calc(33.33% - 14px)' }} />
-            <video controls src="https://webdesign-trends.net/wp/wp-content/uploads/2021/09/sample-video.mp4" style={{ width: 'calc(33.33% - 14px)' }} />
-          </div>
         </div>
       </main>
     </div>

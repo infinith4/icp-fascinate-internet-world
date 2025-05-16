@@ -456,7 +456,7 @@ function App() {
 
         const hls = new Hls({
           debug: true,
-          enableWorker: false,
+          enableWorker: true,
           enableSoftwareAES: false,
           emeEnabled: false,
           loader: CustomLoader,

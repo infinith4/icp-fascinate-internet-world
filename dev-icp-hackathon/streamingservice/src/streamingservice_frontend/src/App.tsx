@@ -3,6 +3,7 @@ import { Actor, HttpAgent } from '@dfinity/agent';
 import { _SERVICE } from '../../declarations/streamingservice_backend/streamingservice_backend.did';
 import { createActor } from '../../declarations/streamingservice_backend';
 import Hls from 'hls.js';
+import { FFmpegService, FFmpegProgress } from './services/FFmpegService';
 
 type VideoInfo = {
   id: string;
@@ -10,6 +11,12 @@ type VideoInfo = {
   description: string;
   hash: string;
 };
+
+interface Image {
+  id: string;
+  title: string;
+  thumbnailUrl?: string;
+}
 
 function App() {
 
@@ -19,6 +26,12 @@ function App() {
   const [mediaSource, setMediaSource] = useState<MediaSource | null>(null);
   const [sourceBuffer, setSourceBuffer] = useState<SourceBuffer | null>(null);
   const [loading, setLoading] = useState(false);
+  const backendApiVersion = import.meta.env.VITE_BACKEND_API_VERSION;
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const ffmpegService = useRef(new FFmpegService());
+  const [images, setImages] = useState<Image[]>([]);
+  const [uploadModalOpen, setUploadModalOpen] = useState(false);
+  const [ffmpegLoaded, setFfmpegLoaded] = useState(false);
 
   const agent = HttpAgent.createSync({
     host: 'http://localhost:' + import.meta.env.VITE_LOCAL_CANISTER_PORT,
@@ -33,6 +46,7 @@ function App() {
   }) as Actor & _SERVICE;
 
   useEffect(() => {
+    initFFmpeg();
     // Initialize video player
     const player = document.createElement('video');
     player.controls = true;
@@ -49,6 +63,14 @@ function App() {
     };
   }, []);
 
+  const initFFmpeg = async () => {
+    try {
+      await ffmpegService.current.load();
+      setFfmpegLoaded(true);
+    } catch (error) {
+      console.error('FFmpeg initialization error:', error);
+    }
+  };
   const loadVideos = async () => {
     try {
       const videoList = await actor.get_video_list();
@@ -63,72 +85,203 @@ function App() {
     }
   };
 
-  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleUpload = async (file: File, title: string) => {
     try {
-      //TODO: mp4 から m3u8ファイルとtsファイル を生成
-      // handleFileUpload内
-      // m3u8ファイルとtsファイルをアップロード
-      const files = event.target.files;
-      console.log('files:', files);
-      const title = files?.[0].name;
-      console.log('title:', title);
-      const description = '';
-      const video_id = await actor.create_video(title || 'Untitled', description);
-      if (!files) return;
+      const agent = new HttpAgent({
+        host: 'http://localhost:' + import.meta.env.VITE_LOCAL_CANISTER_PORT,
+        //identity: identity
+      });
 
-      let playlistFile: File | null = null;
-      const tsFiles: { file: File, index: number }[] = [];
+      const actor = createActor(import.meta.env.VITE_CANISTER_ID_STREAMINGSERVICE_BACKEND, {
+        agent,
+      }) as Actor & _SERVICE;
 
-      // ファイルを分類
-      for (let i = 0; i < files.length; i++) {
-        const f = files[i];
-        if (f.name.endsWith('.m3u8')) {
-          playlistFile = f;
-        } else if (f.name.endsWith('.ts')) {
-          // 例: IC-Hello-Starter-001.ts → 001
-          const match = f.name.match(/(\d+)\.ts$/);
-          if (match) {
-            tsFiles.push({ file: f, index: parseInt(match[1], 10) });
+      // 動画IDを作成
+      const video_id = await actor.create_video(backendApiVersion, title, '');
+
+      // FFmpegの進捗ハンドラーを設定
+      ffmpegService.current.onProgress = (progress: FFmpegProgress) => {
+        if (progress.progress) {
+          // FFmpeg処理の進捗は0-30%で表示
+          setUploadProgress(progress.progress.percent * 0.3);
+        }
+      };
+
+      console.log("start ffmpeg");
+      // FFmpegで動画を処理
+      const { playlist, segments, thumbnail } = await ffmpegService.current.processVideo(file);
+      console.log("end ffmpeg");
+
+      // プレイリストをアップロード
+      const playlistText = new TextDecoder().decode(playlist);
+      await actor.upload_playlist(backendApiVersion, video_id, playlistText);
+
+      // セグメントを順次アップロード（チャンクサイズとバッチサイズを最適化）
+      const CHUNK_SIZE = 1.5 * 1024 * 1024; // 512KBに縮小
+      const BATCH_SIZE = 1; // 同時アップロード数を制限
+      const RETRY_COUNT = 3; // リトライ回数
+      const RETRY_DELAY = 2000; // リトライ間隔（ミリ秒）
+
+      // 全セグメントの総チャンク数を計算
+      let totalChunks = 0;
+      const segmentChunks = segments.map(segment => {
+        const numChunks = Math.ceil(segment.data.length / CHUNK_SIZE);
+        totalChunks += numChunks;
+        return numChunks;
+      });
+
+      let uploadedChunks = 0;
+      const uploadSegment = async (segment: { index: number; data: Uint8Array }) => {
+        const chunks: Uint8Array[] = [];
+        for (let offset = 0; offset < segment.data.length; offset += CHUNK_SIZE) {
+          chunks.push(segment.data.slice(offset, Math.min(offset + CHUNK_SIZE, segment.data.length)));
+        }
+
+        for (let chunk_index = 0; chunk_index < chunks.length; chunk_index++) {
+          let retries = 0;
+          let success = false;
+
+          while (retries < RETRY_COUNT && !success) {
+            try {
+              console.log(`--------------Uploading segment ${segment.index} / ${segments.length}, chunk ${chunk_index + 1}/${chunks.length}`);
+              const result = await actor.upload_ts_segment_chunk(
+                backendApiVersion,
+                video_id,
+                segment.index,
+                chunk_index,
+                chunks.length,
+                Array.from(chunks[chunk_index])
+              );
+
+              if ('ok' in result) {
+                success = true;
+                console.log(`--------------Successfully uploaded segment ${segment.index} / ${segments.length}, chunk ${chunk_index + 1}/${chunks.length}`);
+              } else {
+                throw new Error(`Upload failed: ${result.err || 'Unknown error'}`);
+              }
+            } catch (error) {
+              retries++;
+              console.error(`Upload attempt ${retries} failed for segment ${segment.index}, chunk ${chunk_index + 1}:`, error);
+              
+              if (retries === RETRY_COUNT) {
+                throw new Error(`Failed to upload segment ${segment.index} chunk ${chunk_index + 1} after ${RETRY_COUNT} retries: ${error}`);
+              }
+              
+              // 指数バックオフで待機
+              const delay = RETRY_DELAY * Math.pow(2, retries - 1);
+              console.log(`Waiting ${delay}ms before retry...`);
+              await new Promise(resolve => setTimeout(resolve, delay));
+            }
+          }
+
+          if (!success) {
+            throw new Error(`Failed to upload segment ${segment.index} chunk ${chunk_index + 1} after all retries`);
+          }
+
+          uploadedChunks++;
+          // アップロード進捗は30-100%で表示（FFmpeg処理が0-30%）
+          const uploadProgress = (uploadedChunks / totalChunks) * 70;
+          setUploadProgress(30 + uploadProgress);
+        }
+      };
+
+      // バッチ処理でセグメントをアップロード
+      console.log(`Starting batch upload of ${segments.length} segments with batch size ${BATCH_SIZE}`);
+      
+      for (let i = 0; i < segments.length; i += BATCH_SIZE) {
+        const batch = segments.slice(i, Math.min(i + BATCH_SIZE, segments.length));
+        console.log(`Processing batch ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(segments.length / BATCH_SIZE)}`);
+        
+        try {
+          // バッチ内の各セグメントを並列でアップロード
+          const uploadPromises = batch.map(async (segment) => {
+            console.log(`Starting upload of segment ${segment.index}`);
+            await uploadSegment(segment);
+            console.log(`Completed upload of segment ${segment.index}`);
+          });
+
+          // バッチ内のすべてのアップロードが完了するまで待機
+          await Promise.all(uploadPromises);
+          console.log(`Completed batch ${Math.floor(i / BATCH_SIZE) + 1}`);
+        } catch (error) {
+          console.error(`Failed to upload batch ${Math.floor(i / BATCH_SIZE) + 1}:`, error);
+          throw new Error(`Batch upload failed: ${error}`);
+        }
+      }
+
+      console.log(`All segments uploaded successfully. segments: ${segments.length}`);
+
+      // サムネイルがある場合はアップロード
+      if (thumbnail) {
+        console.log('Uploading thumbnail...');
+        const thumbnailChunks: Uint8Array[] = [];
+        for (let offset = 0; offset < thumbnail.length; offset += CHUNK_SIZE) {
+          thumbnailChunks.push(thumbnail.slice(offset, Math.min(offset + CHUNK_SIZE, thumbnail.length)));
+        }
+
+        for (let i = 0; i < thumbnailChunks.length; i++) {
+          let retries = 0;
+          let success = false;
+
+          while (retries < RETRY_COUNT && !success) {
+            try {
+              console.log(`Uploading thumbnail chunk ${i + 1}/${thumbnailChunks.length}`);
+              const result = await actor.upload_thumbnail(backendApiVersion, video_id, Array.from(thumbnailChunks[i]));
+              
+              if ('ok' in result) {
+                success = true;
+                console.log(`Successfully uploaded thumbnail chunk ${i + 1}`);
+              } else {
+                throw new Error(`Thumbnail upload failed: ${result.err || 'Unknown error'}`);
+              }
+            } catch (error) {
+              retries++;
+              console.error(`Thumbnail upload attempt ${retries} failed for chunk ${i + 1}:`, error);
+              
+              if (retries === RETRY_COUNT) {
+                throw new Error(`Failed to upload thumbnail chunk ${i + 1} after ${RETRY_COUNT} retries: ${error}`);
+              }
+              
+              const delay = RETRY_DELAY * Math.pow(2, retries - 1);
+              console.log(`Waiting ${delay}ms before retry...`);
+              await new Promise(resolve => setTimeout(resolve, delay));
+            }
+          }
+
+          if (!success) {
+            throw new Error(`Failed to upload thumbnail chunk ${i + 1} after all retries`);
           }
         }
+        console.log('Thumbnail upload completed');
       }
 
-      // m3u8アップロード
-      if (playlistFile) {
-        const text = await playlistFile.text();
-        console.log('text:', text);
-        console.log('upload_playlist:');
-        const result = await actor.upload_playlist(video_id, text);
-        console.log('upload_playlist:', result);
-        if ('err' in result) {
-          alert('プレイリストアップロード失敗: ' + result.err);
-          setLoading(false);
-          return;
-        }
-      }
+      console.log('get_video_list');
+      // 動画リストを更新
+      const videoList = await actor.get_video_list();
+      const videosWithThumbnails = await Promise.all(
+        videoList.map(async ([id, title]) => {
+          try {
+            const thumbnailResult = await actor.get_thumbnail(id);
+            if ('ok' in thumbnailResult) {
+              const blob = new Blob([new Uint8Array(thumbnailResult.ok)], { type: 'image/jpeg' });
+              const thumbnailUrl = URL.createObjectURL(blob);
+              return { id, title, thumbnailUrl };
+            }
+          } catch (error) {
+            console.error(`Error loading thumbnail for video ${id}:`, error);
+          }
+          return { id, title };
+        })
+      );
 
-      // tsセグメントアップロード
-      for (const { file, index } of tsFiles) {
-        const arrayBuffer = await file.arrayBuffer();
-        const uint8Array = Array.from(new Uint8Array(arrayBuffer));
-        const result = await actor.upload_ts_segment(video_id, index, uint8Array);
-        console.log('upload_ts_segment. index: ', index);
-        if ('err' in result) {
-          alert(`セグメント${index}アップロード失敗: ` + result.err);
-          setLoading(false);
-          return;
-        }
-      }
-
-      await loadVideos();
-      alert('アップロード成功');
-    } catch (e) {
-      alert('アップロード中にエラーが発生しました');
-      console.error(e);
+      setImages(videosWithThumbnails);
+      setUploadModalOpen(false);
+      setUploadProgress(0);
+    } catch (error) {
+      console.error('Upload failed:', error);
+      throw error;
     }
-    setLoading(false);
   };
-
 
   // ファイルアップロード処理（チャンク分割＆upload_video_segment呼び出し）
   // const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -209,7 +362,7 @@ function App() {
                 const [, vId, segIdx] = match;
                 const segmentId = Number(segIdx);
 
-                actor.get_hls_segment(vId, segmentId)
+                actor.get_segment_chunk(vId, segmentId, 0)
                   .then((result: any) => {
                     if (result && 'ok' in result) {
                       const data = new Uint8Array(result.ok);
@@ -340,7 +493,7 @@ function App() {
       console.log('m3u8Url:', m3u8Url);
       if (true) {
         const segIdx = 0;
-        actor.get_hls_segment(videoId, Number(segIdx)).then((result: any) => {
+        actor.get_segment_chunk(videoId, Number(segIdx), 0).then((result: any) => {
           console.log('Segment data:', result);
           // セグメントデータをファイル出力
           const downloadblob = new Blob([result.ok], { type: 'video/mp2t' });
@@ -372,7 +525,7 @@ function App() {
             type="file"
             accept=".m3u8,.ts,video/*"
             multiple
-            onChange={handleFileUpload}
+            onChange={handleUpload}
             disabled={loading}
           />
           {loading && <p>Loading...</p>}

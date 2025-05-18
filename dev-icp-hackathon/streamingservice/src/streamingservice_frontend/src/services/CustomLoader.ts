@@ -1,412 +1,221 @@
+import Hls from 'hls.js';
 import { Actor } from '@dfinity/agent';
 import { _SERVICE } from '../../../declarations/streamingservice_backend/streamingservice_backend.did';
-import * as HlsTypes from 'hls.js';
+import { text } from 'stream/consumers';
 
-/**
- * セグメントローダークラス
- * 動画セグメントの効率的なロードと管理を行う
- */
-export class CustomSegmentLoader {
-  private actor: Actor & _SERVICE;
-  private videoId: string;
-  private segmentCache: Map<number, Uint8Array> = new Map();
-  private pendingRequests: Map<number, Promise<Uint8Array>> = new Map();
-  private maxConcurrentRequests: number = 2; // 同時リクエスト数の制限
-  private activeRequests: number = 0;
-  private requestQueue: number[] = [];
+// HLS custom loader for streaming
 
-  constructor(actor: Actor & _SERVICE, videoId: string) {
-    this.actor = actor;
-    this.videoId = videoId;
+// Define the loader interface to match hls.js requirements
+interface LoaderContext {
+  url: string;
+  responseType: string;
+  rangeStart?: number;
+  rangeEnd?: number;
+  [key: string]: any;
+}
+
+interface LoaderConfiguration {
+  [key: string]: any;
+}
+
+interface LoaderCallbacks {
+  onSuccess: (response: any, stats: any, context: LoaderContext) => void;
+  onError: (error: any, context: LoaderContext) => void;
+  onTimeout: (stats: any, context: LoaderContext) => void;
+  [key: string]: any;
+}
+
+interface LoaderStats {
+  trequest: number;
+  tfirst: number;
+  tload: number;
+  loaded: number;
+  total: number;
+  bw: number;
+}
+
+interface LoaderResponse {
+  url: string;
+  data: Uint8Array;
+}
+
+interface LoaderPlaylistResponse {
+  url: string;
+  data: string;
+}
+
+interface CustomLoader {
+  load(context: LoaderContext, config: LoaderConfiguration, callbacks: LoaderCallbacks): void;
+  abort(): void;
+  destroy(): void;
+  new(config: LoaderConfiguration): CustomLoader;
+}
+
+async function fetchDataFromBlobURL(blobUrl: string) {
+  try {
+    // 2. fetch API を使用して Blob URL からデータを取得
+    // const response = fetch(blobUrl)
+    // .then(res => res.blob())
+    // .then(blob => {
+    //   console.warn(`------------blob.text: ${blob.text().then(res => {
+    //     console.warn(`-------------res ${res}`);
+    //   })}`);
+    // })
+
+    const response = await fetch(blobUrl);
+
+    // // 3. レスポンスが正常か確認
+    // if (!response.ok) {
+    //   throw new Error(`HTTP error! status: ${response.status}`);
+    // }
+
+    // 4. レスポンスデータを目的の形式で取得
+    // 例えば、ArrayBufferとして取得する場合:
+    // const arrayBuffer = await response.arrayBuffer();
+    // console.log("Data as ArrayBuffer:", arrayBuffer);
+
+    //例えば、テキストとして取得する場合 (Blobがテキストデータの場合):
+    const textData = await (await response.blob()).text();
+    console.log("Data as Text:", textData);
+
+    // 例えば、JSONとして取得する場合 (BlobがJSONデータの場合):
+    // const jsonData = await response.json();
+    // console.log("Data as JSON:", jsonData);
+
+    // 例えば、Blobとして再度取得する場合 (あまり意味はないかもしれませんが、可能です):
+    // const newBlob = await response.blob();
+    // console.log("Data as new Blob:", newBlob);
+
+    return textData; // または他の形式のデータ
+
+  } catch (error) {
+    console.error("Error fetching data from Blob URL:", error);
+    return null;
+  } finally {
+    // 5. 生成した Blob URL を解放 (メモリリークを防ぐため)
+    URL.revokeObjectURL(blobUrl);
   }
+}
 
-  /**
-   * セグメントをロードする
-   * キャッシュ、リクエスト制限、キューイングを管理
-   */
-  async loadSegment(index: number): Promise<Uint8Array> {
-    // キャッシュにあればそれを返す
-    if (this.segmentCache.has(index)) {
-      console.log(`Segment ${index} returned from cache`);
-      return this.segmentCache.get(index)!;
+export const createCustomLoader = (actor: Actor & _SERVICE, videoId: string): any => {
+  return class CustomLoader {
+    private context: LoaderContext | null = null;
+    private callbacks: LoaderCallbacks | null = null;
+    private stats: LoaderStats;
+
+    constructor(config: LoaderConfiguration) {
+      this.stats = { trequest: 0, tfirst: 0, tload: 0, loaded: 0, total: 0, bw: 0 };
     }
 
-    // 既に同じセグメントのリクエストが進行中ならそれを返す
-    if (this.pendingRequests.has(index)) {
-      console.log(`Segment ${index} request already in progress, waiting...`);
-      return this.pendingRequests.get(index)!;
+    destroy(): void {
+      this.context = null;
+      this.callbacks = null;
     }
 
-    // 同時リクエスト数を制限
-    if (this.activeRequests >= this.maxConcurrentRequests) {
-      console.log(`Too many active requests (${this.activeRequests}), queuing segment ${index}`);
-      // キューに追加して待機
-      return new Promise((resolve) => {
-        this.requestQueue.push(index);
-        // このセグメントのリクエストが完了したら通知するためのプロミスを作成
-        const pendingPromise = new Promise<Uint8Array>((innerResolve) => {
-          // キューに追加したリクエストの完了を監視するインターバル
-          const checkInterval = setInterval(() => {
-            if (this.segmentCache.has(index)) {
-              clearInterval(checkInterval);
-              innerResolve(this.segmentCache.get(index)!);
+    abort(): void {
+      // Implement abort logic if needed
+    }
+
+    load(context: LoaderContext, config: LoaderConfiguration, callbacks: LoaderCallbacks): void {
+      this.context = context;
+      this.callbacks = callbacks;
+
+      const url = new URL(context.url);
+      
+      console.warn(`--------------------customloader. url: ${url}`);
+      if (url.protocol === 'icsegment:') {
+        const segmentPath = url.pathname.split('/').pop();
+        if (segmentPath) {
+          const segmentIndex = parseInt(segmentPath.split('-')[1], 10);
+          this.loadSegment(segmentIndex);
+        }
+      } else {
+        // For non-icsegment URLs (like the initial m3u8 file), use fetch
+        // console.log(`fetchDataFromBlobURL context.url: ${context.url}`)
+        // const responseFetchDataFromBlobURL = fetchDataFromBlobURL(context.url);
+        // console.log(`fetchDataFromBlobURL response: ${responseFetchDataFromBlobURL}`);
+        
+        fetch(context.url)
+          .then(response => {
+            if (!response.ok) {
+              // HTTPエラーレスポンスの場合、エラーをスローして .catch() で処理
+              throw new Error(`HTTP error ${response.status} for ${context.url}`);
             }
-          }, 100);
-        });
-        this.pendingRequests.set(index, pendingPromise);
-        resolve(pendingPromise);
-      });
-    }
-
-    // 新しいリクエストを開始
-    this.activeRequests++;
-    console.log(`Starting request for segment ${index}, active requests: ${this.activeRequests}`);
-
-    const requestPromise = this.fetchSegment(index);
-    this.pendingRequests.set(index, requestPromise);
-
-    try {
-      const data = await requestPromise;
-      // キャッシュに保存
-      this.segmentCache.set(index, data);
-      return data;
-    } finally {
-      // リクエスト完了後の処理
-      this.activeRequests--;
-      this.pendingRequests.delete(index);
-      console.log(`Completed request for segment ${index}, active requests: ${this.activeRequests}`);
-      
-      // キューにリクエストがあれば次を処理
-      this.processNextQueuedRequest();
-    }
-  }
-
-  /**
-   * サーバーからセグメントをフェッチする
-   * get_segment_chunkを使用して全てのチャンクを取得し結合する
-   */
-  private async fetchSegment(index: number): Promise<Uint8Array> {
-    console.log(`Fetching segment ${index} from server using chunks`);
-    try {
-      // セグメントのチャンクを格納する配列
-      const segmentDataChunks: Uint8Array[] = [];
-      let totalChunksInSegment = 0;
-
-      // 最初のチャンクを取得して、そのセグメントの総チャンク数を確認
-      // TypeScript doesn't recognize get_segment_chunk in the type definition, so we need to use type assertion
-      const firstChunkResult = await (this.actor as any).get_segment_chunk(this.videoId, index, 0);
-
-      if (!('ok' in firstChunkResult)) {
-        let errorDetails = 'Unknown error';
-        if (firstChunkResult.err) {
-          errorDetails = JSON.stringify(firstChunkResult.err);
-        }
-        console.error(`Failed to get first chunk for segment ${index}. Details: ${errorDetails}`);
-        return this.createDummySegment();
+            return response.blob(); // Blobとしてレスポンスボディを取得 (Promise<Blob>を返す)
+          })
+          .then(blob => {
+            return blob.text(); // Blobをテキストとして読み込み (Promise<string>を返す)
+          })
+          .then(textData => { // textData は解決された string
+            const response: LoaderPlaylistResponse = {
+              url: context.url,
+              data: textData, // ここで string 型のデータがセットされる
+            };
+            // this.stats は適切な統計情報を持っていると仮定
+            this.callbacks?.onSuccess(response, this.stats, context);
+          })
+          .catch(error => {
+            console.error("Failed to load playlist:", error); // エラーログ
+            // Hls.js のエラーオブジェクト形式に合わせることを推奨
+            // もし Hls オブジェクトが利用可能であれば、より具体的なエラータイプを設定できます。
+            // 例: Hls.ErrorTypes.NETWORK_ERROR, Hls.ErrorDetails.MANIFEST_LOAD_ERROR
+            const errorData = {
+              // type: Hls.ErrorTypes.NETWORK_ERROR, // Hls.js の型を使う場合
+              // details: Hls.ErrorDetails.MANIFEST_LOAD_ERROR, // Hls.js の型を使う場合
+              type: 'networkError', // 元のコードに合わせたフォールバック
+              details: 'playlistLoadError', // 'fragLoadError' から変更 (プレイリストなので)
+              fatal: true, // 致命的なエラーかどうか
+              error: error, // 元のJavaScriptエラーオブジェクト
+              // networkDetails: xhr // XHRを使わないので、Fetch APIのresponseオブジェクトなどを渡すことも検討可能
+            };
+            this.callbacks?.onError(errorData, context);
+          });
       }
-      
-      const firstChunkResponse = firstChunkResult.ok;
-      totalChunksInSegment = firstChunkResponse.total_chunk_count;
-      console.log(`Segment ${index}: Total chunks expected: ${totalChunksInSegment}`);
-      segmentDataChunks.push(new Uint8Array(firstChunkResponse.segment_chunk_data as number[]));
+    }
 
-      // 残りのチャンクを取得 (総チャンク数が1より大きい場合)
-      for (let chunkIndex = 1; chunkIndex < totalChunksInSegment; chunkIndex++) {
-        console.log(`Segment ${index}: Fetching chunk ${chunkIndex + 1}/${totalChunksInSegment}`);
-        const chunkResult = await (this.actor as any).get_segment_chunk(this.videoId, index, chunkIndex);
-        if ('ok' in chunkResult) {
-          segmentDataChunks.push(new Uint8Array(chunkResult.ok.segment_chunk_data as number[]));
-        } else {
-          let errorDetails = 'Unknown error';
-          if (chunkResult.err) {
-            errorDetails = JSON.stringify(chunkResult.err);
+    private async loadSegment(segmentIndex: number): Promise<void> {
+        console.log(`---------------------- loadSegment ${segmentIndex}----------------------`);
+      try {
+        let offset = 0;
+        let segmentData: number[] = [];
+
+        while (true) {
+          const result = await actor.get_segment_chunk(videoId, segmentIndex, offset);
+          if ('err' in result) {
+            throw new Error(`Failed to get segment chunk: ${JSON.stringify(result.err)}`);
           }
-          console.error(`Failed to get chunk ${chunkIndex} for segment ${index}. Details: ${errorDetails}`);
-          // チャンク取得に失敗した場合でも、これまでに取得したチャンクで処理を続行
-          break;
+
+          const chunkData = result.ok.segment_chunk_data;
+          // Ensure chunkData is an array before concatenating
+          if (chunkData instanceof Uint8Array) {
+            segmentData = segmentData.concat(Array.from(chunkData));
+          } else {
+            segmentData = segmentData.concat(chunkData as number[]);
+          }
+
+          if (offset + chunkData.length >= result.ok.total_chunk_count) {
+            break;
+          }
+
+          offset += chunkData.length;
         }
+        
+        console.warn(`--------------------this.context!.url: ${this.context!.url}`);
+        const response: LoaderResponse = {
+          url: this.context!.url,
+          data: new Uint8Array(segmentData),
+        };
+
+        this.callbacks?.onSuccess(response, this.stats, this.context!);
+      } catch (error: any) {
+        console.error('Error loading segment:', error);
+        this.callbacks?.onError({
+          type: 'networkError',
+          details: 'fragLoadError',
+          fatal: true,
+          error
+        }, this.context!);
       }
-
-      // すべてのチャンクを1つの Uint8Array に結合
-      // まず、結合後の合計サイズを計算
-      const combinedLength = segmentDataChunks.reduce((acc, chunk) => acc + chunk.length, 0);
-      const combinedSegmentData = new Uint8Array(combinedLength);
-
-      // 各チャンクを結合後の配列にコピー
-      let offset = 0;
-      for (const chunk of segmentDataChunks) {
-        combinedSegmentData.set(chunk, offset);
-        offset += chunk.length;
-      }
-
-      // セグメントデータの検証
-      if (combinedSegmentData.length === 0) {
-        console.error(`Combined segment ${index} is empty`);
-        return this.createDummySegment();
-      }
-      
-      // MPEG-TS ヘッダーの検証 (0x47 で始まるべき)
-      if (combinedSegmentData[0] !== 0x47) {
-        console.warn(`Segment ${index} does not start with valid MPEG-TS sync byte (0x47), found: ${combinedSegmentData[0].toString(16)}`);
-        return this.createDummySegment();
-      }
-      
-      console.log(`Segment ${index} fetched successfully, size: ${combinedSegmentData.length} bytes from ${segmentDataChunks.length} chunks`);
-      return combinedSegmentData;
-    } catch (error) {
-      console.error(`Error fetching segment ${index}:`, error);
-      // エラーの場合もダミーセグメントを返す
-      return this.createDummySegment();
     }
-  }
-
-  /**
-   * 有効なMPEG-TSヘッダーを持つダミーセグメントを作成
-   * エラー時のフォールバックとして使用
-   */
-  private createDummySegment(): Uint8Array {
-    // 最小限の有効なMPEG-TSパケット
-    // 0x47はシンクバイト、残りはPAT（Program Association Table）の最小構造
-    const dummyData = new Uint8Array([
-      0x47, 0x40, 0x00, 0x10, 0x00, 0x00, 0xB0, 0x0D, 0x00, 0x01, 0xC1, 0x00, 0x00,
-      0x00, 0x01, 0xF0, 0x01, 0x2E, 0x70, 0x19, 0x05
-    ]);
-    
-    return dummyData;
-  }
-
-  /**
-   * キューに入っているリクエストを処理する
-   */
-  private processNextQueuedRequest() {
-    if (this.requestQueue.length > 0 && this.activeRequests < this.maxConcurrentRequests) {
-      const nextIndex = this.requestQueue.shift()!;
-      console.log(`Processing queued request for segment ${nextIndex}`);
-      // 再帰的に呼び出すことで、キューからのリクエストを処理
-      this.loadSegment(nextIndex).catch(err => {
-        console.error(`Error processing queued request for segment ${nextIndex}:`, err);
-      });
-    }
-  }
-}
-
-/**
- * HLS.js用のカスタムローダー
- * プレイリストとセグメントの効率的なロードを行う
- */
-export class CustomHlsLoader {
-  private segmentLoader: CustomSegmentLoader;
-  private segmentMap: Map<string, number> = new Map();
-  private m3u8Content: string;
-  stats: any;
-
-  constructor(
-    config: any, 
-    actor: Actor & _SERVICE, 
-    videoId: string, 
-    m3u8Content: string,
-    segmentLines: string[]
-  ) {
-    this.segmentLoader = new CustomSegmentLoader(actor, videoId);
-    
-    // プレイリストの内容を検証・修正
-    this.m3u8Content = this.validateM3u8Content(m3u8Content, segmentLines);
-    
-    this.stats = { 
-      aborted: false,
-      loaded: 0,
-      retry: 0,
-      total: 0,
-      chunkCount: 0,
-      bwEstimate: 0,
-      loading: { start: 0, first: 0, end: 0 },
-      parsing: { start: 0, end: 0 },
-      buffering: { start: 0, first: 0, end: 0 }
-    };
-    
-    // セグメント名とインデックスのマッピングを作成
-    segmentLines.forEach((segmentName, index) => {
-      this.segmentMap.set(segmentName, index);
-    });
-  }
-
-  /**
-   * M3U8プレイリストの内容を検証し、必要に応じて修正する
-   */
-  private validateM3u8Content(content: string, segmentLines: string[]): string {
-    console.log("Validating m3u8 content...");
-    
-    // 必須のヘッダーが含まれているか確認
-    if (!content.includes('#EXTM3U')) {
-      console.warn("Adding missing #EXTM3U header");
-      content = '#EXTM3U\n' + content;
-    }
-    
-    // セグメント継続時間が指定されているか確認
-    if (!content.includes('#EXTINF:')) {
-      console.warn("Adding missing segment duration information");
-      // 各セグメント行の前に継続時間情報を追加
-      const lines = content.split('\n');
-      const newLines = [];
-      
-      for (const line of lines) {
-        if (line.endsWith('.ts') && !lines[lines.indexOf(line) - 1].includes('#EXTINF:')) {
-          // デフォルトの継続時間を4秒に設定
-          newLines.push('#EXTINF:4.0,');
-        }
-        newLines.push(line);
-      }
-      
-      content = newLines.join('\n');
-    }
-    
-    // EXT-X-VERSION が含まれているか確認
-    if (!content.includes('#EXT-X-VERSION:')) {
-      console.warn("Adding missing version information");
-      const lines = content.split('\n');
-      // #EXTM3U の後にバージョン情報を追加
-      const extM3uIndex = lines.indexOf('#EXTM3U');
-      if (extM3uIndex !== -1) {
-        lines.splice(extM3uIndex + 1, 0, '#EXT-X-VERSION:3');
-      } else {
-        lines.unshift('#EXT-X-VERSION:3');
-      }
-      content = lines.join('\n');
-    }
-    
-    // EXT-X-TARGETDURATION が含まれているか確認
-    if (!content.includes('#EXT-X-TARGETDURATION:')) {
-      console.warn("Adding missing target duration");
-      const lines = content.split('\n');
-      // バージョン情報の後にターゲット継続時間を追加
-      const versionIndex = lines.findIndex(line => line.includes('#EXT-X-VERSION:'));
-      if (versionIndex !== -1) {
-        lines.splice(versionIndex + 1, 0, '#EXT-X-TARGETDURATION:4');
-      } else {
-        // バージョン情報がない場合は先頭に追加
-        lines.unshift('#EXT-X-TARGETDURATION:4');
-      }
-      content = lines.join('\n');
-    }
-    
-    // EXT-X-MEDIA-SEQUENCE が含まれているか確認
-    if (!content.includes('#EXT-X-MEDIA-SEQUENCE:')) {
-      console.warn("Adding missing media sequence");
-      const lines = content.split('\n');
-      // ターゲット継続時間の後にメディアシーケンスを追加
-      const targetDurationIndex = lines.findIndex(line => line.includes('#EXT-X-TARGETDURATION:'));
-      if (targetDurationIndex !== -1) {
-        lines.splice(targetDurationIndex + 1, 0, '#EXT-X-MEDIA-SEQUENCE:0');
-      } else {
-        // ターゲット継続時間がない場合は先頭に追加
-        lines.unshift('#EXT-X-MEDIA-SEQUENCE:0');
-      }
-      content = lines.join('\n');
-    }
-    
-    console.log("Final m3u8 content:", content);
-    return content;
-  }
-
-  destroy(): void {
-    // リソースのクリーンアップ
-  }
-
-  abort(): void {
-    // リクエストの中止処理
-  }
-
-  load(context: HlsTypes.LoaderContext, config: any, callbacks: any): void {
-    const { url } = context;
-    console.log("--------------------------load url ", url );
-    const stats = this.stats;
-    
-    // リクエスト開始時間を記録
-    stats.loading.start = performance.now();
-    
-    // プレイリストのリクエストの場合
-    if (url.endsWith('.m3u8')) {
-      console.log('Loading playlist:', url);
-      
-      // 最初のデータ受信時間を記録
-      stats.loading.first = performance.now();
-      
-      const response: HlsTypes.LoaderResponse = {
-        url,
-        data: new TextEncoder().encode(this.m3u8Content),
-      };
-      
-      // データサイズを記録
-      stats.loaded = this.m3u8Content.length;
-      stats.total = this.m3u8Content.length;
-      
-      // ロード完了時間を記録
-      stats.loading.end = performance.now();
-      
-      setTimeout(() => {
-        callbacks.onSuccess(response, stats, context, null);
-      }, 0);
-      return;
-    }
-    
-    // セグメントのリクエストの場合
-    if (url.endsWith('.ts')) {
-      const segmentName = url.split('/').pop() || '';
-      const segmentIndex = this.segmentMap.get(segmentName);
-      
-      if (segmentIndex === undefined) {
-        console.error(`Unknown segment name: ${segmentName}`);
-        callbacks.onError({ code: 0, text: `Unknown segment: ${segmentName}` }, context, stats, null);
-        return;
-      }
-      
-      console.log(`Loading segment: ${segmentName}, index: ${segmentIndex}`);
-      
-      // 最初のデータ受信時間を記録
-      stats.loading.first = performance.now();
-      
-      // セグメントをロード
-      this.segmentLoader.loadSegment(segmentIndex)
-        .then(data => {
-          // データサイズを記録
-          stats.loaded = data.length;
-          stats.total = data.length;
-          
-          // ロード完了時間を記録
-          stats.loading.end = performance.now();
-          
-          const response: HlsTypes.LoaderResponse = {
-            url,
-            data: data,
-          };
-          
-          callbacks.onSuccess(response, stats, context, null);
-        })
-        .catch(error => {
-          console.error(`Error loading segment ${segmentIndex}:`, error);
-          callbacks.onError({ code: 0, text: error.message }, context, stats, null);
-        });
-      
-      return;
-    }
-    
-    // その他のリクエスト
-    console.warn(`Unhandled request type: ${url}`);
-    callbacks.onError({ code: 0, text: `Unhandled request type: ${url}` }, context, stats, null);
-  }
-}
-
-/**
- * HLS.js用のカスタムローダーファクトリー
- * カスタムローダーのインスタンスを作成する
- */
-export const createCustomLoader = (
-  actor: Actor & _SERVICE, 
-  videoId: string, 
-  m3u8Content: string,
-  segmentLines: string[]
-): any => {
-  return function CustomLoaderFactory(config: any) {
-    return new CustomHlsLoader(config, actor, videoId, m3u8Content, segmentLines);
   };
 };

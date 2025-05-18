@@ -1,16 +1,15 @@
-import React, { useEffect, useState, useRef, MutableRefObject } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { Box, Paper, Typography, Stack, Modal, IconButton, Dialog, DialogTitle, DialogContent, DialogActions, Button } from '@mui/material';
 import { useSearchParams } from 'react-router-dom';
 import { Actor, HttpAgent, Identity } from '@dfinity/agent';
 import { AuthClient } from '@dfinity/auth-client';
 import { _SERVICE } from '../../../declarations/streamingservice_backend/streamingservice_backend.did';
 import { createActor } from '../../../declarations/streamingservice_backend';
-import Hls, { LoaderContext, LoaderConfiguration, LoaderCallbacks, LoaderStats, LoaderResponse } from 'hls.js';
+import Hls, { ErrorData } from 'hls.js';
 import { Header } from './Header';
 import { UploadModal } from './UploadModal';
 import { FFmpegService, FFmpegProgress } from '../services/FFmpegService';
 import { createCustomLoader } from '../services/CustomLoader';
-import { ErrorTypes, ErrorDetails } from 'hls.js';
 import DeleteIcon from '@mui/icons-material/Delete';
 import DownloadIcon from '@mui/icons-material/Download';
 import QueueMusicIcon from '@mui/icons-material/QueueMusic';
@@ -319,11 +318,32 @@ export const VideoGallery: React.FC = () => {
     }
   }, [selectedVideo, videoPlayer]);
 
+  // function downloadBlob(url: string, filename: string) {
+  
+  //   // <a> タグを作成
+  //   const a = document.createElement('a');
+  
+  //   // <a> タグの属性を設定
+  //   a.href = url;
+  //   a.download = filename || 'download'; // filename が指定されていなければ 'download' とする
+  
+  //   // <a> タグをドキュメントに追加 (非表示でも可)
+  //   document.body.appendChild(a);
+  
+  //   // <a> タグをクリックしてダウンロードを開始
+  //   a.click();
+  
+  //   // <a> タグをドキュメントから削除
+  //   document.body.removeChild(a);
+  
+  //   // 生成した Blob URL を解放 (メモリリークを防ぐため)
+  //   URL.revokeObjectURL(url);
+  // }
+
+  
   const playHlsStream = async (videoId: string) => {
-    console.log("------------------------------------------Attempting to play videoId:", videoId);
-    
-    if (!videoPlayer) {
-      console.error("Video player element is not available");
+    if (!Hls.isSupported()) {
+      console.error('HLS is not supported in this browser.');
       return;
     }
 
@@ -336,272 +356,62 @@ export const VideoGallery: React.FC = () => {
         agent,
       }) as Actor & _SERVICE;
 
-      // プレイリストを取得
-      console.log("Fetching HLS playlist...");
+      // Fetch the HLS playlist
       const playlistResult = await actor.get_hls_playlist(videoId, import.meta.env.VITE_CANISTER_ID_STREAMINGSERVICE_BACKEND ?? '');
       if (!('ok' in playlistResult)) {
-        console.error("Failed to get playlist:", playlistResult.err);
         throw new Error('Failed to get playlist');
       }
-      
-      let m3u8Content = playlistResult.ok;
-      console.log("Retrieved m3u8 content:", m3u8Content);
 
-      // プレイリストからセグメント情報を解析
-      const segmentLines = m3u8Content.split('\n').filter(line => line.endsWith('.ts'));
-      console.log("Segment lines:", segmentLines);
-      const totalSegments = segmentLines.length;
-      
-      if (totalSegments === 0) {
-        console.error("No segments found in playlist");
-        throw new Error('No segments found in playlist');
-      }
+      // Modify the playlist to use icsegment:// URLs
+      const modifiedPlaylist = playlistResult.ok.replace(/^(.*\.ts)$/gm, `icsegment://${videoId}/$1`);
 
-      // セグメントファイル名からインデックスを抽出する関数
-      const getSegmentIndex = (segmentName: string): number => {
-        // segment_20250510135854_1746885534.ts のような形式からインデックスを抽出
-        // 2つ目の_以降の数字がインデックス
-        const match = segmentName.match(/segment_[^_]+_(\d+)\.ts/);
-        if (match) {
-          return parseInt(match[1], 10);
-        }
-        console.error(`Could not parse index from segment name: ${segmentName}`);
-        return -1;
-      };
+      // Create a Blob with the modified playlist content
+      const playlistBlob = new Blob([modifiedPlaylist], { type: 'application/x-mpegURL' });
+      const playlistUrl = URL.createObjectURL(playlistBlob);
+      // downloadBlob(playlistUrl, "playlist")
+      console.warn(`--------------------playlistUrl: ${playlistUrl}`);
 
-      // プレイリストの内容を検証
-      console.log("Validating m3u8 content...");
-      
-      // 必須のヘッダーが含まれているか確認
-      if (!m3u8Content.includes('#EXTM3U')) {
-        console.warn("Adding missing #EXTM3U header");
-        m3u8Content = '#EXTM3U\n' + m3u8Content;
+      // Create custom loader
+      const customLoader = createCustomLoader(actor, videoId);
+
+      // Initialize HLS
+      if (hlsInstance.current) {
+        hlsInstance.current.destroy();
       }
-      
-      // セグメント継続時間が指定されているか確認
-      if (!m3u8Content.includes('#EXTINF:')) {
-        console.warn("Adding missing segment duration information");
-        // 各セグメント行の前に継続時間情報を追加
-        const lines = m3u8Content.split('\n');
-        const newLines = [];
-        
-        for (const line of lines) {
-          if (line.endsWith('.ts') && !lines[lines.indexOf(line) - 1].includes('#EXTINF:')) {
-            // デフォルトの継続時間を4秒に設定
-            newLines.push('#EXTINF:4.0,');
+      hlsInstance.current = new Hls({
+        debug: true,
+        enableWorker: true,
+        loader: customLoader,
+      });
+
+      hlsInstance.current.loadSource(playlistUrl);
+      hlsInstance.current.attachMedia(videoPlayer!);
+
+      hlsInstance.current.on(Hls.Events.MANIFEST_PARSED, () => {
+        videoPlayer?.play();
+      });
+
+      hlsInstance.current.on(Hls.Events.ERROR, (event, data: ErrorData) => {
+        if (data.fatal) {
+          switch (data.type) {
+            case 'networkError':
+              console.error(`Fatal network error encountered, trying to recover. url: ${data.url}, data: ${JSON.stringify(data.response)}`);
+              hlsInstance.current?.startLoad();
+              break;
+            case 'mediaError':
+              console.error(`Fatal media error encountered, trying to recover. url: ${data.url}`);
+              hlsInstance.current?.recoverMediaError();
+              break;
+            default:
+              console.error(`Fatal error, cannot recover. url: ${data.url}`);
+              hlsInstance.current?.destroy();
+              break;
           }
-          newLines.push(line);
         }
-        
-        m3u8Content = newLines.join('\n');
-      }
-      
-      // EXT-X-VERSION が含まれているか確認
-      if (!m3u8Content.includes('#EXT-X-VERSION:')) {
-        console.warn("Adding missing version information");
-        const lines = m3u8Content.split('\n');
-        // #EXTM3U の後にバージョン情報を追加
-        const extM3uIndex = lines.indexOf('#EXTM3U');
-        if (extM3uIndex !== -1) {
-          lines.splice(extM3uIndex + 1, 0, '#EXT-X-VERSION:3');
-        } else {
-          lines.unshift('#EXT-X-VERSION:3');
-        }
-        m3u8Content = lines.join('\n');
-      }
-      
-      // EXT-X-TARGETDURATION が含まれているか確認
-      if (!m3u8Content.includes('#EXT-X-TARGETDURATION:')) {
-        console.warn("Adding missing target duration");
-        const lines = m3u8Content.split('\n');
-        // バージョン情報の後にターゲット継続時間を追加
-        const versionIndex = lines.findIndex(line => line.includes('#EXT-X-VERSION:'));
-        if (versionIndex !== -1) {
-          lines.splice(versionIndex + 1, 0, '#EXT-X-TARGETDURATION:4');
-        } else {
-          // バージョン情報がない場合は先頭に追加
-          lines.unshift('#EXT-X-TARGETDURATION:4');
-        }
-        m3u8Content = lines.join('\n');
-      }
-      
-      // EXT-X-MEDIA-SEQUENCE が含まれているか確認
-      if (!m3u8Content.includes('#EXT-X-MEDIA-SEQUENCE:')) {
-        console.warn("Adding missing media sequence");
-        const lines = m3u8Content.split('\n');
-        // ターゲット継続時間の後にメディアシーケンスを追加
-        const targetDurationIndex = lines.findIndex(line => line.includes('#EXT-X-TARGETDURATION:'));
-        if (targetDurationIndex !== -1) {
-          lines.splice(targetDurationIndex + 1, 0, '#EXT-X-MEDIA-SEQUENCE:0');
-        } else {
-          // ターゲット継続時間がない場合は先頭に追加
-          lines.unshift('#EXT-X-MEDIA-SEQUENCE:0');
-        }
-        m3u8Content = lines.join('\n');
-      }
-      
-      console.log("Final m3u8 content:", m3u8Content);
-      
-      // HLS.jsがサポートされているか確認
-      if (Hls.isSupported()) {
-        console.log("HLS.js is supported, initializing player");
-        
-        // 既存のHlsインスタンスがあれば破棄
-        if (hlsInstance.current) {
-          hlsInstance.current.destroy();
-          hlsInstance.current = null;
-        }
-        
-        console.log("Creating custom loader...");
-        const customLoader = createCustomLoader(actor, videoId, m3u8Content, segmentLines);
-        
-        console.log("Initializing HLS.js with custom configuration...");
-        // 新しいHlsインスタンスを作成（改善された設定）
-        const hls = new Hls({
-          debug: true, // デバッグを有効化して詳細なログを確認
-          enableWorker: true,
-          lowLatencyMode: false, // 低遅延モードを無効化して安定性を向上
-          backBufferLength: 90,
-          maxBufferLength: 30, // バッファ長を調整
-          maxMaxBufferLength: 60,
-          maxBufferSize: 60 * 1000 * 1000, // バッファサイズを増加 (60MB)
-          fragLoadingMaxRetry: 8, // フラグメントロードの再試行回数を増加
-          manifestLoadingMaxRetry: 8, // マニフェストロードの再試行回数を増加
-          levelLoadingMaxRetry: 8,
-          fragLoadingRetryDelay: 1000, // 再試行間隔を調整
-          fragLoadingMaxRetryTimeout: 10000, // 最大タイムアウト時間を設定
-          // カスタムローダーを使用
-          loader: customLoader
-        });
-        
-        // hlsInstanceに保存
-        hlsInstance.current = hls;
-        
-        // メディアをアタッチ
-        hls.attachMedia(videoPlayer);
-        
-        // マニフェストがロードされたらメディアを再生
-        hls.on(Hls.Events.MANIFEST_PARSED, () => {
-          console.log("HLS manifest parsed, starting playback");
-          videoPlayer.play().catch(e => {
-            console.warn("Autoplay prevented:", e);
-          });
-        });
-        
-        // 改善されたエラーハンドリング
-        hls.on(Hls.Events.ERROR, (event, data) => {
-          console.error("HLS error:", data);
-          
-          // フラグメント解析エラーの特別処理
-          if (data.details === 'fragParsingError') {
-            console.warn("Fragment parsing error detected, attempting to recover");
-            
-            // 現在のフラグメントをスキップして次へ進む
-            if (data.frag) {
-              console.log(`Skipping problematic fragment: ${data.frag.sn}, level: ${data.frag.level}`);
-              
-              // 現在の再生位置を少し進める
-              videoPlayer.currentTime += 0.5;
-              
-              // 次のフラグメントから再開を試みる
-              hls.startLoad();
-            }
-            
-            // 致命的なエラーの場合はメディアエラーリカバリーを試みる
-            if (data.fatal) {
-              console.error("Fatal fragment parsing error, attempting media recovery");
-              hls.recoverMediaError();
-            }
-            return;
-          }
-          
-          // バッファエラーの処理
-          if (data.details === 'bufferAddCodecError' || data.details === 'bufferAppendError') {
-            console.warn(`Buffer error detected: ${data.details}, attempting to recover`);
-            
-            // バッファをクリアして再開
-            hls.recoverMediaError();
-            return;
-          }
-          
-          // その他の致命的なエラー処理
-          if (data.fatal) {
-            switch(data.type) {
-              case Hls.ErrorTypes.NETWORK_ERROR:
-                console.log("Fatal network error encountered, trying to recover");
-                hls.startLoad();
-                break;
-              case Hls.ErrorTypes.MEDIA_ERROR:
-                console.log("Fatal media error encountered, trying to recover");
-                hls.recoverMediaError();
-                break;
-              default:
-                console.log("Fatal error, cannot recover");
-                hls.destroy();
-                break;
-            }
-          }
-        });
-        
-        hls.on(Hls.Events.FRAG_LOADING, (event, data) => {
-          console.log("Fragment loading:", data.frag.sn);
-        });
-        
-        hls.on(Hls.Events.FRAG_LOADED, (event, data) => {
-          console.log("Fragment loaded successfully:", data.frag.sn);
-        });
-        
-        const cleanedM3u8 = m3u8Content
-          .split('\n')
-          .filter(line => !line.startsWith('#EXT-X-KEY') && !line.includes('IV='))
-          .map(line => line.replace(/,IV=0x[0-9a-fA-F]+/, ''))
-          .join('\n');
-        console.log("Cleaned m3u8 content:", cleanedM3u8);
-        
-        const rewrittenM3u8 = cleanedM3u8.replace(/[^\n]*?(\d+)\.ts/g, (_, p1) => `icsegment://${videoId}/${p1}`);
-        console.log("Rewritten m3u8 content:", rewrittenM3u8);
-        
-        const playlistBlob = new Blob([rewrittenM3u8], { type: 'application/vnd.apple.mpegurl' });
-        const playlistUrl = URL.createObjectURL(playlistBlob);
-        
-        // プレイリストをロード
-        hls.loadSource(playlistUrl);
-        console.log("HLS source loaded with Blob URL:", playlistUrl);
-        
-        // クリーンアップ関数を設定
-        videoPlayer.addEventListener('ended', () => {
-          // 再生終了時にBlobURLを解放
-          URL.revokeObjectURL(playlistUrl);
-        });
-        
-      } else if (videoPlayer.canPlayType('application/vnd.apple.mpegurl')) {
-        // HLS.jsがサポートされていない場合、ネイティブHLSサポートを試みる（Safari等）
-        console.log("Using native HLS support");
-        
-        // ネイティブ再生用にプレイリストをBlobとして作成
-        const playlistBlob = new Blob([m3u8Content], { type: 'application/vnd.apple.mpegurl' });
-        const playlistUrl = URL.createObjectURL(playlistBlob);
-        
-        // ビデオプレーヤーにセット
-        videoPlayer.src = playlistUrl;
-        videoPlayer.addEventListener('loadedmetadata', () => {
-          videoPlayer.play().catch(e => {
-            console.warn("Autoplay prevented:", e);
-          });
-        });
-        
-        // クリーンアップ関数を設定
-        videoPlayer.addEventListener('ended', () => {
-          // 再生終了時にBlobURLを解放
-          URL.revokeObjectURL(playlistUrl);
-        });
-      } else {
-        console.error("HLS playback is not supported in this browser");
-        alert("このブラウザではHLS再生がサポートされていません。");
-      }
+      });
+
     } catch (error) {
-      console.error("Error playing HLS stream:", error);
-      alert("動画の再生中にエラーが発生しました。詳細はコンソールを確認してください。");
+      console.error('Error setting up HLS stream:', error);
     }
   };
 
@@ -632,6 +442,7 @@ export const VideoGallery: React.FC = () => {
               // Convert thumbnail data to URL
               const blob = new Blob([new Uint8Array(thumbnailResult.ok)], { type: 'image/jpeg' });
               const thumbnailUrl = URL.createObjectURL(blob);
+              console.warn(`--------------------thumbnailUrl: ${thumbnailUrl}`);
               return { id, title, thumbnailUrl };
             }
           } catch (error) {
@@ -697,6 +508,7 @@ export const VideoGallery: React.FC = () => {
             if ('ok' in thumbnailResult) {
               const blob = new Blob([new Uint8Array(thumbnailResult.ok)], { type: 'image/jpeg' });
               const thumbnailUrl = URL.createObjectURL(blob);
+              console.warn(`--------------------thumbnailUrl: ${thumbnailUrl}`);
               return { id, title, thumbnailUrl };
             }
           } catch (error) {

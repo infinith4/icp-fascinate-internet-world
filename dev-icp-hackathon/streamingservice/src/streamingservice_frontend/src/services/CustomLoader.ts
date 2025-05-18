@@ -147,10 +147,13 @@ export const createCustomLoader = (actor: Actor & _SERVICE, videoId: string): an
             return blob.text(); // Blobをテキストとして読み込み (Promise<string>を返す)
           })
           .then(textData => { // textData は解決された string
+            console.warn(`-------------------textData: ${textData}`);
             const response: LoaderPlaylistResponse = {
               url: context.url,
               data: textData, // ここで string 型のデータがセットされる
             };
+            
+            console.warn(`-------------------this.callbacks: ${JSON.stringify(this.callbacks)}`);
             // this.stats は適切な統計情報を持っていると仮定
             this.callbacks?.onSuccess(response, this.stats, context);
           })

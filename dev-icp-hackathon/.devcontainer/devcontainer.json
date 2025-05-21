@@ -29,7 +29,8 @@
 				"GitHub.copilot-chat",
 				"GitHub.copilot",
 				"motoko-lsp-client.motoko-lsp-client",
-				"dfinity-foundation.motoko-viper"
+				"dfinity-foundation.motoko-viper",
+				"Codeium.codeium"
 			]
 		}
 	},

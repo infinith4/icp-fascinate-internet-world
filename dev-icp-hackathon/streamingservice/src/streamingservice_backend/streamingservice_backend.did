@@ -1,13 +1,25 @@
+// SegmentChunkResponse 構造体の定義を追加
+type SegmentChunkResponse = record {
+    segment_chunk_data: vec nat8; // Vec<u8> は Candid の vec nat8 にマッピングされます
+    total_chunk_count: nat32;    // u32 は Candid の nat32 にマッピングされます
+};
+
 service : {
     "greet": (text) -> (text) query;
-    "create_video": (text, text) -> (text);
-    "upload_video_segment": (text, vec nat8, nat32) -> (variant { ok; err: text });
-    "get_video_chunk": (text, nat32) -> (variant { ok: vec nat8; err: text }) query;
+    "create_video": (text, text, text) -> (text);
+    //"upload_video_chunk": (text, text, nat32, vec nat8) -> (variant { ok: text; err: text });
+    //"upload_video_segment": (text, text, nat32, vec nat8) -> (variant { ok; err: text });
+    //"get_video_chunk": (text, nat32) -> (variant { ok: vec nat8; err: text }) query;
     "get_video_info": (text) -> (variant { ok: text; err: text }) query;
     "get_video_list": () -> (vec record { text; text; text; text }) query;
     "get_hls_playlist": (text, text) -> (variant { ok: text; err: text }) query;
-    "get_hls_segment": (text, nat32) -> (variant { ok: vec nat8; err: text }) query;
-    "upload_playlist": (text, text) -> (variant { ok: text; err: text });
-    "upload_ts_segment": (text, nat32, vec nat8) -> (variant { ok: text; err: text });
+    // "get_hls_segment": (text, nat32) -> (variant { ok: vec nat8; err: text }) query;
+    //"combine_segment_chunks": (text, nat32) -> (variant { ok: vec nat8; err: text }) query;
+    "upload_playlist": (text, text, text) -> (variant { ok: text; err: text });
+    "upload_ts_segment_chunk": (text, text, nat32, nat32, nat32, vec nat8) -> (variant { ok: text; err: text });
+    "upload_thumbnail": (text, text, vec nat8) -> (variant { ok: text; err: text });
+    "get_segment_chunk": (text, nat32, nat32) -> (variant { ok: SegmentChunkResponse; err: text }) query;
+    "get_thumbnail": (text) -> (variant { ok: vec nat8; err: text }) query;
     "delete_video": (text) -> (variant { ok: text; err: text });
+    // "download_video": (text) -> (variant { ok: vec nat8; err: text }) query;
 }

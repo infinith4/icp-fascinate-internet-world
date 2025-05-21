@@ -1,5 +1,7 @@
 [workspace]
 members = [
-    "src/streamingservice_backend"
+    "src/streamingservice_backend",
+    "src/greet_backend",
+    "src/streamingservice_manager"
 ]
 resolver = "2"

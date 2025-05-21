@@ -117,8 +117,8 @@ export const VideoGallery: React.FC = () => {
       await actor.upload_playlist(backendApiVersion, video_id, playlistText);
 
       // セグメントを順次アップロード（チャンクサイズとバッチサイズを最適化）
-      const CHUNK_SIZE = 1.5 * 1024 * 1024; // 512KBに縮小
-      const BATCH_SIZE = 1; // 同時アップロード数を制限
+      const CHUNK_SIZE = 1 * 1024 * 1024; // 512KBに縮小
+      const BATCH_SIZE = 10; // 同時アップロード数を制限
       const RETRY_COUNT = 3; // リトライ回数
       const RETRY_DELAY = 2000; // リトライ間隔（ミリ秒）
 

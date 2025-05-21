@@ -408,6 +408,13 @@ export const VideoGallery: React.FC = () => {
 
       // Create custom loader
       const customLoader = createCustomLoader(actor, videoId);
+      // videoId に保管されている segment id に対するchunk 数の配列を返すAPI
+      const segmentInfoResult = await actor.get_segment_info(videoId);
+      console.warn(`--------------------segmentInfoResult: ${JSON.stringify(segmentInfoResult)}`);
+      if (!('ok' in segmentInfoResult)) {
+        throw new Error(`Failed to get_segment_info ${videoId}.`);
+      }
+      const segmentInfoResultOk = segmentInfoResult.ok;
 
       // Initialize HLS
       if (hlsInstance.current) {
@@ -429,51 +436,32 @@ export const VideoGallery: React.FC = () => {
               console.warn(`---------------------vId: ${vId}, segIdx: ${segmentId}`);
 
               const segmentDataChunks: Uint8Array[] = [];
-              let totalChunksInSegment = 0;
-      
-              // 最初のチャンクを取得して、そのセグメントの総チャンク数を確認
-              const firstChunkResult = await actor.get_segment_chunk(vId, segmentId, 0);
-      
-              if (!('ok' in firstChunkResult)) {
-                let errorDetails = 'Unknown error';
-                if (firstChunkResult.err) {
-                  errorDetails = JSON.stringify(firstChunkResult.err); // エラー内容を文字列化
-                }
-                console.error(`Failed to get first chunk for segment ${segmentId}. Details: ${errorDetails}`);
-                throw new Error(`Failed to get first chunk for segment ${segmentId}. Error: ${errorDetails}`);
-              }
-              
-              const firstChunkResponse = firstChunkResult.ok;
-              totalChunksInSegment = firstChunkResponse.total_chunk_count;
-              console.log(`Segment ${segmentId}: Total chunks expected: ${totalChunksInSegment}`);
-              segmentDataChunks.push(new Uint8Array(firstChunkResponse.segment_chunk_data as number[]));
-      
-              // 残りのチャンクを並列で取得 (総チャンク数が1より大きい場合)
-              if (totalChunksInSegment > 1) { // 最初のチャンクは既に取得済みなので、totalChunksInSegmentが1より大きい場合のみ
-                const chunkPromises = [];
-                for (let chunkIndex = 1; chunkIndex < totalChunksInSegment; chunkIndex++) {
-                  console.log(`Segment ${segmentId}: Creating promise for chunk ${chunkIndex + 1}/${totalChunksInSegment}`);
-                  chunkPromises.push(
-                    actor.get_segment_chunk(vId, segmentId, chunkIndex)
-                      .then(chunkResult => {
-                        if ('ok' in chunkResult) {
-                          return new Uint8Array(chunkResult.ok.segment_chunk_data as number[]);
-                        } else {
-                          let errorDetails = 'Unknown error';
-                          if (chunkResult.err) {
-                              errorDetails = JSON.stringify(chunkResult.err); // エラー内容を文字列化
-                          }
-                          console.error(`Failed to get chunk ${chunkIndex} for segment ${segmentId}. Details: ${errorDetails}`);
-                          throw new Error(`Failed to get chunk ${chunkIndex} for segment ${segmentId}. Error: ${errorDetails}`);
-                        }
-                      })
-                  );
-                }
 
-                // すべてのチャンクのPromiseが解決するのを待機
-                const remainingChunks = await Promise.all(chunkPromises);
-                segmentDataChunks.push(...remainingChunks); // 取得したすべてのチャンクを配列に追加
+              const chunkPromises = [];
+              const segmentInfoTotalChunkCount: number = segmentInfoResultOk.find((item: { segment_id: number; }) => item.segment_id === segmentId)?.total_chunk_count ?? 0;
+              for (let chunkIndex = 0; chunkIndex < segmentInfoTotalChunkCount; chunkIndex++) {
+                console.log(`Segment ${segmentId}: Creating promise for chunk ${chunkIndex + 1}/${segmentInfoTotalChunkCount}`);
+                chunkPromises.push(
+                  actor.get_segment_chunk(vId, segmentId, chunkIndex)
+                    .then(chunkResult => {
+                      if ('ok' in chunkResult) {
+                        return new Uint8Array(chunkResult.ok.segment_chunk_data as number[]);
+                      } else {
+                        let errorDetails = 'Unknown error';
+                        if (chunkResult.err) {
+                            errorDetails = JSON.stringify(chunkResult.err); // エラー内容を文字列化
+                        }
+                        console.error(`Failed to get chunk ${chunkIndex} for segment ${segmentId}. Details: ${errorDetails}`);
+                        throw new Error(`Failed to get chunk ${chunkIndex} for segment ${segmentId}. Error: ${errorDetails}`);
+                      }
+                    })
+                );
               }
+
+              // すべてのチャンクのPromiseが解決するのを待機
+              const remainingChunks = await Promise.all(chunkPromises);
+              segmentDataChunks.push(...remainingChunks); // 取得したすべてのチャンクを配列に追加
+
               // すべてのチャンクを1つの Uint8Array に結合
               // まず、結合後の合計サイズを計算
               const combinedLength = segmentDataChunks.reduce((acc, chunk) => acc + chunk.length, 0);
@@ -486,7 +474,7 @@ export const VideoGallery: React.FC = () => {
                 offset += chunk.length;
               }
 
-              console.warn(`-------------------combinedSegmentData: ${JSON.stringify(combinedSegmentData)}`);
+              //console.warn(`-------------------combinedSegmentData: ${JSON.stringify(combinedSegmentData)}`);
 
               callbacks.onSuccess({
                 data: combinedSegmentData,

@@ -15,6 +15,7 @@ import DownloadIcon from '@mui/icons-material/Download';
 import QueueMusicIcon from '@mui/icons-material/QueueMusic';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import { time } from 'console';
+import pLimit from 'p-limit';
 
 interface Image {
   id: string;
@@ -436,25 +437,31 @@ export const VideoGallery: React.FC = () => {
               console.warn(`---------------------vId: ${vId}, segIdx: ${segmentId}`);
 
               const segmentDataChunks: Uint8Array[] = [];
-
-              const chunkPromises = [];
+              // ここで並列実行数を制限する
+              const CONCURRENT_CHUNK_DOWNLOADS = 5; // 例: 5つのチャンクを同時にダウンロード
+              const limit = pLimit(CONCURRENT_CHUNK_DOWNLOADS);
+              
               const segmentInfoTotalChunkCount: number = segmentInfoResultOk.find((item: { segment_id: number; }) => item.segment_id === segmentId)?.total_chunk_count ?? 0;
+              
+              const chunkPromises = [];
               for (let chunkIndex = 0; chunkIndex < segmentInfoTotalChunkCount; chunkIndex++) {
                 console.log(`Segment ${segmentId}: Creating promise for chunk ${chunkIndex + 1}/${segmentInfoTotalChunkCount}`);
                 chunkPromises.push(
-                  actor.get_segment_chunk(vId, segmentId, chunkIndex)
-                    .then(chunkResult => {
-                      if ('ok' in chunkResult) {
-                        return new Uint8Array(chunkResult.ok.segment_chunk_data as number[]);
-                      } else {
-                        let errorDetails = 'Unknown error';
-                        if (chunkResult.err) {
-                            errorDetails = JSON.stringify(chunkResult.err); // エラー内容を文字列化
+                  limit(() => // limit 関数でプロミスをラップ
+                    actor.get_segment_chunk(vId, segmentId, chunkIndex)
+                      .then(chunkResult => {
+                        if ('ok' in chunkResult) {
+                          return new Uint8Array(chunkResult.ok.segment_chunk_data as number[]);
+                        } else {
+                          let errorDetails = 'Unknown error';
+                          if (chunkResult.err) {
+                              errorDetails = JSON.stringify(chunkResult.err); // エラー内容を文字列化
+                          }
+                          console.error(`Failed to get chunk ${chunkIndex} for segment ${segmentId}. Details: ${errorDetails}`);
+                          throw new Error(`Failed to get chunk ${chunkIndex} for segment ${segmentId}. Error: ${errorDetails}`);
                         }
-                        console.error(`Failed to get chunk ${chunkIndex} for segment ${segmentId}. Details: ${errorDetails}`);
-                        throw new Error(`Failed to get chunk ${chunkIndex} for segment ${segmentId}. Error: ${errorDetails}`);
-                      }
-                    })
+                      })
+                  )
                 );
               }
 

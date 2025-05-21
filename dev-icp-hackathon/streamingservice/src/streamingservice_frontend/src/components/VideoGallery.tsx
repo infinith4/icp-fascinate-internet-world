@@ -118,7 +118,7 @@ export const VideoGallery: React.FC = () => {
       await actor.upload_playlist(backendApiVersion, video_id, playlistText);
 
       // セグメントを順次アップロード（チャンクサイズとバッチサイズを最適化）
-      const CHUNK_SIZE = 1 * 1024 * 1024; // 512KBに縮小
+      const CHUNK_SIZE = 0.5 * 1024 * 1024; // 512KBに縮小
       const BATCH_SIZE = 10; // 同時アップロード数を制限
       const RETRY_COUNT = 3; // リトライ回数
       const RETRY_DELAY = 2000; // リトライ間隔（ミリ秒）
@@ -438,7 +438,7 @@ export const VideoGallery: React.FC = () => {
 
               const segmentDataChunks: Uint8Array[] = [];
               // ここで並列実行数を制限する
-              const CONCURRENT_CHUNK_DOWNLOADS = 5; // 例: 5つのチャンクを同時にダウンロード
+              const CONCURRENT_CHUNK_DOWNLOADS = 70; // 例: 5つのチャンクを同時にダウンロード
               const limit = pLimit(CONCURRENT_CHUNK_DOWNLOADS);
               
               const segmentInfoTotalChunkCount: number = segmentInfoResultOk.find((item: { segment_id: number; }) => item.segment_id === segmentId)?.total_chunk_count ?? 0;

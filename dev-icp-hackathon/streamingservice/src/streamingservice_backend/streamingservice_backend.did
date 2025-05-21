@@ -4,6 +4,12 @@ type SegmentChunkResponse = record {
     total_chunk_count: nat32;    // u32 は Candid の nat32 にマッピングされます
 };
 
+// SegmentChunkInfo 構造体の定義を追加
+type SegmentChunkInfo = record {
+    segment_id: nat32;
+    total_chunk_count: nat32;
+};
+
 service : {
     "greet": (text) -> (text) query;
     "create_video": (text, text, text) -> (text);
@@ -19,6 +25,7 @@ service : {
     "upload_ts_segment_chunk": (text, text, nat32, nat32, nat32, vec nat8) -> (variant { ok: text; err: text });
     "upload_thumbnail": (text, text, vec nat8) -> (variant { ok: text; err: text });
     "get_segment_chunk": (text, nat32, nat32) -> (variant { ok: SegmentChunkResponse; err: text }) query;
+    "get_segment_info": (text) -> (variant { ok: vec SegmentChunkInfo; err: text }) query;
     "get_thumbnail": (text) -> (variant { ok: vec nat8; err: text }) query;
     "delete_video": (text) -> (variant { ok: text; err: text });
     // "download_video": (text) -> (variant { ok: vec nat8; err: text }) query;

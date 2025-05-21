@@ -1,4 +1,6 @@
-import Hls from 'hls.js';
+import Hls, { ManifestParsedData } from 'hls.js';
+import { ManifestLoadedData } from 'hls.js';
+
 import { Actor } from '@dfinity/agent';
 import { _SERVICE } from '../../../declarations/streamingservice_backend/streamingservice_backend.did';
 import { text } from 'stream/consumers';
@@ -97,14 +99,52 @@ async function fetchDataFromBlobURL(blobUrl: string) {
   }
 }
 
+//https://github.com/Hayao-H/Niconicome/blob/170acb019ae4112f92d8b11b2cfc78b25d2cea6f/NiconicomeWeb/lib/hls.js/controller/content-steering-controller.ts#L438
 export const createCustomLoader = (actor: Actor & _SERVICE, videoId: string): any => {
   return class CustomLoader {
     private context: LoaderContext | null = null;
     private callbacks: LoaderCallbacks | null = null;
     private stats: LoaderStats;
+    private hls: Hls;
 
-    constructor(config: LoaderConfiguration) {
+    constructor(config: LoaderConfiguration, hls: Hls) {
       this.stats = { trequest: 0, tfirst: 0, tload: 0, loaded: 0, total: 0, bw: 0 };
+      this.hls = hls;
+      // this.callbacks = {
+      //   //onSuccess: (response: any, stats: any, context: LoaderContext) => void;
+      //   onSuccess: (
+      //     response: LoaderResponse,
+      //     stats: LoaderStats,
+      //     context: LoaderContext,
+      //   ) => {
+      //     console.log(`Loaded steering manifest:"`);
+      //     fetch(context.url)
+      //     .then(response => {
+      //       if (!response.ok) {
+      //         // HTTPエラーレスポンスの場合、エラーをスローして .catch() で処理
+      //         throw new Error(`HTTP error ${response.status} for ${context.url}`);
+      //       }
+      //       return response.blob(); // Blobとしてレスポンスボディを取得 (Promise<Blob>を返す)
+      //     })
+      //     .then(blob => {
+      //       return blob.text(); // Blobをテキストとして読み込み (Promise<string>を返す)
+      //     })
+      //     .then(textData => { // textData は解決された string
+      //       console.warn(`-------------------textData: ${textData}`);
+      //       const response: ManifestParsedData = {
+      //         audioTracks
+              
+      //         // url: context.url,
+      //         // data: textData, // ここで string 型のデータがセットされる
+      //       };
+      //       this.hls.trigger(Hls.Events.MANIFEST_PARSED, response);
+      //     })
+  
+      //     if (pathwayPriority) {
+      //       this.updatePathwayPriority(pathwayPriority);
+      //     }
+      //   },
+      // }
     }
 
     destroy(): void {
@@ -119,6 +159,7 @@ export const createCustomLoader = (actor: Actor & _SERVICE, videoId: string): an
     load(context: LoaderContext, config: LoaderConfiguration, callbacks: LoaderCallbacks): void {
       this.context = context;
       this.callbacks = callbacks;
+      console.warn(`--------------------callbacks: ${JSON.stringify(callbacks)}`);
 
       const url = new URL(context.url);
       

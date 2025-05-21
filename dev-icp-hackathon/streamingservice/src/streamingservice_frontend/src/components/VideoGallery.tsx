@@ -14,6 +14,7 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import DownloadIcon from '@mui/icons-material/Download';
 import QueueMusicIcon from '@mui/icons-material/QueueMusic';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
+import { time } from 'console';
 
 interface Image {
   id: string;
@@ -339,7 +340,41 @@ export const VideoGallery: React.FC = () => {
   //   // 生成した Blob URL を解放 (メモリリークを防ぐため)
   //   URL.revokeObjectURL(url);
   // }
-
+  function parseIcSegmentUrl(url: string): { id: string; segmentId: string } | null {
+    const regex = /^icsegment:\/\/(\d+)\/(.+)$/;
+    const match = url.match(regex);
+    console.warn(`match: ${match}`);
+  
+    if (match && match.length === 3) {
+      const id = match[1];
+      const segmentId = getSegmentIndex(match[2]);
+      return { id, segmentId };
+    } else {
+      // パターンに一致しない場合
+      return null;
+    }
+  }
+  function getSegmentIndex(segmentName: string): string {
+    // segment_任意の桁数数字_任意の桁数数字.ts のパターンにマッチ
+    // (\d+) で、末尾の数字部分をキャプチャ（1桁以上）
+    const regex = /^segment_\d+(_(\d+))?\.ts$/;
+    const match = segmentName.match(regex);
+  
+    if (match) {
+      // グループ2（_の後の数字）が存在する場合
+      if (match[2] !== undefined) {
+        return match[2];
+      } else {
+        // segment_YYYYMMDDhhmmss.ts のように、最後の_と数字がない場合
+        // このケースではnullを返すか、別の処理をするかを定義してください。
+        // 今回はnullを返します。
+        return '';
+      }
+    } else {
+      // パターンに一致しない場合
+      return '';
+    }
+  }
   
   const playHlsStream = async (videoId: string) => {
     if (!Hls.isSupported()) {
@@ -378,10 +413,133 @@ export const VideoGallery: React.FC = () => {
       if (hlsInstance.current) {
         hlsInstance.current.destroy();
       }
+      const sleep = (ms: number) => new Promise((res) => setTimeout(res, ms));
+
+      ////////////////////////////////////////
+      class CustomHlsLoader extends Hls.DefaultConfig.loader {
+        async load(context: any, config: any, callbacks: any) {
+          console.warn(`---------------------context.url: ${context.url}`);
+          //await sleep(5000);
+          if (context.url.startsWith('icsegment://')) {
+            const match = context.url.match(/^icsegment:\/\/(.+)\/(\d+)$/);
+            if (true) {
+              const parsedIcSegment = parseIcSegmentUrl(context.url);
+              const vId = parsedIcSegment?.id || '';
+              const segmentId = Number(parsedIcSegment?.segmentId);
+              console.warn(`---------------------vId: ${vId}, segIdx: ${segmentId}`);
+
+              const segmentDataChunks: Uint8Array[] = [];
+              let totalChunksInSegment = 0;
+      
+              // 最初のチャンクを取得して、そのセグメントの総チャンク数を確認
+              const firstChunkResult = await actor.get_segment_chunk(vId, segmentId, 0);
+      
+              if (!('ok' in firstChunkResult)) {
+                let errorDetails = 'Unknown error';
+                if (firstChunkResult.err) {
+                  errorDetails = JSON.stringify(firstChunkResult.err); // エラー内容を文字列化
+                }
+                console.error(`Failed to get first chunk for segment ${segmentId}. Details: ${errorDetails}`);
+                throw new Error(`Failed to get first chunk for segment ${segmentId}. Error: ${errorDetails}`);
+              }
+              
+              const firstChunkResponse = firstChunkResult.ok;
+              totalChunksInSegment = firstChunkResponse.total_chunk_count;
+              console.log(`Segment ${segmentId}: Total chunks expected: ${totalChunksInSegment}`);
+              segmentDataChunks.push(new Uint8Array(firstChunkResponse.segment_chunk_data as number[]));
+      
+              // 残りのチャンクを取得 (総チャンク数が1より大きい場合)
+              for (let chunkIndex = 1; chunkIndex < totalChunksInSegment; chunkIndex++) {
+                console.log(`Segment ${segmentId}: Fetching chunk ${chunkIndex + 1}/${totalChunksInSegment}`);
+                const chunkResult = await actor.get_segment_chunk(vId, segmentId, chunkIndex);
+                if ('ok' in chunkResult) {
+                  segmentDataChunks.push(new Uint8Array(chunkResult.ok.segment_chunk_data as number[]));
+                } else {
+                  let errorDetails = 'Unknown error';
+                  if (chunkResult.err) {
+                      errorDetails = JSON.stringify(chunkResult.err); // エラー内容を文字列化
+                  }
+                  console.error(`Failed to get chunk ${chunkIndex} for segment ${segmentId}. Details: ${errorDetails}`);
+                  throw new Error(`Failed to get chunk ${chunkIndex} for segment ${segmentId}. Error: ${errorDetails}`);
+                }
+              }
+              // すべてのチャンクを1つの Uint8Array に結合
+              // まず、結合後の合計サイズを計算
+              const combinedLength = segmentDataChunks.reduce((acc, chunk) => acc + chunk.length, 0);
+              const combinedSegmentData = new Uint8Array(combinedLength);
+
+              // 各チャンクを結合後の配列にコピー
+              let offset = 0;
+              for (const chunk of segmentDataChunks) {
+                combinedSegmentData.set(chunk, offset);
+                offset += chunk.length;
+              }
+
+              console.warn(`-------------------combinedSegmentData: ${JSON.stringify(combinedSegmentData)}`);
+
+              callbacks.onSuccess({
+                data: combinedSegmentData,
+                stats: {
+                  loaded: combinedLength,
+                  total: combinedLength,
+                  retry: 0,
+                  aborted: false,
+                  loading: { first: 0, start: 0, end: 0 },
+                  parsing: { start: 0, end: 0 },
+                  buffering: { first: 0, start: 0, end: 0 }
+                },
+                url: context.url
+              }, context, {});  // Pass empty object instead of null
+                  
+              // actor.get_segment_chunk(vId, segmentId, 0)
+              //   .then((result: any) => {
+              //     if (result && 'ok' in result) {
+              //       console.log(`result: ${JSON.stringify(result)}`);
+              //       const data = new Uint8Array(result.ok);
+              //       if (data.length > 0) {
+              //         // Log the first few bytes to verify MPEG-TS sync byte
+              //         console.log('First bytes of segment:', Array.from(data.slice(0, 4)));
+                      
+              //         callbacks.onSuccess({
+              //           data: data.buffer,
+              //           stats: {
+              //             loaded: data.length,
+              //             total: data.length,
+              //             retry: 0,
+              //             aborted: false,
+              //             loading: { first: 0, start: 0, end: 0 },
+              //             parsing: { start: 0, end: 0 },
+              //             buffering: { first: 0, start: 0, end: 0 }
+              //           },
+              //           url: context.url
+              //         }, context, {});  // Pass empty object instead of null
+              //       } else {
+              //         throw new Error('Empty segment data');
+              //       }
+              //     } else {
+              //       throw new Error(result.err || 'Segment fetch error');
+              //     }
+              //   })
+              //   .catch((error) => {
+              //     console.error('Failed to load segment:', error);
+              //     callbacks.onError({
+              //       code: 500,
+              //       text: `Failed to load segment: ${error.message}`,
+              //       url: context.url
+              //     }, context, null);
+              //   });
+              return;
+            }
+          }
+          super.load(context, config, callbacks);
+        }
+      }
+      ////////////////////////////////////////
+
       hlsInstance.current = new Hls({
         debug: true,
         enableWorker: true,
-        loader: customLoader,
+        loader: CustomHlsLoader,
       });
 
       hlsInstance.current.loadSource(playlistUrl);

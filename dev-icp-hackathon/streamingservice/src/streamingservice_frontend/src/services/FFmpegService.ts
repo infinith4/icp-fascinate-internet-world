@@ -33,10 +33,12 @@ export class FFmpegService {
   private isInitializing: boolean = false;
   private processStartTime: number = 0;
   private ffmpegSpeed: number | null = null;
+  private speedHistory: number[] = [];
   private lastFrameTime: number = 0;
   private lastFrameNumber: number | null = null;
   private totalFrames: number | null = null;
   private frameRate: number | null = null;
+  private lastRemainingMs: number | null = null;
 
   constructor() {
     this.ffmpeg = new FFmpeg();
@@ -647,7 +649,21 @@ export class FFmpegService {
     // 処理速度を抽出 (例: "speed=0.5x")
     const speedMatch = message.match(/speed=(\d+\.?\d*)x/);
     if (speedMatch && speedMatch[1]) {
-      this.ffmpegSpeed = parseFloat(speedMatch[1]);
+      const speed = parseFloat(speedMatch[1]);
+      
+      // 移動平均を使用して速度を安定させる
+      this.speedHistory.push(speed);
+      
+      // 直近5つの速度のみを保持
+      if (this.speedHistory.length > 5) {
+        this.speedHistory.shift();
+      }
+      
+      // 移動平均を計算
+      const averageSpeed = this.speedHistory.reduce((sum, s) => sum + s, 0) / this.speedHistory.length;
+      this.ffmpegSpeed = averageSpeed;
+      
+      console.log(`FFmpeg speed: ${speed}x, Average speed: ${averageSpeed.toFixed(2)}x`);
     }
     
     // フレーム情報を抽出 (例: "frame= 120 fps= 24")
@@ -707,58 +723,84 @@ export class FFmpegService {
     // 進捗が100%の場合は残り時間はゼロ
     if (percent >= 100) return '0s';
     
-    // 経過時間ベースで残り時間を計算
+    // 進捗の変化を確認して、その割合で残り時間を決める
     let remainingMs = 0;
+
+    // 常に進捗率に基づく計算をベースとする
+    const progressRatio = percent / 100;
+    const baseEstimate = Math.max(0, (elapsedMs / progressRatio) - elapsedMs);
     
-    // FFmpegの処理速度情報が利用可能な場合はそれを使用
+    // FFmpegの処理速度情報が利用可能な場合はそれも考慮
     if (this.ffmpegSpeed !== null && this.ffmpegSpeed > 0) {
       // TypeScriptのnull安全性のため、ローカル変数にコピー
       const speed = this.ffmpegSpeed;
       
-      // speedが1.0xの場合は実時間と同じ、0.5xの場合は実時間の2倍かかる
-      const estimatedBySpeed = elapsedMs * ((1 / speed) - 1);
+      // 処理速度が1.0より小さいと、予測が大きくなりすぎる可能性がある
+      // 必ず残り時間が減少するように調整
+      let speedFactor = 1.0;
+      
+      // 速度が0.5より遅い場合は、換算率を調整
+      if (speed < 0.5) {
+        // 極端に低速な場合は換算率を抑える（0.1xでも10倍にはしない）
+        speedFactor = Math.min(2.0, 1 / speed);
+      }
+      
+      // 速度補正を適用した予測時間
+      const estimatedBySpeed = elapsedMs * (speedFactor - progressRatio);
       
       // フレーム情報も利用可能な場合はより正確な計算
       if (this.lastFrameNumber !== null && this.totalFrames !== null && this.lastFrameNumber > 0) {
-        const remainingFrames = this.totalFrames - this.lastFrameNumber;
+        const remainingFrames = Math.max(0, this.totalFrames - this.lastFrameNumber);
         const frameRate = this.frameRate || 24; // デフォルトは24fps
-        const estimatedByFrames = (remainingFrames / frameRate) * 1000 / speed;
         
-        // フレームベースの計算とスピードベースの計算の平均をとる
-        remainingMs = (estimatedBySpeed + estimatedByFrames) / 2;
-        console.log(`Remaining time by frames: ${this.timer.formatTime(estimatedByFrames)}, by speed: ${this.timer.formatTime(estimatedBySpeed)}`);
+        // フレーム処理速度からの推定（処理速度で補正）
+        const frameBasedEstimate = (remainingFrames / frameRate) * 1000 / Math.max(0.5, speed);
+        
+        // 進捗ベースと速度ベースとフレームベースの重み付け平均
+        const weightedEstimate = (baseEstimate * 0.3) + (estimatedBySpeed * 0.3) + (frameBasedEstimate * 0.4);
+        remainingMs = Math.max(0, weightedEstimate);
+        
+        console.log(
+          `Remaining time estimates - Progress: ${this.timer.formatTime(baseEstimate)}, ` +
+          `Speed: ${this.timer.formatTime(estimatedBySpeed)}, ` +
+          `Frames: ${this.timer.formatTime(frameBasedEstimate)}, ` +
+          `Weighted: ${this.timer.formatTime(remainingMs)}`
+        );
       } else {
-        // フレーム情報がない場合はスピードだけで計算
-        remainingMs = estimatedBySpeed;
-        
-        // FFmpegの処理段階に基づき、補正係数を適用
-        if (percent >= 50) {
-          // 後半はより正確に
-          remainingMs = remainingMs * 0.9;
-        } else if (percent < 30) {
-          // 初期段階では控えめに
-          const maxEstimatedMs = 4 * 60 * 1000; // 4分を上限
-          remainingMs = Math.min(remainingMs, maxEstimatedMs);
-        }
+        // フレーム情報がない場合は進捗と速度から推定
+        // 進捗ベースと速度ベースの加重平均
+        remainingMs = (baseEstimate * 0.6) + (estimatedBySpeed * 0.4);
       }
     } else {
-      // FFmpegの速度情報がない場合は従来の方法で計算
+      // 速度情報がない場合は進捗だけで計算
+      remainingMs = baseEstimate;
+    }
+    
+    // 処理段階に基づいて調整
+    if (percent < 30) {
+      // 初期段階では上限を設ける
+      const maxEstimatedMs = 4 * 60 * 1000; // 4分
+      remainingMs = Math.min(remainingMs, maxEstimatedMs);
+    } else if (percent >= 70) {
+      // 終盤（70%以上）では下限を設ける（短すぎる予測を防止）
+      const minRemainingForLateStage = 10 * 1000; // 最低10秒
+      remainingMs = Math.max(remainingMs, minRemainingForLateStage);
+    }
+    
+    // 前回の推定値との比較で急激な増加を防止
+    if (this.lastRemainingMs !== null) {
+      // 前回より20%以上増えた場合は、増加を抑制
+      if (remainingMs > this.lastRemainingMs * 1.2) {
+        // 前回の値から最大20%までの増加に制限
+        remainingMs = this.lastRemainingMs * 1.2;
+        console.log(`Limiting increase in remaining time estimation`);
+      }
       
-      // FFmpegの処理段階に基づき、異なる計算方法を適用
-      if (percent >= 50) {
-        // セグメント処理段階（50%以上）- より正確な線形推定が可能
-        remainingMs = (elapsedMs * (100 - percent)) / percent;
-      } else if (percent >= 30) {
-        // サムネイル生成・変換開始段階（30-50%）- やや控えめな推定
-        remainingMs = (elapsedMs * (95 - percent)) / percent;
-      } else {
-        // 初期段階（30%未満）- ファイル読み込み・初期化
-        // この段階では線形推定が非常に不正確なため、FFmpegの一般的な処理時間を考慮
-        const estimatedByPercent = (elapsedMs * (100 - percent)) / percent;
-        
-        // 適切な上限値を設定（約4分程度が実際の処理時間と仮定）
-        const maxEstimatedMs = 4 * 60 * 1000; // 4分
-        remainingMs = Math.min(estimatedByPercent, maxEstimatedMs);
+      // 進捗が進んでいるのに残り時間が増えている場合は前回の値を維持
+      const significantProgress = 5; // 5%以上の進捗を意味のある変化と見なす
+      if (percent > this.lastProgress + significantProgress && remainingMs > this.lastRemainingMs) {
+        remainingMs = this.lastRemainingMs;
+        console.log(`Progress increased (${this.lastProgress} -> ${percent}) but remaining time increased, keeping previous estimate`);
       }
     }
     
@@ -769,6 +811,9 @@ export class FFmpegService {
     
     // 細かい変動を減らすために計算結果を丸める（10秒単位）
     remainingMs = Math.ceil(remainingMs / 10000) * 10000;
+    
+    // 次回の計算のために値を保存
+    this.lastRemainingMs = remainingMs;
     
     return this.timer.formatTime(remainingMs);
   }

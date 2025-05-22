@@ -36,6 +36,8 @@ export const VideoGallery: React.FC = () => {
   const [videoPlayer, setVideoPlayer] = useState<HTMLVideoElement | null>(null);
   const [uploadModalOpen, setUploadModalOpen] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
+  const [elapsedTime, setElapsedTime] = useState<string>('');
+  const [remainingTime, setRemainingTime] = useState<string>('');
   const [identity, setIdentity] = useState<Identity | null>(null);
   const canisterId = searchParams.get('canisterId');
   const ffmpegService = useRef(new FFmpegService());
@@ -105,6 +107,15 @@ export const VideoGallery: React.FC = () => {
         if (progress.progress) {
           // FFmpeg処理の進捗は0-30%で表示
           setUploadProgress(progress.progress.percent * 0.3);
+          
+          // 経過時間と残り時間を設定
+          if (progress.progress.elapsedTime) {
+            setElapsedTime(progress.progress.elapsedTime);
+          }
+          
+          if (progress.progress.remainingTime) {
+            setRemainingTime(progress.progress.remainingTime);
+          }
         }
       };
 
@@ -1143,6 +1154,8 @@ export const VideoGallery: React.FC = () => {
           onUpload={handleUpload}
           progress={uploadProgress}
           ffmpegService={ffmpegService.current}
+          elapsedTime={elapsedTime}
+          remainingTime={remainingTime}
         />
 
         {/* Delete Confirmation Dialog */}

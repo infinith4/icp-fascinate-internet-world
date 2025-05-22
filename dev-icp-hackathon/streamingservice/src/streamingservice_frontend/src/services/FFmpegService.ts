@@ -9,6 +9,8 @@ export interface FFmpegProgress {
     current: number;
     total: number;
     percent: number;
+    elapsedTime?: string;
+    remainingTime?: string;
   };
 }
 
@@ -29,6 +31,7 @@ export class FFmpegService {
   onProgress?: (progress: FFmpegProgress) => void;
   private lastProgress: number = 0;
   private isInitializing: boolean = false;
+  private processStartTime: number = 0;
 
   constructor() {
     this.ffmpeg = new FFmpeg();
@@ -58,18 +61,26 @@ export class FFmpegService {
         }
 
         this.lastProgress = progressPercent;
-        this.onProgress({ 
+        const elapsedMs = performance.now() - this.processStartTime;
+        const elapsedTime = this.timer.formatTime(elapsedMs);
+        const remainingTime = this.calculateRemainingTime(progressPercent, elapsedMs);
+        
+        this.onProgress({
           message,
           progress: {
             type: 'processing',
             current: progressPercent,
             total: 100,
-            percent: progressPercent
+            percent: progressPercent,
+            elapsedTime,
+            remainingTime
           }
         });
       }
     });
 
+    this.processStartTime = performance.now();
+    
     if (this.onProgress) {
       this.onProgress({
         message: 'Initializing FFmpeg...',
@@ -77,7 +88,9 @@ export class FFmpegService {
           type: 'processing',
           current: 0,
           total: 100,
-          percent: 0
+          percent: 0,
+          elapsedTime: '0s',
+          remainingTime: '計算中...'
         }
       });
     }
@@ -93,13 +106,19 @@ export class FFmpegService {
       }
 
       if (this.onProgress) {
+        const elapsedMs = performance.now() - this.processStartTime;
+        const elapsedTime = this.timer.formatTime(elapsedMs);
+        const remainingTime = this.calculateRemainingTime(10, elapsedMs);
+        
         this.onProgress({
           message: 'Loading FFmpeg...',
           progress: {
             type: 'processing',
             current: 10,
             total: 100,
-            percent: 10
+            percent: 10,
+            elapsedTime,
+            remainingTime
           }
         });
       }
@@ -107,13 +126,19 @@ export class FFmpegService {
       await this.ffmpeg.load({});
 
       if (this.onProgress) {
+        const elapsedMs = performance.now() - this.processStartTime;
+        const elapsedTime = this.timer.formatTime(elapsedMs);
+        const remainingTime = this.calculateRemainingTime(20, elapsedMs);
+        
         this.onProgress({
           message: 'FFmpeg loaded successfully',
           progress: {
             type: 'processing',
             current: 20,
             total: 100,
-            percent: 20
+            percent: 20,
+            elapsedTime,
+            remainingTime
           }
         });
       }
@@ -145,29 +170,36 @@ export class FFmpegService {
   } = {}): Promise<ProcessedVideo> {
     console.log('processVideo');
     this.timer.start();
+    this.processStartTime = performance.now();
 
     if (!this.loaded) {
       await this.load();
     }
 
     const {
-      segmentDuration = 0.2,
+      segmentDuration = 0.5,
       videoBitrate = '500k',
       preset = 'ultrafast',
-      crf = '32',
+      crf = '35',
       audioBitrate = '128k',
       thumbnailTime = 1
     } = options;
 
     try {
       if (this.onProgress) {
+        const elapsedMs = performance.now() - this.processStartTime;
+        const elapsedTime = this.timer.formatTime(elapsedMs);
+        const remainingTime = this.calculateRemainingTime(25, elapsedMs);
+        
         this.onProgress({
           message: 'Writing input file...',
           progress: {
             type: 'processing',
             current: 25,
             total: 100,
-            percent: 25
+            percent: 25,
+            elapsedTime,
+            remainingTime
           }
         });
       }
@@ -190,13 +222,19 @@ export class FFmpegService {
       this.timer.split('fileWrite');
 
       if (this.onProgress) {
+        const elapsedMs = performance.now() - this.processStartTime;
+        const elapsedTime = this.timer.formatTime(elapsedMs);
+        const remainingTime = this.calculateRemainingTime(30, elapsedMs);
+        
         this.onProgress({
           message: 'Generating thumbnail...',
           progress: {
             type: 'processing',
             current: 30,
             total: 100,
-            percent: 30
+            percent: 30,
+            elapsedTime,
+            remainingTime
           }
         });
       }
@@ -214,13 +252,19 @@ export class FFmpegService {
       this.timer.split('thumbnailGeneration');
 
       if (this.onProgress) {
+        const elapsedMs = performance.now() - this.processStartTime;
+        const elapsedTime = this.timer.formatTime(elapsedMs);
+        const remainingTime = this.calculateRemainingTime(40, elapsedMs);
+        
         this.onProgress({
           message: 'Converting to HLS format...',
           progress: {
             type: 'processing',
             current: 40,
             total: 100,
-            percent: 40
+            percent: 40,
+            elapsedTime,
+            remainingTime
           }
         });
       }
@@ -352,13 +396,20 @@ export class FFmpegService {
             success = true;
             
             if (this.onProgress) {            
+              const segmentPercent = ((i + 1) / totalSegments) * 100;
+              const elapsedMs = performance.now() - this.processStartTime;
+              const elapsedTime = this.timer.formatTime(elapsedMs);
+              const remainingTime = this.calculateRemainingTime(segmentPercent, elapsedMs);
+              
               this.onProgress({
                 message: `Reading segment ${i + 1}/${totalSegments}`,
                 progress: {
                   type: 'processing',
                   current: i + 1,
                   total: totalSegments,
-                  percent: ((i + 1) / totalSegments) * 100
+                  percent: segmentPercent,
+                  elapsedTime,
+                  remainingTime
                 }
               });
             }
@@ -391,13 +442,19 @@ export class FFmpegService {
       this.timer.split('segmentProcessing');
 
       if (this.onProgress) {
+        const elapsedMs = performance.now() - this.processStartTime;
+        const elapsedTime = this.timer.formatTime(elapsedMs);
+        const remainingTime = this.calculateRemainingTime(95, elapsedMs);
+        
         this.onProgress({
           message: 'Cleaning up...',
           progress: {
             type: 'processing',
             current: 95,
             total: 100,
-            percent: 95
+            percent: 95,
+            elapsedTime,
+            remainingTime
           }
         });
       }
@@ -416,13 +473,18 @@ export class FFmpegService {
       this.timer.split('cleanup');
 
       if (this.onProgress) {
+        const elapsedMs = performance.now() - this.processStartTime;
+        const elapsedTime = this.timer.formatTime(elapsedMs);
+        
         this.onProgress({
           message: 'Processing complete',
           progress: {
             type: 'processing',
             current: 100,
             total: 100,
-            percent: 100
+            percent: 100,
+            elapsedTime,
+            remainingTime: '0s'
           }
         });
       }
@@ -567,5 +629,27 @@ export class FFmpegService {
       }
       throw error;
     }
+  }
+
+  /**
+   * 残り時間を計算して整形された文字列を返す
+   * @param percent 現在の進捗パーセント (0-100)
+   * @param elapsedMs 経過時間 (ミリ秒)
+   */
+  private calculateRemainingTime(percent: number, elapsedMs: number): string {
+    if (percent <= 0) return '計算中...';
+    
+    const rate = percent / 100;
+    if (rate >= 1) return '0s';
+    
+    // 進捗率から残り時間を推定
+    const estimatedTotalMs = elapsedMs / rate;
+    const remainingMs = estimatedTotalMs - elapsedMs;
+    
+    if (isNaN(remainingMs) || remainingMs <= 0) {
+      return '計算中...';
+    }
+    
+    return this.timer.formatTime(remainingMs);
   }
 }

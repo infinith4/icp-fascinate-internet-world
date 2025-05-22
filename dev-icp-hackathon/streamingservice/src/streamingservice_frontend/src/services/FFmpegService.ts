@@ -41,6 +41,9 @@ export class FFmpegService {
   private lastRemainingMs: number | null = null;
   private estimatedSegments: number = 20; // デフォルト推定セグメント数
   private videoDuration: number | null = null; // ビデオ時間（秒）
+  private uploadStartTime: number = 0; // アップロード開始時間
+  private uploadTotalBytes: number = 0; // アップロード合計サイズ
+  private uploadedBytes: number = 0; // アップロード済みサイズ
 
   constructor() {
     this.ffmpeg = new FFmpeg();
@@ -204,6 +207,11 @@ export class FFmpegService {
     console.log('processVideo');
     this.timer.start();
     this.processStartTime = performance.now();
+    
+    // アップロード進捗の初期化
+    this.uploadStartTime = performance.now();
+    this.uploadTotalBytes = file.size;
+    this.uploadedBytes = 0;
 
     if (!this.loaded) {
       await this.load();
@@ -243,12 +251,30 @@ export class FFmpegService {
       const playlistFileName = `playlist_${timestamp}.m3u8`;
       const segmentPattern = `segment_${timestamp}_%03d.ts`;
 
-      const inputData = await fetchFile(file);
+      // アップロード進捗を報告するfetchFile関数のラッパー
+      const inputData = await this.fetchFileWithProgress(file);
       
       // メモリ使用量を制限するためにファイルサイズをチェック
       const maxFileSize = 1000 * 1024 * 1024; // 100MB
       if (file.size > maxFileSize) {
         throw new Error(`File size exceeds maximum limit of ${maxFileSize / (1024 * 1024)}MB`);
+      }
+
+      if (this.onProgress) {
+        const elapsedMs = performance.now() - this.processStartTime;
+        const elapsedTime = this.timer.formatTime(elapsedMs);
+        
+        this.onProgress({
+          message: 'ファイルのアップロードが完了しました。処理を開始します...',
+          progress: {
+            type: 'processing',
+            current: 5,
+            total: 100,
+            percent: 5,
+            elapsedTime,
+            remainingTime: this.calculateRemainingTime(5, elapsedMs)
+          }
+        });
       }
 
       await this.ffmpeg.writeFile(inputFileName, inputData);
@@ -542,23 +568,92 @@ export class FFmpegService {
       await this.load();
     }
 
+    this.processStartTime = performance.now();
+    this.uploadStartTime = performance.now();
+    
+    // アップロード合計サイズを計算
+    this.uploadTotalBytes = new TextEncoder().encode(playlist).length;
+    segments.forEach(segment => {
+      this.uploadTotalBytes += segment.data.length;
+    });
+    this.uploadedBytes = 0;
+
     const timestamp = `${new Date().toISOString().replace(/[-:]/g, '').replace('T', '').replace(/\..+/, '')}`;
     const playlistFileName = `playlist_${timestamp}.m3u8`;
     const outputFileName = `output_${timestamp}.mp4`;
 
     try {
       // セグメントファイルを書き込み
-      for (const segment of segments) {
+      for (let i = 0; i < segments.length; i++) {
+        const segment = segments[i];
         const segmentName = segment.original_segment_name.toString();
         console.log(`segmentName: ${segmentName}`);
         await this.ffmpeg.writeFile(segmentName, segment.data);
         console.log(`writed File: ${segmentName}`);
+        
+        // アップロード進捗を更新
+        this.uploadedBytes += segment.data.length;
+        if (this.onProgress) {
+          const progress = Math.min(40, Math.floor((this.uploadedBytes / this.uploadTotalBytes) * 40));
+          const elapsedMs = performance.now() - this.uploadStartTime;
+          const elapsedTime = this.timer.formatTime(elapsedMs);
+          const remainingTime = this.calculateRemainingTimeForUpload(this.uploadedBytes, this.uploadTotalBytes, elapsedMs);
+          
+          this.onProgress({
+            message: `セグメントをアップロード中... (${i + 1}/${segments.length})`,
+            progress: {
+              type: 'upload',
+              current: this.uploadedBytes,
+              total: this.uploadTotalBytes,
+              percent: progress,
+              elapsedTime,
+              remainingTime
+            }
+          });
+        }
       }
 
       // プレイリストを書き込み
-      await this.ffmpeg.writeFile(playlistFileName, new TextEncoder().encode(playlist));
+      const playlistData = new TextEncoder().encode(playlist);
+      await this.ffmpeg.writeFile(playlistFileName, playlistData);
+      
+      // アップロード完了を報告
+      this.uploadedBytes += playlistData.length;
+      if (this.onProgress) {
+        const elapsedMs = performance.now() - this.uploadStartTime;
+        const elapsedTime = this.timer.formatTime(elapsedMs);
+        
+        this.onProgress({
+          message: 'ファイルのアップロードが完了しました。変換を開始します...',
+          progress: {
+            type: 'processing',
+            current: 40,
+            total: 100,
+            percent: 40,
+            elapsedTime,
+            remainingTime: this.calculateRemainingTime(40, elapsedMs)
+          }
+        });
+      }
       //ffmpeg -i your_playlist.m3u8 -c copy output.mp4
       // MP4に変換
+      if (this.onProgress) {
+        const elapsedMs = performance.now() - this.processStartTime;
+        const elapsedTime = this.timer.formatTime(elapsedMs);
+        
+        this.onProgress({
+          message: 'MP4に変換中...',
+          progress: {
+            type: 'processing',
+            current: 50,
+            total: 100,
+            percent: 50,
+            elapsedTime,
+            remainingTime: this.calculateRemainingTime(50, elapsedMs)
+          }
+        });
+      }
+      
       await this.ffmpeg.exec([
         '-i', playlistFileName,
         '-c:v', 'copy',
@@ -568,6 +663,23 @@ export class FFmpegService {
       ]);
 
       // 変換されたファイルを読み込み
+      if (this.onProgress) {
+        const elapsedMs = performance.now() - this.processStartTime;
+        const elapsedTime = this.timer.formatTime(elapsedMs);
+        
+        this.onProgress({
+          message: '変換されたファイルを読み込み中...',
+          progress: {
+            type: 'processing',
+            current: 80,
+            total: 100,
+            percent: 80,
+            elapsedTime,
+            remainingTime: this.calculateRemainingTime(80, elapsedMs)
+          }
+        });
+      }
+      
       const outputData = await this.ffmpeg.readFile(outputFileName);
       if (!outputData) {
         throw new Error('Failed to read converted file');
@@ -585,6 +697,23 @@ export class FFmpegService {
         console.warn('Cleanup error:', cleanupError);
       }
 
+      if (this.onProgress) {
+        const elapsedMs = performance.now() - this.processStartTime;
+        const elapsedTime = this.timer.formatTime(elapsedMs);
+        
+        this.onProgress({
+          message: '変換が完了しました',
+          progress: {
+            type: 'processing',
+            current: 100,
+            total: 100,
+            percent: 100,
+            elapsedTime,
+            remainingTime: '0s'
+          }
+        });
+      }
+      
       return { data: outputData as Uint8Array };
     } catch (error) {
       console.error('HLS to MP4 conversion error:', error);
@@ -597,15 +726,55 @@ export class FFmpegService {
       await this.load();
     }
 
+    this.processStartTime = performance.now();
+    this.uploadStartTime = performance.now();
+    this.uploadTotalBytes = tsData.length;
+    this.uploadedBytes = 0;
+
     const timestamp = `${new Date().toISOString().replace(/[-:]/g, '').replace('T', '').replace(/\..+/, '')}`;
     const inputFileName = `input_${timestamp}.ts`;
     const outputFileName = `output_${timestamp}.mp4`;
 
     try {
       console.log("Writing input file...");
+      
+      // アップロード進捗を報告
+      if (this.onProgress) {
+        this.onProgress({
+          message: 'ファイルをアップロード中...',
+          progress: {
+            type: 'upload',
+            current: 0,
+            total: tsData.length,
+            percent: 0,
+            elapsedTime: '0s',
+            remainingTime: '計算中...'
+          }
+        });
+      }
+      
       // セグメントを一時ファイルとして書き込み
       await this.ffmpeg.writeFile(inputFileName, tsData);
       console.log("Input file written successfully");
+      
+      // アップロード完了を報告
+      this.uploadedBytes = tsData.length;
+      if (this.onProgress) {
+        const elapsedMs = performance.now() - this.uploadStartTime;
+        const elapsedTime = this.timer.formatTime(elapsedMs);
+        
+        this.onProgress({
+          message: 'ファイルのアップロードが完了しました',
+          progress: {
+            type: 'upload',
+            current: tsData.length,
+            total: tsData.length,
+            percent: 40, // アップロードは全体の40%として扱う
+            elapsedTime,
+            remainingTime: this.calculateRemainingTime(40, elapsedMs)
+          }
+        });
+      }
 
       // 入力ファイルの存在確認
       const inputFileExists = await this.ffmpeg.readFile(inputFileName);
@@ -615,6 +784,24 @@ export class FFmpegService {
       console.log("Input file verified");
 
       console.log("Starting MP4 conversion...");
+      // 変換開始を報告
+      if (this.onProgress) {
+        const elapsedMs = performance.now() - this.processStartTime;
+        const elapsedTime = this.timer.formatTime(elapsedMs);
+        
+        this.onProgress({
+          message: 'MP4に変換中...',
+          progress: {
+            type: 'processing',
+            current: 50,
+            total: 100,
+            percent: 50,
+            elapsedTime,
+            remainingTime: this.calculateRemainingTime(50, elapsedMs)
+          }
+        });
+      }
+      
       // MP4に変換（より互換性の高いオプションを使用）
       await this.ffmpeg.exec([
         '-i', inputFileName,
@@ -630,6 +817,24 @@ export class FFmpegService {
         outputFileName
       ]);
       console.log("MP4 conversion completed");
+      
+      // 変換完了を報告
+      if (this.onProgress) {
+        const elapsedMs = performance.now() - this.processStartTime;
+        const elapsedTime = this.timer.formatTime(elapsedMs);
+        
+        this.onProgress({
+          message: '変換が完了しました。ファイルを読み込み中...',
+          progress: {
+            type: 'processing',
+            current: 80,
+            total: 100,
+            percent: 80,
+            elapsedTime,
+            remainingTime: this.calculateRemainingTime(80, elapsedMs)
+          }
+        });
+      }
 
       // 出力ファイルの存在確認
       console.log("Reading output file...");
@@ -650,6 +855,24 @@ export class FFmpegService {
         // クリーンアップエラーは無視して続行
       }
 
+      // 処理完了を報告
+      if (this.onProgress) {
+        const elapsedMs = performance.now() - this.processStartTime;
+        const elapsedTime = this.timer.formatTime(elapsedMs);
+        
+        this.onProgress({
+          message: '処理が完了しました',
+          progress: {
+            type: 'processing',
+            current: 100,
+            total: 100,
+            percent: 100,
+            elapsedTime,
+            remainingTime: '0s'
+          }
+        });
+      }
+      
       return outputData as Uint8Array;
     } catch (error) {
       console.error('TS to MP4 conversion error:', error);
@@ -753,6 +976,78 @@ export class FFmpegService {
   }
 
   /**
+   * アップロード進捗を追跡するfetchFile関数のラッパー
+   * @param file アップロードするファイル
+   */
+  private async fetchFileWithProgress(file: File): Promise<Uint8Array> {
+    return new Promise((resolve, reject) => {
+      // FileReader APIを使用してファイル読み込みの進捗をトラックする
+      const reader = new FileReader();
+      
+      reader.onprogress = (event) => {
+        if (event.lengthComputable && this.onProgress) {
+          this.uploadedBytes = event.loaded;
+          const percent = Math.floor((event.loaded / event.total) * 100) / 20; // 0-5%にスケール
+          
+          const elapsedMs = performance.now() - this.uploadStartTime;
+          const elapsedTime = this.timer.formatTime(elapsedMs);
+          
+          // アップロード速度の計算（バイト/秒）
+          const bytesPerSecond = event.loaded / (elapsedMs / 1000);
+          const remainingBytes = event.total - event.loaded;
+          const remainingSeconds = remainingBytes / bytesPerSecond;
+          const remainingTime = this.timer.formatTime(remainingSeconds * 1000);
+          
+          this.onProgress({
+            message: `ファイルをアップロード中... (${Math.floor((event.loaded / event.total) * 100)}%)`,
+            progress: {
+              type: 'upload',
+              current: event.loaded,
+              total: event.total,
+              percent: percent,
+              elapsedTime,
+              remainingTime
+            }
+          });
+        }
+      };
+      
+      reader.onload = () => {
+        // 読み込み完了
+        this.uploadedBytes = file.size;
+        
+        if (this.onProgress) {
+          const elapsedMs = performance.now() - this.uploadStartTime;
+          const elapsedTime = this.timer.formatTime(elapsedMs);
+          
+          this.onProgress({
+            message: 'ファイルの読み込みが完了しました',
+            progress: {
+              type: 'upload',
+              current: file.size,
+              total: file.size,
+              percent: 5, // 5%
+              elapsedTime,
+              remainingTime: this.calculateRemainingTime(5, elapsedMs)
+            }
+          });
+        }
+        
+        // ArrayBufferをUint8Arrayに変換して返す
+        const arrayBuffer = reader.result as ArrayBuffer;
+        resolve(new Uint8Array(arrayBuffer));
+      };
+      
+      reader.onerror = () => {
+        reject(new Error('ファイルの読み込みに失敗しました'));
+      };
+      
+      // ファイルの読み込みを開始
+      reader.readAsArrayBuffer(file);
+    });
+  }
+
+  /**
    * 残り時間を計算して整形された文字列を返す
    * @param percent 現在の進捗パーセント (0-100)
    * @param elapsedMs 経過時間 (ミリ秒)
@@ -806,7 +1101,8 @@ export class FFmpegService {
           `Remaining time estimates - Progress: ${this.timer.formatTime(baseEstimate)}, ` +
           `Speed: ${this.timer.formatTime(estimatedBySpeed)}, ` +
           `Frames: ${this.timer.formatTime(frameBasedEstimate)}, ` +
-          `Weighted: ${this.timer.formatTime(remainingMs)}`
+          `Weighted: ${this.timer.formatTime(remainingMs)}, ` +
+          `Type: ${message?.includes('upload') ? 'upload' : 'processing'}`
         );
       } else {
         // フレーム情報がない場合は進捗と速度から推定
@@ -858,5 +1154,49 @@ export class FFmpegService {
     this.lastRemainingMs = remainingMs;
     
     return this.timer.formatTime(remainingMs);
+  }
+  
+  /**
+   * アップロード用の残り時間を計算
+   * @param uploadedBytes アップロード済みバイト数
+   * @param totalBytes 合計バイト数
+   * @param elapsedMs 経過時間（ミリ秒）
+   */
+  private calculateRemainingTimeForUpload(uploadedBytes: number, totalBytes: number, elapsedMs: number): string {
+    if (uploadedBytes <= 0 || totalBytes <= 0 || elapsedMs <= 0) {
+      return '計算中...';
+    }
+    
+    if (uploadedBytes >= totalBytes) {
+      return '0s';
+    }
+    
+    // 現在の速度（バイト/秒）を計算
+    const bytesPerSecond = uploadedBytes / (elapsedMs / 1000);
+    if (bytesPerSecond <= 0) {
+      return '計算中...';
+    }
+    
+    // 残りのバイト数
+    const remainingBytes = totalBytes - uploadedBytes;
+    
+    // 残り時間（秒）
+    const remainingSeconds = remainingBytes / bytesPerSecond;
+    
+    // ミリ秒に変換
+    const remainingMs = remainingSeconds * 1000;
+    
+    // 極端な値を制限
+    const maxRemainingMs = 10 * 60 * 1000; // 最大10分
+    const limitedRemainingMs = Math.min(remainingMs, maxRemainingMs);
+    
+    // アップロード進捗をログに出力
+    console.log(
+      `Upload progress - Bytes: ${uploadedBytes}/${totalBytes} (${Math.floor((uploadedBytes / totalBytes) * 100)}%), ` +
+      `Speed: ${(bytesPerSecond / 1024).toFixed(2)} KB/s, ` +
+      `Remaining: ${this.timer.formatTime(limitedRemainingMs)}`
+    );
+    
+    return this.timer.formatTime(limitedRemainingMs);
   }
 }

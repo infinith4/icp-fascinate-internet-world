@@ -312,3 +312,22 @@ npm install @ffmpeg/ffmpeg @ffmpeg/util
 
 
 cd test-vetkeys/fork-dfinity-vetkd-devkit/examples/password_manager
+
+cd /src/videos/203923-922675870/
+ffmpeg -i "./203923-922675870.mp4" -c:v libx264 -preset faster -crf 27 -c:a copy -b:v 1M -f hls -hls_playlist_type event -hls_time 2 -g 24 -hls_segment_filename "./203923-922675870%3d.ts" "./203923-922675870.m3u8"
+
+await this.ffmpeg.exec([
+        '-i', inputFileName, // 入力ファイル名 (元のコマンドに合わせる)
+        '-c:v', 'libx264',
+        '-preset', 'veryfast', //ultrafast, superfast, veryfast, faster, fast, medium, slow, veryslow
+        '-b:v', videoBitrate.toString(), // 動画ビットレートを 1M に設定 (元のコマンドに合わせる)
+        '-c:a', 'copy', // 音声コーデックをコピーに設定 (元のコマンドに合わせる)
+        //'-b:a', audioBitrate,
+        '-f', 'hls', // フォーマットを hls に設定
+        '-hls_playlist_type', 'event', // プレイリストタイプを vod に設定 (元のコマンドに合わせる)
+        '-hls_time', segmentDuration.toString(), // セグメント長を 5秒 に設定 (元のコマンドに合わせる)
+        '-g', '24', // GOPサイズを 24 に設定 (元のコマンドに合わせる)
+        '-hls_segment_type', 'mpegts',
+        '-hls_segment_filename', segmentPattern,// セグメントファイル名パターン (元のコマンドに合わせる)
+        playlistFileName // プレイリストファイル名 (元のコマンドに合わせる)
+      ]);

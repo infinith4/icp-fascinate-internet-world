@@ -138,6 +138,8 @@ export class FFmpegService {
   async processVideo(file: File, options: {
     segmentDuration?: number;
     videoBitrate?: string;
+    preset?: string;
+    crf?: string;
     audioBitrate?: string;
     thumbnailTime?: number;
   } = {}): Promise<ProcessedVideo> {
@@ -150,7 +152,9 @@ export class FFmpegService {
 
     const {
       segmentDuration = 0.2,
-      videoBitrate = '2M',
+      videoBitrate = '500k',
+      preset = 'ultrafast',
+      crf = '32',
       audioBitrate = '128k',
       thumbnailTime = 1
     } = options;
@@ -224,12 +228,17 @@ export class FFmpegService {
       //すべてのセグメントが厳密に指定のサイズ以下になることを100%保証できない。
       //ffmpeg -i "./270940.mp4" -c:v copy -c:a copy -f hls -hls_playlist_type event -hls_time 2 -g 24 -hls_segment_type mpegts -hls_segment_filename "./270940%3d.ts" "./270940.m3u8"
       //ffmpeg -i "./270940.mp4" -c:v copy -c:a copy -b:a 128k -f hls -hls_playlist_type vod -hls_time 2 -g 24 -hls_segment_filename "./270940%3d.ts" "./270940.m3u8"
+      //ffmpeg -i "./203923-922675870.mp4" -c:v libx264 -preset faster -crf 27 -c:a copy -b:v 1M -f hls -hls_playlist_type event -hls_time 2 -g 24 -hls_segment_filename "./203923-922675870%3d.ts" "./203923-922675870.m3u8"
+      //segmentDuration: 0.2, preset: ultrafast, bitrate: 500k, crf: 32 -> speed: 0.04 - 0.035
+      //segmentDuration: 0.2, ultrafast, bitrate： 500kb, crf: 32 がちょうどよさそう。 speed: 0.15くらい
+      //segmentDuration: 0.5, ultrafast, bitrate： 500kb, crf: 30 -> speed: 0.03くらい
       // HLS変換
-      console.log("segmentDuration: ", segmentDuration);
+      console.warn(`segmentDuration: ${segmentDuration}, preset: ${preset}, bitrate: ${videoBitrate}, crf: ${crf}`);
       await this.ffmpeg.exec([
         '-i', inputFileName, // 入力ファイル名 (元のコマンドに合わせる)
         '-c:v', 'libx264',
-        '-preset', 'superfast', //ultrafast, superfast, veryfast, fast, medium, slow, veryslow
+        '-preset', preset, //ultrafast, superfast, veryfast, faster, fast, medium, slow, veryslow
+        '-crf', crf.toString(),
         '-b:v', videoBitrate.toString(), // 動画ビットレートを 1M に設定 (元のコマンドに合わせる)
         '-c:a', 'copy', // 音声コーデックをコピーに設定 (元のコマンドに合わせる)
         //'-b:a', audioBitrate,

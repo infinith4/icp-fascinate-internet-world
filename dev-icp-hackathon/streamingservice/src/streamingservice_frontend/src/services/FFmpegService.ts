@@ -229,7 +229,7 @@ export class FFmpegService {
       await this.ffmpeg.exec([
         '-i', inputFileName, // 入力ファイル名 (元のコマンドに合わせる)
         '-c:v', 'libx264',
-        '-preset', 'fast', // ★追加
+        '-preset', 'ultrafast', //ultrafast, superfast, veryfast, fast, medium, slow, veryslow
         '-b:v', videoBitrate.toString(), // 動画ビットレートを 1M に設定 (元のコマンドに合わせる)
         '-c:a', 'copy', // 音声コーデックをコピーに設定 (元のコマンドに合わせる)
         //'-b:a', audioBitrate,

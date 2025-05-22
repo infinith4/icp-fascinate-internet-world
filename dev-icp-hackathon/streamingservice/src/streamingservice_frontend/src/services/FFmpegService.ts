@@ -39,6 +39,8 @@ export class FFmpegService {
   private totalFrames: number | null = null;
   private frameRate: number | null = null;
   private lastRemainingMs: number | null = null;
+  private estimatedSegments: number = 20; // デフォルト推定セグメント数
+  private videoDuration: number | null = null; // ビデオ時間（秒）
 
   constructor() {
     this.ffmpeg = new FFmpeg();
@@ -53,19 +55,40 @@ export class FFmpegService {
         // ログメッセージからFFmpeg処理情報を抽出
         this.extractFFmpegInfo(message);
 
+        // 初期化と入力処理の進捗（0-25%）
         if (message.includes('load')) {
           progressPercent = 10;
         } else if (message.includes('write')) {
           progressPercent = 25;
-        } else if (message.includes('thumbnail') || message.includes('scale')) {
+        }
+        // サムネイル生成（25-30%）
+        else if (message.includes('thumbnail') || message.includes('scale')) {
           progressPercent = 30;
-        } else if (message.includes('Converting')) {
+        }
+        // HLS変換前の準備（30-40%）
+        else if (message.includes('Converting')) {
           progressPercent = 40;
-        } else if (message.includes('segment') || message.includes('.ts')) {
+        }
+        // メインのHLS変換処理の進捗状況（40-90%）
+        else if (message.match(/frame=\s*\d+/)) {
+          // フレーム情報に基づく進捗
+          const frameMatch = message.match(/frame=\s*(\d+)/);
+          if (frameMatch && this.totalFrames) {
+            const currentFrame = parseInt(frameMatch[1]);
+            const frameProgress = Math.min(1, currentFrame / this.totalFrames);
+            // フレーム進捗を40-80%の範囲にマッピング
+            progressPercent = 40 + (frameProgress * 40);
+            progressPercent = Math.min(80, progressPercent);
+          }
+        }
+        // セグメントファイル生成の進捗（80-90%）
+        else if (message.includes('segment') || message.includes('.ts')) {
           const currentSegment = message.match(/\d+/);
           if (currentSegment) {
             const segmentNum = parseInt(currentSegment[0]);
-            progressPercent = 50 + ((segmentNum / 20) * 40);
+            // 推定セグメント数に基づいて進捗を計算
+            const segmentProgress = Math.min(1, segmentNum / Math.max(1, this.estimatedSegments));
+            progressPercent = 80 + (segmentProgress * 10);
             progressPercent = Math.min(90, progressPercent);
           }
         }
@@ -663,7 +686,26 @@ export class FFmpegService {
       const averageSpeed = this.speedHistory.reduce((sum, s) => sum + s, 0) / this.speedHistory.length;
       this.ffmpegSpeed = averageSpeed;
       
-      console.log(`FFmpeg speed: ${speed}x, Average speed: ${averageSpeed.toFixed(2)}x`);
+      console.warn(`FFmpeg speed: ${speed}x, Average speed: ${averageSpeed.toFixed(2)}x`);
+    }
+    
+    // 動画時間情報を抽出（例：Duration: 00:01:23.45）
+    const durationMatch = message.match(/Duration: (\d+):(\d+):(\d+\.\d+)/);
+    if (durationMatch && this.videoDuration === null) {
+      const hours = parseInt(durationMatch[1], 10);
+      const minutes = parseInt(durationMatch[2], 10);
+      const seconds = parseFloat(durationMatch[3]);
+      
+      this.videoDuration = hours * 3600 + minutes * 60 + seconds;
+      console.warn(`Video duration: ${this.videoDuration.toFixed(2)} seconds`);
+      
+      // セグメント時間から推定セグメント数を計算
+      if (this.videoDuration > 0) {
+        // processVideo メソッド内の segmentDuration デフォルト値は 0.5 秒
+        const segmentDuration = 0.5; // デフォルト値
+        this.estimatedSegments = Math.ceil(this.videoDuration / segmentDuration);
+        console.warn(`Estimated segments: ${this.estimatedSegments} (based on ${segmentDuration}s segments)`);
+      }
     }
     
     // フレーム情報を抽出 (例: "frame= 120 fps= 24")

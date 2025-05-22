@@ -109,8 +109,14 @@ export const VideoGallery: React.FC = () => {
       };
 
       console.log("start ffmpeg");
+      const options = {
+        segmentDuration: 0.2,
+        videoBitrate: '2M',
+        audioBitrate: '128k',
+        thumbnailTime: 1
+      };
       // FFmpegで動画を処理
-      const { playlist, segments, thumbnail } = await ffmpegService.current.processVideo(file);
+      const { playlist, segments, thumbnail } = await ffmpegService.current.processVideo(file, options);
       console.log("end ffmpeg");
 
       // プレイリストをアップロード

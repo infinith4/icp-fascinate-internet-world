@@ -149,8 +149,8 @@ export class FFmpegService {
     }
 
     const {
-      segmentDuration = 2,
-      videoBitrate = '1M',
+      segmentDuration = 0.2,
+      videoBitrate = '2M',
       audioBitrate = '128k',
       thumbnailTime = 1
     } = options;
@@ -228,8 +228,9 @@ export class FFmpegService {
       console.log("segmentDuration: ", segmentDuration);
       await this.ffmpeg.exec([
         '-i', inputFileName, // 入力ファイル名 (元のコマンドに合わせる)
-        //'-b:v', '1M', // 動画ビットレートを 1M に設定 (元のコマンドに合わせる)
-        '-c:v', 'copy',
+        '-c:v', 'libx264',
+        '-preset', 'fast', // ★追加
+        '-b:v', videoBitrate.toString(), // 動画ビットレートを 1M に設定 (元のコマンドに合わせる)
         '-c:a', 'copy', // 音声コーデックをコピーに設定 (元のコマンドに合わせる)
         //'-b:a', audioBitrate,
         '-f', 'hls', // フォーマットを hls に設定
@@ -239,7 +240,21 @@ export class FFmpegService {
         '-hls_segment_type', 'mpegts',
         '-hls_segment_filename', segmentPattern,// セグメントファイル名パターン (元のコマンドに合わせる)
         playlistFileName // プレイリストファイル名 (元のコマンドに合わせる)
-    ]);
+      ]);
+  // await this.ffmpeg.exec([
+  //     '-i', inputFileName, // 入力ファイル名 (元のコマンドに合わせる)
+  //     //'-b:v', '1M', // 動画ビットレートを 1M に設定 (元のコマンドに合わせる)
+  //     '-c:v', 'copy',
+  //     '-c:a', 'copy', // 音声コーデックをコピーに設定 (元のコマンドに合わせる)
+  //     //'-b:a', audioBitrate,
+  //     '-f', 'hls', // フォーマットを hls に設定
+  //     '-hls_playlist_type', 'event', // プレイリストタイプを vod に設定 (元のコマンドに合わせる)
+  //     '-hls_time', segmentDuration.toString(), // セグメント長を 5秒 に設定 (元のコマンドに合わせる)
+  //     '-g', '5', // GOPサイズを 24 に設定 (元のコマンドに合わせる)
+  //     '-hls_segment_type', 'mpegts',
+  //     '-hls_segment_filename', segmentPattern,// セグメントファイル名パターン (元のコマンドに合わせる)
+  //     playlistFileName // プレイリストファイル名 (元のコマンドに合わせる)
+  // ]);
       // await this.ffmpeg.exec([
       //   '-i', inputFileName,
       //   '-c:v', 'copy',

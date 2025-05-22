@@ -111,7 +111,7 @@ export const VideoGallery: React.FC = () => {
       console.log("start ffmpeg");
       const options = {
         segmentDuration: 0.2,
-        videoBitrate: '2M',
+        videoBitrate: '1.5M',
         audioBitrate: '128k',
         thumbnailTime: 1
       };

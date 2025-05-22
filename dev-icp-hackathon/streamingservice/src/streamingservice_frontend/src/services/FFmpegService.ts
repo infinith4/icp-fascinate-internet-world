@@ -177,7 +177,7 @@ export class FFmpegService {
     }
 
     const {
-      segmentDuration = 0.5,
+      segmentDuration = 0.3,
       videoBitrate = '500k',
       preset = 'ultrafast',
       crf = '35',
@@ -637,18 +637,39 @@ export class FFmpegService {
    * @param elapsedMs 経過時間 (ミリ秒)
    */
   private calculateRemainingTime(percent: number, elapsedMs: number): string {
-    if (percent <= 0) return '計算中...';
+    // 無効な値や進捗がない場合
+    if (percent <= 0 || elapsedMs <= 0) return '計算中...';
     
-    const rate = percent / 100;
-    if (rate >= 1) return '0s';
+    // 進捗が100%の場合は残り時間はゼロ
+    if (percent >= 100) return '0s';
     
-    // 進捗率から残り時間を推定
-    const estimatedTotalMs = elapsedMs / rate;
-    const remainingMs = estimatedTotalMs - elapsedMs;
+    // 経過時間ベースで残り時間を計算
+    let remainingMs = 0;
     
+    // FFmpegの処理段階に基づき、異なる計算方法を適用
+    if (percent >= 50) {
+      // セグメント処理段階（50%以上）- より正確な線形推定が可能
+      remainingMs = (elapsedMs * (100 - percent)) / percent;
+    } else if (percent >= 30) {
+      // サムネイル生成・変換開始段階（30-50%）- やや控えめな推定
+      remainingMs = (elapsedMs * (95 - percent)) / percent;
+    } else {
+      // 初期段階（30%未満）- ファイル読み込み・初期化
+      // この段階では線形推定が非常に不正確なため、FFmpegの一般的な処理時間を考慮
+      const estimatedByPercent = (elapsedMs * (100 - percent)) / percent;
+      
+      // 適切な上限値を設定（約4分程度が実際の処理時間と仮定）
+      const maxEstimatedMs = 6 * 60 * 1000; // 6分（安全マージンを含む）
+      remainingMs = Math.min(estimatedByPercent, maxEstimatedMs);
+    }
+    
+    // 不正な値の場合は「計算中...」と表示
     if (isNaN(remainingMs) || remainingMs <= 0) {
       return '計算中...';
     }
+    
+    // 細かい変動を減らすために計算結果を丸める（10秒単位）
+    remainingMs = Math.ceil(remainingMs / 10000) * 10000;
     
     return this.timer.formatTime(remainingMs);
   }

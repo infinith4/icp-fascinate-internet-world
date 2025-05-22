@@ -219,9 +219,9 @@ export class FFmpegService {
 
     const {
       segmentDuration = 0.3,
-      videoBitrate = '500k',
+      videoBitrate = '600k',
       preset = 'ultrafast',
-      crf = '34',
+      crf = '33',
       audioBitrate = '128k',
       thumbnailTime = 1
     } = options;

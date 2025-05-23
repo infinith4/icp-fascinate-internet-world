@@ -44,6 +44,7 @@ export class FFmpegService {
   private uploadStartTime: number = 0; // アップロード開始時間
   private uploadTotalBytes: number = 0; // アップロード合計サイズ
   private uploadedBytes: number = 0; // アップロード済みサイズ
+  private currentProcessingTime: number | null = null; // 現在の処理時間位置（秒）
 
   constructor() {
     this.ffmpeg = new FFmpeg();
@@ -892,6 +893,32 @@ export class FFmpegService {
    * @param message FFmpegのログメッセージ
    */
   private extractFFmpegInfo(message: string): void {
+    // 現在の処理時間位置を抽出 (例: "time=00:00:07.88")
+    const timeMatch = message.match(/time=(\d+):(\d+):(\d+\.\d+)/);
+    if (timeMatch) {
+      const hours = parseInt(timeMatch[1], 10);
+      const minutes = parseInt(timeMatch[2], 10);
+      const seconds = parseFloat(timeMatch[3]);
+      
+      // 秒数に変換
+      this.currentProcessingTime = hours * 3600 + minutes * 60 + seconds;
+      
+      // 動画の総時間が分かっている場合は、進捗率を計算して更新
+      if (this.videoDuration !== null && this.videoDuration > 0) {
+        // 進捗率（0-100%）を計算
+        const progressPercent = Math.min(100, Math.round((this.currentProcessingTime / this.videoDuration) * 100));
+        
+        // 40-90%の範囲にマッピング（FFmpeg処理中の範囲）
+        const mappedProgress = 40 + (progressPercent * 0.5); // 40% + 最大50%
+        
+        // 進捗情報のログ
+        console.log(`Current time: ${this.currentProcessingTime.toFixed(2)}s / ${this.videoDuration.toFixed(2)}s (${progressPercent}%) -> Mapped: ${mappedProgress.toFixed(1)}%`);
+        
+        // 進捗率を更新（必要があれば）
+        this.lastProgress = Math.max(this.lastProgress, Math.min(90, mappedProgress));
+      }
+    }
+    
     // 処理速度を抽出 (例: "speed=0.5x")
     const speedMatch = message.match(/speed=(\d+\.?\d*)x/);
     if (speedMatch && speedMatch[1]) {
@@ -1063,6 +1090,60 @@ export class FFmpegService {
     // 進捗の変化を確認して、その割合で残り時間を決める
     let remainingMs = 0;
 
+    // 現在のログがtime=を含む処理中のものであり、かつ動画時間と現在の処理時間が取得できている場合
+    if (this.videoDuration !== null && this.currentProcessingTime !== null && message?.includes('time=')) {
+      // 実際の処理時間に基づいて残り時間を計算
+      const processingRatio = this.currentProcessingTime / this.videoDuration;
+      if (processingRatio > 0) {
+        // 経過時間から処理速度を計算し、残り時間を推定
+        const timeBasedEstimate = (elapsedMs / processingRatio) * (1 - processingRatio);
+        
+        // FFmpegのspeed値も考慮（利用可能であれば）
+        if (this.ffmpegSpeed !== null && this.ffmpegSpeed > 0) {
+          const speedFactor = Math.min(2.0, Math.max(0.5, 1 / this.ffmpegSpeed));
+          remainingMs = timeBasedEstimate * speedFactor;
+          
+          console.log(`Time-based remaining estimate: ${this.timer.formatTime(timeBasedEstimate)} (adjusted by speed: ${this.ffmpegSpeed.toFixed(2)}x -> ${this.timer.formatTime(remainingMs)})`);
+        } else {
+          remainingMs = timeBasedEstimate;
+          console.log(`Time-based remaining estimate: ${this.timer.formatTime(timeBasedEstimate)}`);
+        }
+        
+        // 処理が進んでいるのに極端に長い推定時間が出る場合は抑制
+        if (processingRatio > 0.5 && remainingMs > 5 * 60 * 1000) { // 5分以上
+          remainingMs = Math.min(remainingMs, 5 * 60 * 1000);
+        }
+        
+        // このセクションからリターンして他の計算をスキップ
+        // 極端な値を制限
+        const maxRemainingMs = 10 * 60 * 1000; // 最大10分
+        remainingMs = Math.min(remainingMs, maxRemainingMs);
+        
+        // 前回の推定値との比較で急激な増加を防止
+        if (this.lastRemainingMs !== null) {
+          // 前回より50%以上増えた場合は、増加を抑制
+          if (remainingMs > this.lastRemainingMs * 1.5) {
+            remainingMs = this.lastRemainingMs * 1.5;
+            console.log(`Limiting increase in remaining time estimation (time-based)`);
+          }
+        }
+        
+        // 不正な値の場合は「計算中...」と表示
+        if (isNaN(remainingMs) || remainingMs <= 0) {
+          return '計算中...';
+        }
+        
+        // 細かい変動を減らすために計算結果を丸める
+        remainingMs = Math.ceil(remainingMs / 5000) * 5000;
+        
+        // 次回の計算のために値を保存
+        this.lastRemainingMs = remainingMs;
+        
+        return this.timer.formatTime(remainingMs);
+      }
+    }
+
+    // time=情報がない場合は従来の計算方法を使用
     // 常に進捗率に基づく計算をベースとする
     const progressRatio = percent / 100;
     const baseEstimate = Math.max(0, (elapsedMs / progressRatio) - elapsedMs);
@@ -1102,7 +1183,8 @@ export class FFmpegService {
           `Speed: ${this.timer.formatTime(estimatedBySpeed)}, ` +
           `Frames: ${this.timer.formatTime(frameBasedEstimate)}, ` +
           `Weighted: ${this.timer.formatTime(remainingMs)}, ` +
-          `Type: ${message?.includes('upload') ? 'upload' : 'processing'}`
+          `Type: ${message?.includes('upload') ? 'upload' : 'processing'}, ` +
+          `Current time: ${this.currentProcessingTime?.toFixed(2) || 'N/A'}`
         );
       } else {
         // フレーム情報がない場合は進捗と速度から推定

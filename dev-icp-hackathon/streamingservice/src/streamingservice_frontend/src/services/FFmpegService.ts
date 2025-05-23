@@ -894,25 +894,26 @@ export class FFmpegService {
    */
   private extractFFmpegInfo(message: string): void {
     // 現在の処理時間位置を抽出 (例: "time=00:00:07.88")
-    const timeMatch = message.match(/time=(\d+):(\d+):(\d+\.\d+)/);
+    const timeMatch = message.match(/time=(\d+):(\d+):(\d+)\.(\d+)/);
     if (timeMatch) {
       const hours = parseInt(timeMatch[1], 10);
       const minutes = parseInt(timeMatch[2], 10);
-      const seconds = parseFloat(timeMatch[3]);
+      const seconds = parseInt(timeMatch[3], 10);
+      const milliseconds = parseInt(timeMatch[4]);
       
-      // 秒数に変換
-      this.currentProcessingTime = hours * 3600 + minutes * 60 + seconds;
+      // ミリ秒まで考慮して秒数に変換
+      this.currentProcessingTime = hours * 3600 + minutes * 60 + seconds + (milliseconds / Math.pow(10, timeMatch[4].length));
       
       // 動画の総時間が分かっている場合は、進捗率を計算して更新
       if (this.videoDuration !== null && this.videoDuration > 0) {
-        // 進捗率（0-100%）を計算
-        const progressPercent = Math.min(100, Math.round((this.currentProcessingTime / this.videoDuration) * 100));
+        // ミリ秒も含めた精密な進捗率（0-100%）を計算
+        const progressPercent = Math.min(100, ((this.currentProcessingTime / this.videoDuration) * 100));
         
         // 40-90%の範囲にマッピング（FFmpeg処理中の範囲）
         const mappedProgress = 40 + (progressPercent * 0.5); // 40% + 最大50%
         
         // 進捗情報のログ
-        console.log(`Current time: ${this.currentProcessingTime.toFixed(2)}s / ${this.videoDuration.toFixed(2)}s (${progressPercent}%) -> Mapped: ${mappedProgress.toFixed(1)}%`);
+        console.log(`Current time: ${this.formatTimeWithMs(this.currentProcessingTime)}s / ${this.formatTimeWithMs(this.videoDuration)}s (${progressPercent.toFixed(4)}%) -> Mapped: ${mappedProgress.toFixed(1)}%`);
         
         // 進捗率を更新（必要があれば）
         this.lastProgress = Math.max(this.lastProgress, Math.min(90, mappedProgress));
@@ -940,14 +941,16 @@ export class FFmpegService {
     }
     
     // 動画時間情報を抽出（例：Duration: 00:01:23.45）
-    const durationMatch = message.match(/Duration: (\d+):(\d+):(\d+\.\d+)/);
+    const durationMatch = message.match(/Duration: (\d+):(\d+):(\d+)\.(\d+)/);
     if (durationMatch && this.videoDuration === null) {
       const hours = parseInt(durationMatch[1], 10);
       const minutes = parseInt(durationMatch[2], 10);
-      const seconds = parseFloat(durationMatch[3]);
+      const seconds = parseInt(durationMatch[3], 10);
+      const milliseconds = parseInt(durationMatch[4]);
       
-      this.videoDuration = hours * 3600 + minutes * 60 + seconds;
-      console.warn(`Video duration: ${this.videoDuration.toFixed(2)} seconds`);
+      // ミリ秒まで考慮した秒数
+      this.videoDuration = hours * 3600 + minutes * 60 + seconds + (milliseconds / Math.pow(10, durationMatch[4].length));
+      console.warn(`Video duration: ${this.videoDuration.toFixed(6)} seconds (with millisecond precision)`);
       
       // セグメント時間から推定セグメント数を計算
       if (this.videoDuration > 0) {
@@ -992,9 +995,10 @@ export class FFmpegService {
           const hours = parseInt(durationMatch[1]);
           const minutes = parseInt(durationMatch[2]);
           const seconds = parseInt(durationMatch[3]);
-          const milliseconds = parseInt(durationMatch[4]) * 10; // 通常、小数点以下2桁までなので10倍
+          const milliseconds = parseInt(durationMatch[4]);
           
-          const totalSeconds = hours * 3600 + minutes * 60 + seconds + milliseconds / 1000;
+          // ミリ秒を正確に計算（桁数に応じた精度で）
+          const totalSeconds = hours * 3600 + minutes * 60 + seconds + (milliseconds / Math.pow(10, durationMatch[4].length));
           this.totalFrames = Math.round(totalSeconds * this.frameRate);
           console.log(`Estimated total frames: ${this.totalFrames}`);
         }
@@ -1075,6 +1079,31 @@ export class FFmpegService {
   }
 
   /**
+   * 秒数をミリ秒まで含めた時間文字列に変換
+   * @param seconds 秒数（小数点以下はミリ秒）
+   */
+  private formatTimeWithMs(seconds: number): string {
+    if (seconds <= 0) return '0:00.000';
+    
+    const hrs = Math.floor(seconds / 3600);
+    const mins = Math.floor((seconds % 3600) / 60);
+    const secs = Math.floor(seconds % 60);
+    const ms = Math.round((seconds - Math.floor(seconds)) * 1000);
+    
+    let result = '';
+    if (hrs > 0) {
+      result += `${hrs}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+    } else {
+      result += `${mins}:${secs.toString().padStart(2, '0')}`;
+    }
+    
+    // ミリ秒を追加
+    result += `.${ms.toString().padStart(3, '0')}`;
+    
+    return result;
+  }
+
+  /**
    * 残り時間を計算して整形された文字列を返す
    * @param percent 現在の進捗パーセント (0-100)
    * @param elapsedMs 経過時間 (ミリ秒)
@@ -1092,11 +1121,11 @@ export class FFmpegService {
 
     // 現在のログがtime=を含む処理中のものであり、かつ動画時間と現在の処理時間が取得できている場合
     if (this.videoDuration !== null && this.currentProcessingTime !== null && message?.includes('time=')) {
-      // 実際の処理時間に基づいて残り時間を計算
+      // ミリ秒まで考慮した実際の処理時間に基づいて残り時間を計算
       const processingRatio = this.currentProcessingTime / this.videoDuration;
       if (processingRatio > 0) {
-        // 経過時間から処理速度を計算し、残り時間を推定
-        const timeBasedEstimate = (elapsedMs / processingRatio) * (1 - processingRatio);
+        // 経過時間からミリ秒レベルの精度で処理速度を計算し、残り時間を推定
+        const timeBasedEstimate = Math.round((elapsedMs / processingRatio) * (1 - processingRatio));
         
         // FFmpegのspeed値も考慮（利用可能であれば）
         if (this.ffmpegSpeed !== null && this.ffmpegSpeed > 0) {
@@ -1114,7 +1143,13 @@ export class FFmpegService {
           remainingMs = Math.min(remainingMs, 5 * 60 * 1000);
         }
         
-        // このセクションからリターンして他の計算をスキップ
+        // FFmpegログの詳細な時間情報をコンソールに出力
+        console.log(
+          `Current processing time: ${this.formatTimeWithMs(this.currentProcessingTime)}, ` +
+          `Total duration: ${this.formatTimeWithMs(this.videoDuration)}, ` +
+          `Progress: ${(processingRatio * 100).toFixed(4)}%`
+        );
+        
         // 極端な値を制限
         const maxRemainingMs = 10 * 60 * 1000; // 最大10分
         remainingMs = Math.min(remainingMs, maxRemainingMs);
@@ -1133,8 +1168,9 @@ export class FFmpegService {
           return '計算中...';
         }
         
-        // 細かい変動を減らすために計算結果を丸める
-        remainingMs = Math.ceil(remainingMs / 5000) * 5000;
+        // ミリ秒単位での細かい変動を減らすために計算結果を丸める
+        // より細かい単位（1秒単位）で丸める
+        remainingMs = Math.ceil(remainingMs / 1000) * 1000;
         
         // 次回の計算のために値を保存
         this.lastRemainingMs = remainingMs;

@@ -1,0 +1,49 @@
+{
+  "canisters": {
+    "internet_identity": {
+      "candid": "https://github.com/dfinity/internet-identity/releases/latest/download/internet_identity.did",
+      "frontend": {},
+      "remote": {
+        "id": {
+          "ic": "rdmx6-jaaaa-aaaaa-aaadq-cai"
+        }
+      },
+      "type": "custom",
+      "wasm": "https://github.com/dfinity/internet-identity/releases/latest/download/internet_identity_dev.wasm.gz"
+    },
+    "streamingservice_backend": {
+      "candid": "src/streamingservice_backend/streamingservice_backend.did",
+      "package": "streamingservice_backend",
+      "type": "rust"
+    },
+    "greet_backend": {
+      "candid": "src/greet_backend/greet_backend.did",
+      "package": "greet_backend",
+      "type": "rust"
+    },
+    "streamingservice_manager": {
+      "candid": "src/streamingservice_manager/streamingservice_manager.did",
+      "package": "streamingservice_manager",
+      "type": "rust"
+    },
+    "streamingservice_frontend": {
+      "dependencies": [
+        "streamingservice_backend",
+        "streamingservice_manager"
+      ],
+      "source": [
+        "src/streamingservice_frontend/dist"
+      ],
+      "type": "assets",
+      "workspace": "streamingservice_frontend"
+    }
+  },
+  "defaults": {
+    "build": {
+      "args": "",
+      "packtool": ""
+    }
+  },
+  "output_env_file": ".env",
+  "version": 1
+}

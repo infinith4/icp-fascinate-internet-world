@@ -941,170 +941,174 @@ export const VideoGallery: React.FC = () => {
         {loading ? (
           <Typography variant="h6" sx={{ textAlign: 'center' }}>Loading...</Typography>
         ) : (
-          <Stack spacing={3}>
-            <Stack
-              direction="row"
-              sx={{
-                flexWrap: 'wrap',
-                gap: { xs: 2, sm: 3 },
-                justifyContent: 'center',
-                alignItems: 'stretch'
-              }}
-            >
-              {images.map((image) => (
-                <Box 
-                  key={image.id} 
-                  sx={{ 
-                    width: {
-                      xs: '100%',
-                      sm: 'calc(50% - 24px)',
-                      md: 'calc(33.333% - 24px)'
-                    },
-                    minWidth: { xs: '280px', sm: '320px' },
-                    display: 'flex',
-                    cursor: 'pointer'
-                  }}
-                  onClick={() => handleVideoClick(image.id)}
-                >
-                  <Paper 
-                    elevation={3} 
+          images.length === 0 ? (
+            <Typography variant="h6" sx={{ textAlign: 'center' }}>No videos found</Typography>
+          ) : (
+            <Stack spacing={3}>
+              <Stack
+                direction="row"
+                sx={{
+                  flexWrap: 'wrap',
+                  gap: { xs: 2, sm: 3 },
+                  justifyContent: 'center',
+                  alignItems: 'stretch'
+                }}
+              >
+                {images.map((image) => (
+                  <Box 
+                    key={image.id} 
                     sx={{ 
-                      p: 2,
-                      width: '100%',
+                      width: {
+                        xs: '100%',
+                        sm: 'calc(50% - 24px)',
+                        md: 'calc(33.333% - 24px)'
+                      },
+                      minWidth: { xs: '280px', sm: '320px' },
                       display: 'flex',
-                      flexDirection: 'column',
-                      bgcolor: '#fff',
-                      borderRadius: '8px',
-                      overflow: 'hidden',
-                      transition: 'transform 0.2s ease',
-                      '&:hover': {
-                        transform: 'scale(1.02)'
-                      }
+                      cursor: 'pointer'
                     }}
+                    onClick={() => handleVideoClick(image.id)}
                   >
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
-                      <Typography 
-                        variant="h6" 
-                        sx={{ 
-                          textAlign: 'center',
-                          flex: 1
-                        }}
-                      >
-                        {image.title}
-                      </Typography>
-                      <Box sx={{ display: 'flex', gap: 1 }}>
-                        <IconButton
-                          onClick={(e) => handleDownloadPlaylistClick(e, image.id)}
-                          sx={{
-                            color: 'primary.main',
-                            '&:hover': {
-                              backgroundColor: 'primary.light',
-                              color: 'white'
-                            }
-                          }}
-                          title="プレイリストをダウンロード"
-                        >
-                          <QueueMusicIcon />
-                        </IconButton>
-                        <IconButton
-                          onClick={(e) => handleStreamPlaylistClick(e, image.id)}
-                          sx={{
-                            color: 'success.main',
-                            '&:hover': {
-                              backgroundColor: 'success.light',
-                              color: 'white'
-                            }
-                          }}
-                          title="ブラウザでストリーミング再生"
-                        >
-                          <PlayArrowIcon />
-                        </IconButton>
-                        <IconButton
-                          onClick={(e) => handleDownloadClick(e, image.id)}
-                          sx={{
-                            color: 'primary.main',
-                            '&:hover': {
-                              backgroundColor: 'primary.light',
-                              color: 'white'
-                            }
-                          }}
-                          title="MP4としてダウンロード"
-                        >
-                          <DownloadIcon />
-                        </IconButton>
-                        <IconButton
-                          onClick={(e) => handleDownloadTsFilesClick(e, image.id)}
-                          sx={{
-                            color: 'primary.main',
-                            '&:hover': {
-                              backgroundColor: 'primary.light',
-                              color: 'white'
-                            }
-                          }}
-                          title="TSとしてダウンロード"
-                        >
-                          <DownloadIcon />
-                        </IconButton>
-                        <IconButton
-                          onClick={(e) => handleDeleteClick(e, image.id)}
-                          sx={{
-                            color: 'error.main',
-                            '&:hover': {
-                              backgroundColor: 'error.light',
-                              color: 'white'
-                            }
-                          }}
-                        >
-                          <DeleteIcon />
-                        </IconButton>
-                      </Box>
-                    </Box>
-                    <Box
-                      sx={{
-                        position: 'relative',
+                    <Paper 
+                      elevation={3} 
+                      sx={{ 
+                        p: 2,
                         width: '100%',
-                        paddingTop: '56.25%',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        bgcolor: '#fff',
+                        borderRadius: '8px',
                         overflow: 'hidden',
-                        borderRadius: '4px',
-                        bgcolor: '#f0f0f0'
+                        transition: 'transform 0.2s ease',
+                        '&:hover': {
+                          transform: 'scale(1.02)'
+                        }
                       }}
                     >
-                      {image.thumbnailUrl ? (
-                        <img
-                          src={image.thumbnailUrl}
-                          alt={image.title}
-                          style={{
-                            position: 'absolute',
-                            top: 0,
-                            left: 0,
-                            width: '100%',
-                            height: '100%',
-                            objectFit: 'cover',
-                          }}
-                        />
-                      ) : (
-                        <Box
-                          sx={{
-                            position: 'absolute',
-                            top: 0,
-                            left: 0,
-                            width: '100%',
-                            height: '100%',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            color: '#666'
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+                        <Typography 
+                          variant="h6" 
+                          sx={{ 
+                            textAlign: 'center',
+                            flex: 1
                           }}
                         >
-                          No thumbnail
+                          {image.title}
+                        </Typography>
+                        <Box sx={{ display: 'flex', gap: 1 }}>
+                          <IconButton
+                            onClick={(e) => handleDownloadPlaylistClick(e, image.id)}
+                            sx={{
+                              color: 'primary.main',
+                              '&:hover': {
+                                backgroundColor: 'primary.light',
+                                color: 'white'
+                              }
+                            }}
+                            title="プレイリストをダウンロード"
+                          >
+                            <QueueMusicIcon />
+                          </IconButton>
+                          <IconButton
+                            onClick={(e) => handleStreamPlaylistClick(e, image.id)}
+                            sx={{
+                              color: 'success.main',
+                              '&:hover': {
+                                backgroundColor: 'success.light',
+                                color: 'white'
+                              }
+                            }}
+                            title="ブラウザでストリーミング再生"
+                          >
+                            <PlayArrowIcon />
+                          </IconButton>
+                          <IconButton
+                            onClick={(e) => handleDownloadClick(e, image.id)}
+                            sx={{
+                              color: 'primary.main',
+                              '&:hover': {
+                                backgroundColor: 'primary.light',
+                                color: 'white'
+                              }
+                            }}
+                            title="MP4としてダウンロード"
+                          >
+                            <DownloadIcon />
+                          </IconButton>
+                          <IconButton
+                            onClick={(e) => handleDownloadTsFilesClick(e, image.id)}
+                            sx={{
+                              color: 'primary.main',
+                              '&:hover': {
+                                backgroundColor: 'primary.light',
+                                color: 'white'
+                              }
+                            }}
+                            title="TSとしてダウンロード"
+                          >
+                            <DownloadIcon />
+                          </IconButton>
+                          <IconButton
+                            onClick={(e) => handleDeleteClick(e, image.id)}
+                            sx={{
+                              color: 'error.main',
+                              '&:hover': {
+                                backgroundColor: 'error.light',
+                                color: 'white'
+                              }
+                            }}
+                          >
+                            <DeleteIcon />
+                          </IconButton>
                         </Box>
-                      )}
-                    </Box>
-                  </Paper>
-                </Box>
-              ))}
+                      </Box>
+                      <Box
+                        sx={{
+                          position: 'relative',
+                          width: '100%',
+                          paddingTop: '56.25%',
+                          overflow: 'hidden',
+                          borderRadius: '4px',
+                          bgcolor: '#f0f0f0'
+                        }}
+                      >
+                        {image.thumbnailUrl ? (
+                          <img
+                            src={image.thumbnailUrl}
+                            alt={image.title}
+                            style={{
+                              position: 'absolute',
+                              top: 0,
+                              left: 0,
+                              width: '100%',
+                              height: '100%',
+                              objectFit: 'cover',
+                            }}
+                          />
+                        ) : (
+                          <Box
+                            sx={{
+                              position: 'absolute',
+                              top: 0,
+                              left: 0,
+                              width: '100%',
+                              height: '100%',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              color: '#666'
+                            }}
+                          >
+                            No thumbnail
+                          </Box>
+                        )}
+                      </Box>
+                    </Paper>
+                  </Box>
+                ))}
+              </Stack>
             </Stack>
-          </Stack>
+          )
         )}
 
         <Modal

@@ -15,6 +15,7 @@ import DownloadIcon from '@mui/icons-material/Download';
 import QueueMusicIcon from '@mui/icons-material/QueueMusic';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import { time } from 'console';
+import pLimit from 'p-limit';
 
 interface Image {
   id: string;
@@ -35,6 +36,8 @@ export const VideoGallery: React.FC = () => {
   const [videoPlayer, setVideoPlayer] = useState<HTMLVideoElement | null>(null);
   const [uploadModalOpen, setUploadModalOpen] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
+  const [elapsedTime, setElapsedTime] = useState<string>('');
+  const [remainingTime, setRemainingTime] = useState<string>('');
   const [identity, setIdentity] = useState<Identity | null>(null);
   const canisterId = searchParams.get('canisterId');
   const ffmpegService = useRef(new FFmpegService());
@@ -104,10 +107,25 @@ export const VideoGallery: React.FC = () => {
         if (progress.progress) {
           // FFmpeg処理の進捗は0-30%で表示
           setUploadProgress(progress.progress.percent * 0.3);
+          
+          // 経過時間と残り時間を設定
+          if (progress.progress.elapsedTime) {
+            setElapsedTime(progress.progress.elapsedTime);
+          }
+          
+          if (progress.progress.remainingTime) {
+            setRemainingTime(progress.progress.remainingTime);
+          }
         }
       };
 
       console.log("start ffmpeg");
+      // const options = {
+      //   segmentDuration: 0.5,
+      //   videoBitrate: '500k',
+      //   audioBitrate: '128k',
+      //   thumbnailTime: 1
+      // };
       // FFmpegで動画を処理
       const { playlist, segments, thumbnail } = await ffmpegService.current.processVideo(file);
       console.log("end ffmpeg");
@@ -117,8 +135,8 @@ export const VideoGallery: React.FC = () => {
       await actor.upload_playlist(backendApiVersion, video_id, playlistText);
 
       // セグメントを順次アップロード（チャンクサイズとバッチサイズを最適化）
-      const CHUNK_SIZE = 1.5 * 1024 * 1024; // 512KBに縮小
-      const BATCH_SIZE = 1; // 同時アップロード数を制限
+      const CHUNK_SIZE = 0.5 * 1024 * 1024; // 512KBに縮小
+      const BATCH_SIZE = 10; // 同時アップロード数を制限
       const RETRY_COUNT = 3; // リトライ回数
       const RETRY_DELAY = 2000; // リトライ間隔（ミリ秒）
 
@@ -408,6 +426,13 @@ export const VideoGallery: React.FC = () => {
 
       // Create custom loader
       const customLoader = createCustomLoader(actor, videoId);
+      // videoId に保管されている segment id に対するchunk 数の配列を返すAPI
+      const segmentInfoResult = await actor.get_segment_info(videoId);
+      console.warn(`--------------------segmentInfoResult: ${JSON.stringify(segmentInfoResult)}`);
+      if (!('ok' in segmentInfoResult)) {
+        throw new Error(`Failed to get_segment_info ${videoId}.`);
+      }
+      const segmentInfoResultOk = segmentInfoResult.ok;
 
       // Initialize HLS
       if (hlsInstance.current) {
@@ -429,31 +454,17 @@ export const VideoGallery: React.FC = () => {
               console.warn(`---------------------vId: ${vId}, segIdx: ${segmentId}`);
 
               const segmentDataChunks: Uint8Array[] = [];
-              let totalChunksInSegment = 0;
-      
-              // 最初のチャンクを取得して、そのセグメントの総チャンク数を確認
-              const firstChunkResult = await actor.get_segment_chunk(vId, segmentId, 0);
-      
-              if (!('ok' in firstChunkResult)) {
-                let errorDetails = 'Unknown error';
-                if (firstChunkResult.err) {
-                  errorDetails = JSON.stringify(firstChunkResult.err); // エラー内容を文字列化
-                }
-                console.error(`Failed to get first chunk for segment ${segmentId}. Details: ${errorDetails}`);
-                throw new Error(`Failed to get first chunk for segment ${segmentId}. Error: ${errorDetails}`);
-              }
+              // ここで並列実行数を制限する
+              const CONCURRENT_CHUNK_DOWNLOADS = 70; // 例: 5つのチャンクを同時にダウンロード
+              const limit = pLimit(CONCURRENT_CHUNK_DOWNLOADS);
               
-              const firstChunkResponse = firstChunkResult.ok;
-              totalChunksInSegment = firstChunkResponse.total_chunk_count;
-              console.log(`Segment ${segmentId}: Total chunks expected: ${totalChunksInSegment}`);
-              segmentDataChunks.push(new Uint8Array(firstChunkResponse.segment_chunk_data as number[]));
-      
-              // 残りのチャンクを並列で取得 (総チャンク数が1より大きい場合)
-              if (totalChunksInSegment > 1) { // 最初のチャンクは既に取得済みなので、totalChunksInSegmentが1より大きい場合のみ
-                const chunkPromises = [];
-                for (let chunkIndex = 1; chunkIndex < totalChunksInSegment; chunkIndex++) {
-                  console.log(`Segment ${segmentId}: Creating promise for chunk ${chunkIndex + 1}/${totalChunksInSegment}`);
-                  chunkPromises.push(
+              const segmentInfoTotalChunkCount: number = segmentInfoResultOk.find((item: { segment_id: number; }) => item.segment_id === segmentId)?.total_chunk_count ?? 0;
+              
+              const chunkPromises = [];
+              for (let chunkIndex = 0; chunkIndex < segmentInfoTotalChunkCount; chunkIndex++) {
+                console.log(`Segment ${segmentId}: Creating promise for chunk ${chunkIndex + 1}/${segmentInfoTotalChunkCount}`);
+                chunkPromises.push(
+                  limit(() => // limit 関数でプロミスをラップ
                     actor.get_segment_chunk(vId, segmentId, chunkIndex)
                       .then(chunkResult => {
                         if ('ok' in chunkResult) {
@@ -467,13 +478,14 @@ export const VideoGallery: React.FC = () => {
                           throw new Error(`Failed to get chunk ${chunkIndex} for segment ${segmentId}. Error: ${errorDetails}`);
                         }
                       })
-                  );
-                }
-
-                // すべてのチャンクのPromiseが解決するのを待機
-                const remainingChunks = await Promise.all(chunkPromises);
-                segmentDataChunks.push(...remainingChunks); // 取得したすべてのチャンクを配列に追加
+                  )
+                );
               }
+
+              // すべてのチャンクのPromiseが解決するのを待機
+              const remainingChunks = await Promise.all(chunkPromises);
+              segmentDataChunks.push(...remainingChunks); // 取得したすべてのチャンクを配列に追加
+
               // すべてのチャンクを1つの Uint8Array に結合
               // まず、結合後の合計サイズを計算
               const combinedLength = segmentDataChunks.reduce((acc, chunk) => acc + chunk.length, 0);
@@ -486,7 +498,7 @@ export const VideoGallery: React.FC = () => {
                 offset += chunk.length;
               }
 
-              console.warn(`-------------------combinedSegmentData: ${JSON.stringify(combinedSegmentData)}`);
+              //console.warn(`-------------------combinedSegmentData: ${JSON.stringify(combinedSegmentData)}`);
 
               callbacks.onSuccess({
                 data: combinedSegmentData,
@@ -929,170 +941,174 @@ export const VideoGallery: React.FC = () => {
         {loading ? (
           <Typography variant="h6" sx={{ textAlign: 'center' }}>Loading...</Typography>
         ) : (
-          <Stack spacing={3}>
-            <Stack
-              direction="row"
-              sx={{
-                flexWrap: 'wrap',
-                gap: { xs: 2, sm: 3 },
-                justifyContent: 'center',
-                alignItems: 'stretch'
-              }}
-            >
-              {images.map((image) => (
-                <Box 
-                  key={image.id} 
-                  sx={{ 
-                    width: {
-                      xs: '100%',
-                      sm: 'calc(50% - 24px)',
-                      md: 'calc(33.333% - 24px)'
-                    },
-                    minWidth: { xs: '280px', sm: '320px' },
-                    display: 'flex',
-                    cursor: 'pointer'
-                  }}
-                  onClick={() => handleVideoClick(image.id)}
-                >
-                  <Paper 
-                    elevation={3} 
+          images.length === 0 ? (
+            <Typography variant="h6" sx={{ textAlign: 'center' }}>No videos found</Typography>
+          ) : (
+            <Stack spacing={3}>
+              <Stack
+                direction="row"
+                sx={{
+                  flexWrap: 'wrap',
+                  gap: { xs: 2, sm: 3 },
+                  justifyContent: 'center',
+                  alignItems: 'stretch'
+                }}
+              >
+                {images.map((image) => (
+                  <Box 
+                    key={image.id} 
                     sx={{ 
-                      p: 2,
-                      width: '100%',
+                      width: {
+                        xs: '100%',
+                        sm: 'calc(50% - 24px)',
+                        md: 'calc(33.333% - 24px)'
+                      },
+                      minWidth: { xs: '280px', sm: '320px' },
                       display: 'flex',
-                      flexDirection: 'column',
-                      bgcolor: '#fff',
-                      borderRadius: '8px',
-                      overflow: 'hidden',
-                      transition: 'transform 0.2s ease',
-                      '&:hover': {
-                        transform: 'scale(1.02)'
-                      }
+                      cursor: 'pointer'
                     }}
+                    onClick={() => handleVideoClick(image.id)}
                   >
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
-                      <Typography 
-                        variant="h6" 
-                        sx={{ 
-                          textAlign: 'center',
-                          flex: 1
-                        }}
-                      >
-                        {image.title}
-                      </Typography>
-                      <Box sx={{ display: 'flex', gap: 1 }}>
-                        <IconButton
-                          onClick={(e) => handleDownloadPlaylistClick(e, image.id)}
-                          sx={{
-                            color: 'primary.main',
-                            '&:hover': {
-                              backgroundColor: 'primary.light',
-                              color: 'white'
-                            }
-                          }}
-                          title="プレイリストをダウンロード"
-                        >
-                          <QueueMusicIcon />
-                        </IconButton>
-                        <IconButton
-                          onClick={(e) => handleStreamPlaylistClick(e, image.id)}
-                          sx={{
-                            color: 'success.main',
-                            '&:hover': {
-                              backgroundColor: 'success.light',
-                              color: 'white'
-                            }
-                          }}
-                          title="ブラウザでストリーミング再生"
-                        >
-                          <PlayArrowIcon />
-                        </IconButton>
-                        <IconButton
-                          onClick={(e) => handleDownloadClick(e, image.id)}
-                          sx={{
-                            color: 'primary.main',
-                            '&:hover': {
-                              backgroundColor: 'primary.light',
-                              color: 'white'
-                            }
-                          }}
-                          title="MP4としてダウンロード"
-                        >
-                          <DownloadIcon />
-                        </IconButton>
-                        <IconButton
-                          onClick={(e) => handleDownloadTsFilesClick(e, image.id)}
-                          sx={{
-                            color: 'primary.main',
-                            '&:hover': {
-                              backgroundColor: 'primary.light',
-                              color: 'white'
-                            }
-                          }}
-                          title="TSとしてダウンロード"
-                        >
-                          <DownloadIcon />
-                        </IconButton>
-                        <IconButton
-                          onClick={(e) => handleDeleteClick(e, image.id)}
-                          sx={{
-                            color: 'error.main',
-                            '&:hover': {
-                              backgroundColor: 'error.light',
-                              color: 'white'
-                            }
-                          }}
-                        >
-                          <DeleteIcon />
-                        </IconButton>
-                      </Box>
-                    </Box>
-                    <Box
-                      sx={{
-                        position: 'relative',
+                    <Paper 
+                      elevation={3} 
+                      sx={{ 
+                        p: 2,
                         width: '100%',
-                        paddingTop: '56.25%',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        bgcolor: '#fff',
+                        borderRadius: '8px',
                         overflow: 'hidden',
-                        borderRadius: '4px',
-                        bgcolor: '#f0f0f0'
+                        transition: 'transform 0.2s ease',
+                        '&:hover': {
+                          transform: 'scale(1.02)'
+                        }
                       }}
                     >
-                      {image.thumbnailUrl ? (
-                        <img
-                          src={image.thumbnailUrl}
-                          alt={image.title}
-                          style={{
-                            position: 'absolute',
-                            top: 0,
-                            left: 0,
-                            width: '100%',
-                            height: '100%',
-                            objectFit: 'cover',
-                          }}
-                        />
-                      ) : (
-                        <Box
-                          sx={{
-                            position: 'absolute',
-                            top: 0,
-                            left: 0,
-                            width: '100%',
-                            height: '100%',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            color: '#666'
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+                        <Typography 
+                          variant="h6" 
+                          sx={{ 
+                            textAlign: 'center',
+                            flex: 1
                           }}
                         >
-                          No thumbnail
+                          {image.title}
+                        </Typography>
+                        <Box sx={{ display: 'flex', gap: 1 }}>
+                          <IconButton
+                            onClick={(e) => handleDownloadPlaylistClick(e, image.id)}
+                            sx={{
+                              color: 'primary.main',
+                              '&:hover': {
+                                backgroundColor: 'primary.light',
+                                color: 'white'
+                              }
+                            }}
+                            title="プレイリストをダウンロード"
+                          >
+                            <QueueMusicIcon />
+                          </IconButton>
+                          <IconButton
+                            onClick={(e) => handleStreamPlaylistClick(e, image.id)}
+                            sx={{
+                              color: 'success.main',
+                              '&:hover': {
+                                backgroundColor: 'success.light',
+                                color: 'white'
+                              }
+                            }}
+                            title="ブラウザでストリーミング再生"
+                          >
+                            <PlayArrowIcon />
+                          </IconButton>
+                          <IconButton
+                            onClick={(e) => handleDownloadClick(e, image.id)}
+                            sx={{
+                              color: 'primary.main',
+                              '&:hover': {
+                                backgroundColor: 'primary.light',
+                                color: 'white'
+                              }
+                            }}
+                            title="MP4としてダウンロード"
+                          >
+                            <DownloadIcon />
+                          </IconButton>
+                          <IconButton
+                            onClick={(e) => handleDownloadTsFilesClick(e, image.id)}
+                            sx={{
+                              color: 'primary.main',
+                              '&:hover': {
+                                backgroundColor: 'primary.light',
+                                color: 'white'
+                              }
+                            }}
+                            title="TSとしてダウンロード"
+                          >
+                            <DownloadIcon />
+                          </IconButton>
+                          <IconButton
+                            onClick={(e) => handleDeleteClick(e, image.id)}
+                            sx={{
+                              color: 'error.main',
+                              '&:hover': {
+                                backgroundColor: 'error.light',
+                                color: 'white'
+                              }
+                            }}
+                          >
+                            <DeleteIcon />
+                          </IconButton>
                         </Box>
-                      )}
-                    </Box>
-                  </Paper>
-                </Box>
-              ))}
+                      </Box>
+                      <Box
+                        sx={{
+                          position: 'relative',
+                          width: '100%',
+                          paddingTop: '56.25%',
+                          overflow: 'hidden',
+                          borderRadius: '4px',
+                          bgcolor: '#f0f0f0'
+                        }}
+                      >
+                        {image.thumbnailUrl ? (
+                          <img
+                            src={image.thumbnailUrl}
+                            alt={image.title}
+                            style={{
+                              position: 'absolute',
+                              top: 0,
+                              left: 0,
+                              width: '100%',
+                              height: '100%',
+                              objectFit: 'cover',
+                            }}
+                          />
+                        ) : (
+                          <Box
+                            sx={{
+                              position: 'absolute',
+                              top: 0,
+                              left: 0,
+                              width: '100%',
+                              height: '100%',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              color: '#666'
+                            }}
+                          >
+                            No thumbnail
+                          </Box>
+                        )}
+                      </Box>
+                    </Paper>
+                  </Box>
+                ))}
+              </Stack>
             </Stack>
-          </Stack>
+          )
         )}
 
         <Modal
@@ -1142,6 +1158,8 @@ export const VideoGallery: React.FC = () => {
           onUpload={handleUpload}
           progress={uploadProgress}
           ffmpegService={ffmpegService.current}
+          elapsedTime={elapsedTime}
+          remainingTime={remainingTime}
         />
 
         {/* Delete Confirmation Dialog */}

@@ -72,6 +72,20 @@ pub struct SegmentChunkResponse {
     pub total_chunk_count: u32, // そのセグメントのチャンク総数
 }
 
+#[derive(CandidType, Deserialize)]
+enum SegmentChunkInfoResult {
+    #[serde(rename = "ok")]
+    Ok(Vec<SegmentChunkInfo>),
+    #[serde(rename = "err")]
+    Err(String),
+}
+// セグメント情報
+#[derive(CandidType, Deserialize, Clone)]
+pub struct SegmentChunkInfo {
+    pub segment_id: u32,
+    pub total_chunk_count: u32, // そのセグメントのチャンク総数
+}
+
 
 #[derive(CandidType, Deserialize)]
 struct VideoInfo {
@@ -365,6 +379,29 @@ fn upload_ts_segment_chunk(
     })
 }
 
+
+/// 指定された video_id のセグメントの情報を返却する
+/// video_id: 動画のID
+#[query]
+fn get_segment_info(video_id: String) -> SegmentChunkInfoResult {
+    VIDEOS.with(|videos| {
+        let videos = videos.borrow();
+
+        if let Some(video) = videos.get(&video_id) {
+            let mut segment_chunk_info_list = Vec::new(); // Changed variable name for clarity
+            for (index, segment_info) in video.segments.iter().enumerate() {
+                segment_chunk_info_list.push(SegmentChunkInfo {
+                    segment_id: index as u32,
+                    total_chunk_count: segment_info.total_chunk_count,
+                });
+            }
+            SegmentChunkInfoResult::Ok(segment_chunk_info_list)
+        } else {
+            // 指定された動画が存在しない
+            SegmentChunkInfoResult::Err(format!("Video not found with ID {}", video_id))
+        }
+    })
+}
 
 /// 指定されたセグメントのチャンクを結合して完全なセグメントデータを取得する
 /// video_id: 動画のID

@@ -18,14 +18,18 @@ interface UploadModalProps {
   onUpload: (file: File, title: string) => Promise<void>;
   progress?: number;
   ffmpegService: FFmpegService;
+  elapsedTime?: string;
+  remainingTime?: string;
 }
 
-export const UploadModal: React.FC<UploadModalProps> = ({ 
-  open, 
-  onClose, 
+export const UploadModal: React.FC<UploadModalProps> = ({
+  open,
+  onClose,
   onUpload,
   progress = 0,
-  ffmpegService
+  ffmpegService,
+  elapsedTime,
+  remainingTime
 }) => {
   const [title, setTitle] = useState('');
   const [file, setFile] = useState<File | null>(null);
@@ -156,6 +160,20 @@ export const UploadModal: React.FC<UploadModalProps> = ({
 
         {uploading && (
           <Box sx={{ width: '100%', mt: 2 }}>
+            {(elapsedTime || remainingTime) && (
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
+                {elapsedTime && (
+                  <Typography variant="caption" color="text.secondary">
+                    経過時間: {elapsedTime}
+                  </Typography>
+                )}
+                {remainingTime && (
+                  <Typography variant="caption" color="text.secondary">
+                    残り時間: {remainingTime}
+                  </Typography>
+                )}
+              </Box>
+            )}
             <LinearProgress variant="determinate" value={progress} />
             <Typography variant="body2" color="text.secondary" align="center" sx={{ mt: 1 }}>
               {Math.round(progress)}%

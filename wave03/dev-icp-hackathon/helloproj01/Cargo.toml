@@ -1,5 +1,0 @@
-[workspace]
-members = [
-    "src/helloproj01_backend"
-]
-resolver = "2"

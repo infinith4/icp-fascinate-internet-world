@@ -1,0 +1,20 @@
+{
+  "canisters": {
+    "mng_canister_backend": {
+      "main": "src/mng_canister_backend/main.mo",
+      "type": "motoko"
+    },
+    "canister_backend": {
+      "main": "src/canister_backend/main.mo",
+      "type": "motoko"
+    }
+  },
+  "defaults": {
+    "build": {
+      "args": "",
+      "packtool": ""
+    }
+  },
+  "output_env_file": ".env",
+  "version": 1
+}

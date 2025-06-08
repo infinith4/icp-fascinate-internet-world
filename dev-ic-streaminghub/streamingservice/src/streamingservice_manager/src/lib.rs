@@ -52,7 +52,7 @@ async fn CreateAndInstallCanister() -> Result<Principal, String> {
     // ];
 
     // 🔹 WASM バイナリを用意（ここでは空のWASMを使うが、実際には include_bytes! などでファイル読み込み）
-    let wasm_module: Vec<u8> = include_bytes!("../../../target/wasm32-unknown-unknown/release/greet_backend.wasm").to_vec();
+    let wasm_module: Vec<u8> = include_bytes!("../../../target/wasm32-unknown-unknown/release/streamingservice_backend.wasm").to_vec();
 
     // 🔹 Initialize arguments (empty for now)
     let init_args = Encode!().unwrap();

@@ -88,6 +88,8 @@ npm install @mui/material @emotion/react @emotion/styled
 cd /src/streamingservice/src/greet_backend
 cargo build --release --target wasm32-unknown-unknown --package greet_backend
 
+cd /src/streamingservice/src/streamingservice_backend
+cargo build --release --target wasm32-unknown-unknown --package streamingservice_backend
 
 
 ローカルのcanisterにcycleを追加するには、以下の手順で行います：

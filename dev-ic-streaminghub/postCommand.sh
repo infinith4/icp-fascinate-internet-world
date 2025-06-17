@@ -8,11 +8,11 @@ curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.1/install.sh | bash
     nvm use --lts && \
     node -v && npm -v && \
     npm i -g yarn
-npm install -g npm@11.1.0
+npm install -g npm@11.4.2
 nvm use --lts
 
 npm install typescript -g
-npm install node react -g
+npm install n react -g
 
 # sudo apt-get update
 sudo apt install libxtables12 -y

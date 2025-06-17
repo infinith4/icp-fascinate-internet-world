@@ -262,13 +262,26 @@ Port 番号を利用しているか
 lsof -i :4943
 lsof -i :4949
 
+#################
+
 dfx start --clean --host 127.0.0.1:4949
 
-cd streamingservice
+cd /src/streamingservice
+dfx generate
 dfx deploy
 
-cd streamingservice
+cd /src/streamingservice
 dfx build streamingservice_manager
+
+
+
+cd /src/streamingservice/src/streamingservice_backend
+cargo build --release --target wasm32-unknown-unknown --package streamingservice_backend
+
+
+cd /src/streamingservice/src/streamingservice_frontend
+npm install --save-dev @types/react @types/react-dom @types/node
+npm run build
 
 dfx canister deposit-cycles 10000000000000 ulvla-h7777-77774-qaacq-cai
 

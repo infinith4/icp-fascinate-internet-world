@@ -244,6 +244,7 @@ fn create_video(version: String, title: String, description: String) -> String {
     video_id
 }
 
+// 動画情報を返却するAPI
 #[query]
 fn get_video_info(video_id: String) -> VideoInfoResult {
     ic_cdk::println!("Starting get_video_info for video_id: {}", video_id);
@@ -262,6 +263,8 @@ fn get_video_info(video_id: String) -> VideoInfoResult {
     })
 }
 
+// 動画情報一覧を返却するAPI
+// 戻り値の各要素は、(動画id, 動画タイトル, 動画説明, 動画ハッシュ) のタプル
 #[query]
 fn get_video_list() -> Vec<(String, String, String, String)> {
     VIDEOS.with(|videos| {

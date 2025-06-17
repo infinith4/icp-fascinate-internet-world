@@ -1,4 +1,4 @@
-use candid::{Nat, CandidType, Encode, Decode, Principal, encode_args};
+use candid::{encode_args, types::principal, CandidType, Decode, Encode, Nat, Principal};
 use ic_cdk::api::management_canister::{
     main::{
         create_canister, install_code, deposit_cycles, start_canister, stop_canister, delete_canister, canister_status,
@@ -12,14 +12,47 @@ use ic_cdk::{
     api::{call, time},
     id,
 };
+use std::cell::RefCell;
+use std::collections::HashMap;
+
+#[derive(CandidType, Deserialize)]
+struct CanisterInfo {
+    id: String,
+    principal_id: String,
+}
 
 #[derive(CandidType, Deserialize)]
 pub struct CanisterStatusResult {
     pub controllers: Vec<Principal>,
 }
 
+#[derive(CandidType, Deserialize)]
+enum CreateAndInstallCanisterResult {
+    #[serde(rename = "ok")]
+    Ok(String),
+    #[serde(rename = "err")]
+    Err(String),
+}
+
+thread_local! {
+    static CANISTERS: RefCell<HashMap<String, CanisterInfo>> = RefCell::new(HashMap::new());
+}
+
+#[query]
+fn getCanisterIdList() -> Vec<(String, String)> {
+    CANISTERS.with(|canisterInfos| {
+        let canisterInfos = canisterInfos.borrow();
+        canisterInfos.iter()
+            .map(|(id, canisterInfo)| (
+                id.clone(),
+                canisterInfo.principal_id.clone()
+            ))
+            .collect()
+    })
+}
+
 #[update]
-async fn CreateAndInstallCanister() -> Result<Principal, String> {
+async fn createAndInstallCanister() -> Result<String, String> {
     // 🔹 Create Canister with optional settings
     let canister_setting = CanisterSettings {
         controllers: Some(vec![id()]),
@@ -34,7 +67,7 @@ async fn CreateAndInstallCanister() -> Result<Principal, String> {
         settings: Some(canister_setting),
     };
 
-    let (create_result,) = match create_canister(create_args, 900_000_000_000).await {
+    let (create_result,) = match create_canister(create_args, 5_093_757_542_230).await {
         Ok(res) => res,
         Err(e) => return Err(format!("Failed to create canister: {:?}", e)),
     };
@@ -69,68 +102,77 @@ async fn CreateAndInstallCanister() -> Result<Principal, String> {
         return Err(format!("Failed to install code: {:?}", e));
     }
 
-    Ok(new_canister_id)
+    ic_cdk::println!("-------------------------createAndInstallCanister: {}", new_canister_id);
+    let canisterInfoId = ic_cdk::api::time().to_string();
+    let canisterInfo = CanisterInfo {
+        id: canisterInfoId.clone(),
+        principal_id: new_canister_id.to_string(),
+    };
+    CANISTERS.with(|canisterInfos| {
+        canisterInfos.borrow_mut().insert(canisterInfoId.clone(), canisterInfo);
+    });
+    Ok(new_canister_id.to_string())
 }
 
+// #[update]
+// async fn createStreamingCanister(title: String, description: String) -> Result<Principal, String> {
+//     // 🔹 Create Canister with optional settings
+//     let canister_setting = CanisterSettings {
+//         controllers: Some(vec![id()]),
+//         compute_allocation: Some(Nat::from(0_u64)),
+//         memory_allocation: Some(Nat::from(0_u64)),
+//         freezing_threshold: Some(Nat::from(0_u64)),
+//         reserved_cycles_limit: Some(Nat::from(0_u64)),
+//         log_visibility: Some(LogVisibility::Public),
+//         wasm_memory_limit: Some(Nat::from(4_u64 * 1024_u64 * 1024_u64)), // 4MB memory limit
+//     };
+//     let create_args = CreateCanisterArgument {
+//         settings: Some(canister_setting),
+//     };
+
+//     let (create_result,) = match create_canister(create_args, 900_000_000_000).await {
+//         Ok(res) => res,
+//         Err(e) => return Err(format!("Failed to create canister: {:?}", e)),
+//     };
+
+//     let new_canister_id = create_result.canister_id;
+
+//     // // In a real implementation, you would include the actual streamingservice_backend WASM binary
+//     // // For now, we're using a placeholder
+//     // let wasm_module: Vec<u8> = vec![
+//     //     0x00, 0x61, 0x73, 0x6D, 0x01, 0x00, 0x00, 0x00, 
+//     //     0x01, 0x04, 0x01, 0x60, 0x00, 0x00, 0x03, 0x02, 
+//     //     0x01, 0x00, 0x07, 0x08, 0x01, 0x04, 0x63, 0x61, 
+//     //     0x6E, 0x64, 0x00, 0x00, 0x0A, 0x04, 0x01, 0x02, 
+//     //     0x00, 0x0B
+//     // ];
+
+//     // 🔹 WASM バイナリを用意（ここでは空のWASMを使うが、実際には include_bytes! などでファイル読み込み）
+//     let wasm_module: Vec<u8> = include_bytes!("../../../target/wasm32-unknown-unknown/release/greet_backend.wasm").to_vec();
+
+//     // Initialize with title and description
+//     let init_args = match Encode!(&title, &description) {
+//         Ok(args) => args,
+//         Err(e) => return Err(format!("Failed to encode arguments: {:?}", e)),
+//     };
+
+//     // 🔹 Install Code
+//     let install_args = InstallCodeArgument {
+//         mode: CanisterInstallMode::Install,
+//         canister_id: new_canister_id,
+//         wasm_module,
+//         arg: init_args,
+//     };
+
+//     if let Err(e) = install_code(install_args).await {
+//         return Err(format!("Failed to install code: {:?}", e));
+//     }
+
+//     Ok(new_canister_id)
+// }
+
 #[update]
-async fn CreateStreamingCanister(title: String, description: String) -> Result<Principal, String> {
-    // 🔹 Create Canister with optional settings
-    let canister_setting = CanisterSettings {
-        controllers: Some(vec![id()]),
-        compute_allocation: Some(Nat::from(0_u64)),
-        memory_allocation: Some(Nat::from(0_u64)),
-        freezing_threshold: Some(Nat::from(0_u64)),
-        reserved_cycles_limit: Some(Nat::from(0_u64)),
-        log_visibility: Some(LogVisibility::Public),
-        wasm_memory_limit: Some(Nat::from(4_u64 * 1024_u64 * 1024_u64)), // 4MB memory limit
-    };
-    let create_args = CreateCanisterArgument {
-        settings: Some(canister_setting),
-    };
-
-    let (create_result,) = match create_canister(create_args, 900_000_000_000).await {
-        Ok(res) => res,
-        Err(e) => return Err(format!("Failed to create canister: {:?}", e)),
-    };
-
-    let new_canister_id = create_result.canister_id;
-
-    // // In a real implementation, you would include the actual streamingservice_backend WASM binary
-    // // For now, we're using a placeholder
-    // let wasm_module: Vec<u8> = vec![
-    //     0x00, 0x61, 0x73, 0x6D, 0x01, 0x00, 0x00, 0x00, 
-    //     0x01, 0x04, 0x01, 0x60, 0x00, 0x00, 0x03, 0x02, 
-    //     0x01, 0x00, 0x07, 0x08, 0x01, 0x04, 0x63, 0x61, 
-    //     0x6E, 0x64, 0x00, 0x00, 0x0A, 0x04, 0x01, 0x02, 
-    //     0x00, 0x0B
-    // ];
-
-    // 🔹 WASM バイナリを用意（ここでは空のWASMを使うが、実際には include_bytes! などでファイル読み込み）
-    let wasm_module: Vec<u8> = include_bytes!("../../../target/wasm32-unknown-unknown/release/greet_backend.wasm").to_vec();
-
-    // Initialize with title and description
-    let init_args = match Encode!(&title, &description) {
-        Ok(args) => args,
-        Err(e) => return Err(format!("Failed to encode arguments: {:?}", e)),
-    };
-
-    // 🔹 Install Code
-    let install_args = InstallCodeArgument {
-        mode: CanisterInstallMode::Install,
-        canister_id: new_canister_id,
-        wasm_module,
-        arg: init_args,
-    };
-
-    if let Err(e) = install_code(install_args).await {
-        return Err(format!("Failed to install code: {:?}", e));
-    }
-
-    Ok(new_canister_id)
-}
-
-#[update]
-async fn DepositCycles(canister_principal: String) -> Result<(), String> {
+async fn depositCycles(canister_principal: String) -> Result<(), String> {
     // Add 10^12 cycles
     let available_cycles = ic_cdk::api::call::msg_cycles_available();
     ic_cdk::api::call::msg_cycles_accept(1_000_000_000_000_u64.min(available_cycles));
@@ -147,7 +189,7 @@ async fn DepositCycles(canister_principal: String) -> Result<(), String> {
 }
 
 #[update]
-async fn StartCanister(canister_principal: String) -> Result<(), String> {
+async fn startCanister(canister_principal: String) -> Result<(), String> {
     let canister_id = match Principal::from_text(canister_principal) {
         Ok(principal) => principal,
         Err(e) => return Err(format!("Invalid principal: {:?}", e)),
@@ -162,7 +204,7 @@ async fn StartCanister(canister_principal: String) -> Result<(), String> {
 }
 
 #[update]
-async fn StopCanister(canister_principal: String) -> Result<(), String> {
+async fn stopCanister(canister_principal: String) -> Result<(), String> {
     let canister_id = match Principal::from_text(canister_principal) {
         Ok(principal) => principal,
         Err(e) => return Err(format!("Invalid principal: {:?}", e)),
@@ -177,7 +219,7 @@ async fn StopCanister(canister_principal: String) -> Result<(), String> {
 }
 
 #[update]
-async fn DeleteCanister(canister_principal: String) -> Result<(), String> {
+async fn deleteCanister(canister_principal: String) -> Result<(), String> {
     let canister_id = match Principal::from_text(canister_principal) {
         Ok(principal) => principal,
         Err(e) => return Err(format!("Invalid principal: {:?}", e)),
@@ -192,7 +234,7 @@ async fn DeleteCanister(canister_principal: String) -> Result<(), String> {
 }
 
 #[update]
-async fn CanisterStatus(canister_principal: String) -> Result<CanisterStatusResult, String> {
+async fn canisterStatus(canister_principal: String) -> Result<CanisterStatusResult, String> {
     let canister_id = match Principal::from_text(canister_principal) {
         Ok(principal) => principal,
         Err(e) => return Err(format!("Invalid principal: {:?}", e)),
@@ -210,7 +252,7 @@ async fn CanisterStatus(canister_principal: String) -> Result<CanisterStatusResu
 
 
 #[update]
-async fn CallGreet(canister_principal: String, greeting: String) -> Result<(String), String> {
+async fn callGreet(canister_principal: String, greeting: String) -> Result<(String), String> {
     let canister_id = match Principal::from_text(canister_principal) {
         Ok(principal) => principal,
         Err(e) => return Err(format!("Invalid principal: {:?}", e)),

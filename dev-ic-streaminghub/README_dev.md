@@ -265,11 +265,12 @@ lsof -i :4949
 dfx start --clean --host 127.0.0.1:4949
 
 cd streamingservice
-
-
 dfx deploy
 
+cd streamingservice
+dfx build streamingservice_manager
 
+dfx canister deposit-cycles 10000000000000 ulvla-h7777-77774-qaacq-cai
 
 dfx deploy streamingservice_frontend
 

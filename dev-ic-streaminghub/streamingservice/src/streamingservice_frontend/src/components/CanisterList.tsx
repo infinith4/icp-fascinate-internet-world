@@ -2,10 +2,12 @@ import React, { useEffect, useState } from 'react';
 //import { streamingservice_backend } from 'declarations/streamingservice_backend'; // 適宜パスを調整
 import { Actor, HttpAgent, Identity } from '@dfinity/agent';
 import { AuthClient } from '@dfinity/auth-client';
-import { _SERVICE } from '../../../declarations/streamingservice_backend/streamingservice_backend.did';
-import { createActor } from '../../../declarations/streamingservice_backend';
+import { _SERVICE as _BACKEND_SERVICE } from '../../../declarations/streamingservice_backend/streamingservice_backend.did';
+import { _SERVICE as _MNG_SERVICE } from '../../../declarations/streamingservice_manager/streamingservice_manager.did';
+import { createActor as createManagerActorInit } from '../../../declarations/streamingservice_manager';
+import { createActor as createBackendActorInit } from '../../../declarations/streamingservice_backend';
 import { Header } from './Header';
-import { Box } from '@mui/material';
+import { Box, Button, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, Typography } from '@mui/material';
 
 interface VideoInfo {
   id: string;
@@ -15,15 +17,24 @@ interface VideoInfo {
   //totalSizeBytes: number; // lib.rs で追加したフィールド
 }
 
+interface CanisterInfo {
+  id: string;
+  status: string;
+  controllers: string[];
+}
+
 function CanisterList() {
   const [videoList, setVideoList] = useState<VideoInfo[]>([]);
   const [totalVideoCount, setTotalVideoCount] = useState<number>(0);
   const [totalStorageUsed, setTotalStorageUsed] = useState<number>(0); // バイト単位
   const [identity, setIdentity] = useState<Identity | null>(null);
+  const [canisterList, setCanisterList] = useState<CanisterInfo[]>([]);
+  const [isLoading, setIsLoading] = useState<boolean>(false);
 
   useEffect(() => {
     initAuth();
     fetchVideoList();
+    fetchCanisterList();
   }, []);
 
   const initAuth = async () => {
@@ -44,6 +55,98 @@ function CanisterList() {
     setIdentity(newIdentity);
   };
 
+  const createManagerActor = () => {
+    const agent = new HttpAgent({
+      host: 'http://localhost:' + import.meta.env.VITE_LOCAL_CANISTER_PORT,
+      //identity: identity
+    });
+    return createManagerActorInit(import.meta.env.VITE_CANISTER_ID_STREAMINGSERVICE_MANAGER, {
+      agent,
+    });
+  };
+
+  const fetchCanisterList = async () => {
+    try {
+      setIsLoading(true);
+      const actor = createManagerActor();
+      // ここでCanisterStatusを呼び出して各Canisterの状態を取得
+      // 実際の実装では、管理対象のCanister IDのリストが必要です
+    } catch (error) {
+      console.error("Error fetching canister list:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleCreateCanister = async () => {
+    try {
+      setIsLoading(true);
+      const actor = createManagerActor();
+      const result = await actor.createAndInstallCanister();
+      if ('Ok' in result) {
+        console.warn(`-------------------------${result.Ok}`);
+        await fetchCanisterList();
+      } else {
+        console.error("Error creating canister:", result.Err);
+      }
+    } catch (error) {
+      console.error("Error creating canister:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleStartCanister = async (canisterId: string) => {
+    try {
+      setIsLoading(true);
+      const actor = createManagerActor();
+      const result = await actor.startCanister(canisterId);
+      if ('Ok' in result) {
+        await fetchCanisterList();
+      } else {
+        console.error("Error starting canister:", result.Err);
+      }
+    } catch (error) {
+      console.error("Error starting canister:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleStopCanister = async (canisterId: string) => {
+    try {
+      setIsLoading(true);
+      const actor = createManagerActor();
+      const result = await actor.stopCanister(canisterId);
+      if ('Ok' in result) {
+        await fetchCanisterList();
+      } else {
+        console.error("Error stopping canister:", result.Err);
+      }
+    } catch (error) {
+      console.error("Error stopping canister:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleDeleteCanister = async (canisterId: string) => {
+    try {
+      setIsLoading(true);
+      const actor = createManagerActor();
+      const result = await actor.deleteCanister(canisterId);
+      if ('Ok' in result) {
+        await fetchCanisterList();
+      } else {
+        console.error("Error deleting canister:", result.Err);
+      }
+    } catch (error) {
+      console.error("Error deleting canister:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const fetchVideoList = async () => {
     try {
         
@@ -52,9 +155,9 @@ function CanisterList() {
         //identity: identity
       });
 
-      const actor = createActor(import.meta.env.VITE_CANISTER_ID_STREAMINGSERVICE_BACKEND, {
+      const actor = createBackendActorInit(import.meta.env.VITE_CANISTER_ID_STREAMINGSERVICE_BACKEND, {
         agent,
-      }) as Actor & _SERVICE;      
+      }) as Actor & _BACKEND_SERVICE;      
       console.error(`-------${await actor.get_video_list()}`);
 
       const rawVideoList: [string, string, string, string][] = await actor.get_video_list();
@@ -96,37 +199,88 @@ function CanisterList() {
         onAuthChange={handleAuthChange}
       />
       <Box sx={{ mt: 8, p: 3 }}>
-        <h1>Canister Video List</h1>
-        <p>Total Videos: {totalVideoCount}</p>
-        {/* <p>Total Storage Used: {formatBytes(totalStorageUsed)}</p> */}
+        <Typography variant="h4" gutterBottom>Canister Management</Typography>
+        <Button 
+          variant="contained" 
+          color="primary" 
+          onClick={handleCreateCanister}
+          disabled={isLoading}
+          sx={{ mb: 3 }}
+        >
+          Create New Canister
+        </Button>
 
-        <h2>Videos</h2>
-        {videoList.length === 0 ? (
-            <p>No videos uploaded yet.</p>
-        ) : (
-            <table>
-            <thead>
-                <tr>
-                <th>ID</th>
-                <th>Title</th>
-                <th>Description</th>
-                <th>Hash</th>
-                {/* <th>Size</th> */}
-                </tr>
-            </thead>
-            <tbody>
-                {videoList.map((video) => (
-                <tr key={video.id}>
-                    <td>{video.id}</td>
-                    <td>{video.title}</td>
-                    <td>{video.description}</td>
-                    <td>{video.hash}</td>
-                    {/* <td>{formatBytes(video.totalSizeBytes)}</td> */}
-                </tr>
-                ))}
-            </tbody>
-            </table>
-        )}
+        <TableContainer component={Paper}>
+          <Table>
+            <TableHead>
+              <TableRow>
+                <TableCell>Canister ID</TableCell>
+                <TableCell>Status</TableCell>
+                <TableCell>Controllers</TableCell>
+                <TableCell>Actions</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {canisterList.map((canister) => (
+                <TableRow key={canister.id}>
+                  <TableCell>{canister.id}</TableCell>
+                  <TableCell>{canister.status}</TableCell>
+                  <TableCell>{canister.controllers.join(', ')}</TableCell>
+                  <TableCell>
+                    <Button 
+                      size="small" 
+                      onClick={() => handleStartCanister(canister.id)}
+                      disabled={isLoading}
+                    >
+                      Start
+                    </Button>
+                    <Button 
+                      size="small" 
+                      onClick={() => handleStopCanister(canister.id)}
+                      disabled={isLoading}
+                    >
+                      Stop
+                    </Button>
+                    <Button 
+                      size="small" 
+                      color="error"
+                      onClick={() => handleDeleteCanister(canister.id)}
+                      disabled={isLoading}
+                    >
+                      Delete
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </TableContainer>
+
+        <Typography variant="h4" sx={{ mt: 4 }} gutterBottom>Video List</Typography>
+        <Typography>Total Videos: {totalVideoCount}</Typography>
+
+        <TableContainer component={Paper} sx={{ mt: 2 }}>
+          <Table>
+            <TableHead>
+              <TableRow>
+                <TableCell>ID</TableCell>
+                <TableCell>Title</TableCell>
+                <TableCell>Description</TableCell>
+                <TableCell>Hash</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {videoList.map((video) => (
+                <TableRow key={video.id}>
+                  <TableCell>{video.id}</TableCell>
+                  <TableCell>{video.title}</TableCell>
+                  <TableCell>{video.description}</TableCell>
+                  <TableCell>{video.hash}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </TableContainer>
       </Box>
     </Box>
   );

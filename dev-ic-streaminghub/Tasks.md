@@ -1,0 +1,3 @@
+
+createAndInstallCanister
+で作成されたIDを保存しておく。

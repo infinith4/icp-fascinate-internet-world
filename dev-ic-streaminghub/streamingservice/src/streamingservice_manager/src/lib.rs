@@ -189,8 +189,8 @@ async fn deposit(canister_principal: String) -> Result<(), String> {
 }
 
 #[update]
-async fn begin_canister(canister_principal: String) -> Result<(), String> {
-    let canister_id = match Principal::from_text(canister_principal) {
+async fn begin_canister(canister_principal_id: String) -> Result<(), String> {
+    let canister_id = match Principal::from_text(canister_principal_id) {
         Ok(principal) => principal,
         Err(e) => return Err(format!("Invalid principal: {:?}", e)),
     };

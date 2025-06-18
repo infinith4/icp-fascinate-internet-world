@@ -172,6 +172,24 @@ function CanisterList() {
     }
   };
 
+  const handleCanisterCondition = async (canisterId: string) => {
+    try {
+      setIsLoading(true);
+      const actor = createManagerActor();
+      const result = await actor.canister_condition(canisterId);
+      if ('Ok' in result) {
+        console.warn(`-------------------------canister_condition ${JSON.stringify(result.Ok)}`);
+        await fetchCanisterList();
+      } else {
+        console.error("Error deleting canister:", result.Err);
+      }
+    } catch (error) {
+      console.error("Error deleting canister:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const fetchVideoList = async () => {
     try {
         
@@ -225,6 +243,7 @@ function CanisterList() {
       />
       <Box sx={{ mt: 8, p: 3 }}>
         <Typography variant="h4" gutterBottom>Canister Management</Typography>
+        <Typography>Total Canisters: {canisterList.length}</Typography>
         <Button 
           variant="contained" 
           color="primary" 
@@ -234,52 +253,65 @@ function CanisterList() {
         >
           Create New Canister
         </Button>
-
-        <TableContainer component={Paper}>
-          <Table>
-            <TableHead>
-              <TableRow>
-                <TableCell>Canister ID</TableCell>
-                <TableCell>Status</TableCell>
-                <TableCell>Principal ID</TableCell>
-                <TableCell>Actions</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {canisterList.map((canister: CanisterInfo) => (
-                <TableRow key={canister.id}>
-                  <TableCell>{canister.id}</TableCell>
-                  <TableCell>{canister.status}</TableCell>
-                  <TableCell>{canister.principal_id}</TableCell>
-                  <TableCell>
-                    <Button 
-                      size="small" 
-                      onClick={() => handleBeginCanister(canister.id)}
-                      disabled={isLoading}
-                    >
-                      Start
-                    </Button>
-                    <Button 
-                      size="small" 
-                      onClick={() => handleEndCanister(canister.id)}
-                      disabled={isLoading}
-                    >
-                      Stop
-                    </Button>
-                    <Button 
-                      size="small" 
-                      color="error"
-                      onClick={() => handleRemoveCanister(canister.id)}
-                      disabled={isLoading}
-                    >
-                      Delete
-                    </Button>
-                  </TableCell>
+        
+        {canisterList.length > 0 ? (
+          <TableContainer component={Paper}>
+            <Table>
+              <TableHead>
+                <TableRow>
+                  <TableCell>Canister ID</TableCell>
+                  <TableCell>Status</TableCell>
+                  <TableCell>Principal ID</TableCell>
+                  <TableCell>Actions</TableCell>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </TableContainer>
+              </TableHead>
+              <TableBody>
+                {canisterList.map((canister: CanisterInfo) => (
+                  <TableRow key={canister.id}>
+                    <TableCell>{canister.id}</TableCell>
+                    <TableCell>{canister.status}</TableCell>
+                    <TableCell>{canister.principal_id}</TableCell>
+                    <TableCell>
+                      <Button 
+                        size="small" 
+                        onClick={() => handleBeginCanister(canister.principal_id)}
+                        disabled={isLoading}
+                      >
+                        Start
+                      </Button>
+                      <Button 
+                        size="small" 
+                        onClick={() => handleEndCanister(canister.principal_id)}
+                        disabled={isLoading}
+                      >
+                        Stop
+                      </Button>
+                      <Button 
+                        size="small" 
+                        color="error"
+                        onClick={() => handleRemoveCanister(canister.principal_id)}
+                        disabled={isLoading}
+                      >
+                        Delete
+                      </Button>
+                      <Button 
+                        size="small" 
+                        color="error"
+                        onClick={() => handleCanisterCondition(canister.principal_id)}
+                        disabled={isLoading}
+                      >
+                        Delete
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </TableContainer>
+          ) : (
+            <Typography>No canisters available.</Typography>
+          )
+        }
 
         <Typography variant="h4" sx={{ mt: 4 }} gutterBottom>Video List</Typography>
         <Typography>Total Videos: {totalVideoCount}</Typography>

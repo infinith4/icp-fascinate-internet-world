@@ -19,8 +19,8 @@ interface VideoInfo {
 
 interface CanisterInfo {
   id: string;
+  principal_id: string;
   status: string;
-  controllers: string[];
 }
 
 function CanisterList() {
@@ -67,10 +67,35 @@ function CanisterList() {
 
   const fetchCanisterList = async () => {
     try {
+      console.warn(`-------------------------fetching canister list`);
       setIsLoading(true);
       const actor = createManagerActor();
       // ここでCanisterStatusを呼び出して各Canisterの状態を取得
       // 実際の実装では、管理対象のCanister IDのリストが必要です
+      const canisterIdList: [string, string][] = await actor.get_canister_id_list();
+      // let canisterInfoList = await Promise.all(canisterIdList.map(async (canisterId: [string, string]) => {
+      //   return {
+      //     id: canisterId[0],
+      //     principal_id: canisterId[1],
+      //     status: "unknown", // 状態は文字列で返されると仮定
+      //   };
+      // }));
+      console.warn(`-------------------------${canisterIdList}`);
+      setCanisterList(canisterIdList.map((canisterId: [string, string]) => ({
+        id: canisterId[0],
+        principal_id: canisterId[1],
+        status: "unknown", // 状態は文字列で返されると仮定
+      })));
+      // if ('Ok' in result) {
+      //   setCanisterList(result.map((canister: any) => ({
+      //     id: canister.id.toText(),
+      //     principal_id: canister.principal_id.toText(),
+      //     status: 'unknown',
+      //   })));
+      // }
+      // //  else {
+      // //   console.error("Error fetching canister list:", result.Err);
+      // // }
     } catch (error) {
       console.error("Error fetching canister list:", error);
     } finally {
@@ -82,7 +107,7 @@ function CanisterList() {
     try {
       setIsLoading(true);
       const actor = createManagerActor();
-      const result = await actor.createAndInstallCanister();
+      const result = await actor.create_and_install_canister();
       if ('Ok' in result) {
         console.warn(`-------------------------${result.Ok}`);
         await fetchCanisterList();
@@ -96,11 +121,11 @@ function CanisterList() {
     }
   };
 
-  const handleStartCanister = async (canisterId: string) => {
+  const handleBeginCanister = async (canisterId: string) => {
     try {
       setIsLoading(true);
       const actor = createManagerActor();
-      const result = await actor.startCanister(canisterId);
+      const result = await actor.begin_canister(canisterId);
       if ('Ok' in result) {
         await fetchCanisterList();
       } else {
@@ -113,11 +138,11 @@ function CanisterList() {
     }
   };
 
-  const handleStopCanister = async (canisterId: string) => {
+  const handleEndCanister = async (canisterId: string) => {
     try {
       setIsLoading(true);
       const actor = createManagerActor();
-      const result = await actor.stopCanister(canisterId);
+      const result = await actor.end_canister(canisterId);
       if ('Ok' in result) {
         await fetchCanisterList();
       } else {
@@ -130,11 +155,11 @@ function CanisterList() {
     }
   };
 
-  const handleDeleteCanister = async (canisterId: string) => {
+  const handleRemoveCanister = async (canisterId: string) => {
     try {
       setIsLoading(true);
       const actor = createManagerActor();
-      const result = await actor.deleteCanister(canisterId);
+      const result = await actor.remove_canister(canisterId);
       if ('Ok' in result) {
         await fetchCanisterList();
       } else {
@@ -216,27 +241,27 @@ function CanisterList() {
               <TableRow>
                 <TableCell>Canister ID</TableCell>
                 <TableCell>Status</TableCell>
-                <TableCell>Controllers</TableCell>
+                <TableCell>Principal ID</TableCell>
                 <TableCell>Actions</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
-              {canisterList.map((canister) => (
+              {canisterList.map((canister: CanisterInfo) => (
                 <TableRow key={canister.id}>
                   <TableCell>{canister.id}</TableCell>
                   <TableCell>{canister.status}</TableCell>
-                  <TableCell>{canister.controllers.join(', ')}</TableCell>
+                  <TableCell>{canister.principal_id}</TableCell>
                   <TableCell>
                     <Button 
                       size="small" 
-                      onClick={() => handleStartCanister(canister.id)}
+                      onClick={() => handleBeginCanister(canister.id)}
                       disabled={isLoading}
                     >
                       Start
                     </Button>
                     <Button 
                       size="small" 
-                      onClick={() => handleStopCanister(canister.id)}
+                      onClick={() => handleEndCanister(canister.id)}
                       disabled={isLoading}
                     >
                       Stop
@@ -244,7 +269,7 @@ function CanisterList() {
                     <Button 
                       size="small" 
                       color="error"
-                      onClick={() => handleDeleteCanister(canister.id)}
+                      onClick={() => handleRemoveCanister(canister.id)}
                       disabled={isLoading}
                     >
                       Delete

@@ -1,12 +1,12 @@
 // For format details, see https://aka.ms/devcontainer.json. For config options, see the
 // README at: https://github.com/devcontainers/templates/tree/main/src/alpine
 {
-	"name": "dev-icp-streaminghub",
+	"name": "dev-icp-streaminghub-feature",
 	// Or use a Dockerfile or Docker Compose file. More info: https://containers.dev/guide/dockerfile
 	"dockerComposeFile": [
 		"../docker-compose.yml"
 	],
-	"service": "app",
+	"service": "app-feature",
 	"features": {
 		// See https://containers.dev/features for list of features
 		"ghcr.io/devcontainers/features/docker-in-docker:2": {

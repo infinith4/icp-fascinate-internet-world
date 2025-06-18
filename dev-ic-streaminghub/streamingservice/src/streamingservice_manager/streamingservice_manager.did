@@ -3,12 +3,12 @@ type CanisterStatusResult = record {
 };
 
 service : {
-    "createAndInstallCanister": () -> (variant { Ok: text; Err: text });
-    "depositCycles": (text) -> (variant { Ok; Err: text });
-    "startCanister": (text) -> (variant { Ok; Err: text });
-    "stopCanister": (text) -> (variant { Ok; Err: text });
-    "deleteCanister": (text) -> (variant { Ok; Err: text });
-    "canisterStatus": (text) -> (variant { Ok: CanisterStatusResult; Err: text });
-    "callGreet": (text, text) -> (variant { Ok: text; Err: text });
-    "getCanisterIdList": () -> (vec record { text; text; }) query;
+    "create_and_install_canister": () -> (variant { Ok: text; Err: text });
+    "deposit": (text) -> (variant { Ok; Err: text });
+    "begin_canister": (text) -> (variant { Ok; Err: text });
+    "end_canister": (text) -> (variant { Ok; Err: text });
+    "remove_canister": (text) -> (variant { Ok; Err: text });
+    "canister_condition": (text) -> (variant { Ok: CanisterStatusResult; Err: text });
+    "call_canister_method": (text, text, text) -> (variant { Ok: text; Err: text });
+    "get_canister_id_list": () -> (vec record { text; text; }) query;
 }

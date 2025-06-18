@@ -35,24 +35,24 @@ enum CreateAndInstallCanisterResult {
 }
 
 thread_local! {
-    static CANISTERS: RefCell<HashMap<String, CanisterInfo>> = RefCell::new(HashMap::new());
+    static GENERATED_CANISTERS: RefCell<HashMap<String, CanisterInfo>> = RefCell::new(HashMap::new());
 }
 
 #[query]
-fn getCanisterIdList() -> Vec<(String, String)> {
-    CANISTERS.with(|canisterInfos| {
-        let canisterInfos = canisterInfos.borrow();
-        canisterInfos.iter()
-            .map(|(id, canisterInfo)| (
+fn get_canister_id_list() -> Vec<(String, String)> {
+    GENERATED_CANISTERS.with(|canister_info_list| {
+        let canister_info_list = canister_info_list.borrow();
+        canister_info_list.iter()
+            .map(|(id, canister_info)| (
                 id.clone(),
-                canisterInfo.principal_id.clone()
+                canister_info.principal_id.clone()
             ))
             .collect()
     })
 }
 
 #[update]
-async fn createAndInstallCanister() -> Result<String, String> {
+async fn create_and_install_canister() -> Result<String, String> {
     // 🔹 Create Canister with optional settings
     let canister_setting = CanisterSettings {
         controllers: Some(vec![id()]),
@@ -103,13 +103,13 @@ async fn createAndInstallCanister() -> Result<String, String> {
     }
 
     ic_cdk::println!("-------------------------createAndInstallCanister: {}", new_canister_id);
-    let canisterInfoId = ic_cdk::api::time().to_string();
-    let canisterInfo = CanisterInfo {
-        id: canisterInfoId.clone(),
+    let canister_info_id = ic_cdk::api::time().to_string();
+    let canister_info = CanisterInfo {
+        id: canister_info_id.clone(),
         principal_id: new_canister_id.to_string(),
     };
-    CANISTERS.with(|canisterInfos| {
-        canisterInfos.borrow_mut().insert(canisterInfoId.clone(), canisterInfo);
+    GENERATED_CANISTERS.with(|canister_info_list| {
+        canister_info_list.borrow_mut().insert(canister_info_id.clone(), canister_info);
     });
     Ok(new_canister_id.to_string())
 }
@@ -172,7 +172,7 @@ async fn createAndInstallCanister() -> Result<String, String> {
 // }
 
 #[update]
-async fn depositCycles(canister_principal: String) -> Result<(), String> {
+async fn deposit(canister_principal: String) -> Result<(), String> {
     // Add 10^12 cycles
     let available_cycles = ic_cdk::api::call::msg_cycles_available();
     ic_cdk::api::call::msg_cycles_accept(1_000_000_000_000_u64.min(available_cycles));
@@ -189,7 +189,7 @@ async fn depositCycles(canister_principal: String) -> Result<(), String> {
 }
 
 #[update]
-async fn startCanister(canister_principal: String) -> Result<(), String> {
+async fn begin_canister(canister_principal: String) -> Result<(), String> {
     let canister_id = match Principal::from_text(canister_principal) {
         Ok(principal) => principal,
         Err(e) => return Err(format!("Invalid principal: {:?}", e)),
@@ -204,7 +204,7 @@ async fn startCanister(canister_principal: String) -> Result<(), String> {
 }
 
 #[update]
-async fn stopCanister(canister_principal: String) -> Result<(), String> {
+async fn end_canister(canister_principal: String) -> Result<(), String> {
     let canister_id = match Principal::from_text(canister_principal) {
         Ok(principal) => principal,
         Err(e) => return Err(format!("Invalid principal: {:?}", e)),
@@ -219,7 +219,7 @@ async fn stopCanister(canister_principal: String) -> Result<(), String> {
 }
 
 #[update]
-async fn deleteCanister(canister_principal: String) -> Result<(), String> {
+async fn remove_canister(canister_principal: String) -> Result<(), String> {
     let canister_id = match Principal::from_text(canister_principal) {
         Ok(principal) => principal,
         Err(e) => return Err(format!("Invalid principal: {:?}", e)),
@@ -234,7 +234,7 @@ async fn deleteCanister(canister_principal: String) -> Result<(), String> {
 }
 
 #[update]
-async fn canisterStatus(canister_principal: String) -> Result<CanisterStatusResult, String> {
+async fn canister_condition(canister_principal: String) -> Result<CanisterStatusResult, String> {
     let canister_id = match Principal::from_text(canister_principal) {
         Ok(principal) => principal,
         Err(e) => return Err(format!("Invalid principal: {:?}", e)),
@@ -252,7 +252,7 @@ async fn canisterStatus(canister_principal: String) -> Result<CanisterStatusResu
 
 
 #[update]
-async fn callGreet(canister_principal: String, greeting: String) -> Result<(String), String> {
+async fn call_canister_method(canister_principal: String, method_name: String, args: String) -> Result<String, String> {
     let canister_id = match Principal::from_text(canister_principal) {
         Ok(principal) => principal,
         Err(e) => return Err(format!("Invalid principal: {:?}", e)),
@@ -263,8 +263,8 @@ async fn callGreet(canister_principal: String, greeting: String) -> Result<(Stri
     //     Err(e) => return Err(format!("Failed to encode arguments: {:?}", e)),
     // };
     // キャニスター間呼び出し
-    match ic_cdk::call(canister_id, "Greet", (greeting,)).await {
-        Ok((response,)) => Ok((response)),
+    match ic_cdk::call(canister_id, &method_name, (args,)).await {
+        Ok((response,)) => Ok(response),
         Err((code, msg)) => Err(format!("Failed to call Greet: code {:?}, message: {}", code, msg)),
     }
 }

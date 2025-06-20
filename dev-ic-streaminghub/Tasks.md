@@ -6,3 +6,6 @@ createAndInstallCanister
 
 ログイン後に真っ白になった。
 
+
+
+call method

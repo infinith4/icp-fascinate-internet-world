@@ -190,6 +190,24 @@ function CanisterList() {
     }
   };
 
+  const handleCanisterCallMethod = async (canisterId: string) => {
+    try {
+      setIsLoading(true);
+      const actor = createManagerActor();
+      const result = await actor.call_canister_method(canisterId, "get_video_list", "");
+      if ('Ok' in result) {
+        console.warn(`-------------------------get_video_list ${JSON.stringify(result.Ok)}`);
+        await fetchCanisterList();
+      } else {
+        console.error("Error deleting canister:", result.Err);
+      }
+    } catch (error) {
+      console.error("Error deleting canister:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const fetchVideoList = async () => {
     try {
         
@@ -300,7 +318,15 @@ function CanisterList() {
                         onClick={() => handleCanisterCondition(canister.principal_id)}
                         disabled={isLoading}
                       >
-                        Delete
+                        Canister Condition
+                      </Button>
+                      <Button 
+                        size="small" 
+                        color="info"
+                        onClick={() => handleCanisterCallMethod(canister.principal_id)}
+                        disabled={isLoading}
+                      >
+                        Call Method
                       </Button>
                     </TableCell>
                   </TableRow>

@@ -250,7 +250,7 @@ async fn canister_condition(canister_principal: String) -> Result<CanisterStatus
     }
 }
 
-
+//TODO: 引数がないときにエラーになる
 #[update]
 async fn call_canister_method(canister_principal: String, method_name: String, args: String) -> Result<String, String> {
     let canister_id = match Principal::from_text(canister_principal) {

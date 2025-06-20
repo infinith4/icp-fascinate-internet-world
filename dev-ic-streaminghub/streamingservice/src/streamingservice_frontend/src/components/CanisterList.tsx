@@ -194,15 +194,18 @@ function CanisterList() {
     try {
       setIsLoading(true);
       const actor = createManagerActor();
-      const result = await actor.call_canister_method(canisterId, "get_video_list", "");
+      const method_name = "get_video_info";
+      const args = "hi";
+      const result = await actor.call_canister_method(canisterId, method_name, args);
+      console.warn(`-------------------------canisterId: ${canisterId}, method_name: ${method_name}, args: ${args}`);
       if ('Ok' in result) {
-        console.warn(`-------------------------get_video_list ${JSON.stringify(result.Ok)}`);
+        console.warn(`-------------------------method_name: ${method_name}, ${JSON.stringify(result.Ok)}`);
         await fetchCanisterList();
       } else {
-        console.error("Error deleting canister:", result.Err);
+        console.error("Error call greet:", result.Err);
       }
     } catch (error) {
-      console.error("Error deleting canister:", error);
+      console.error("Error call greet:", error);
     } finally {
       setIsLoading(false);
     }

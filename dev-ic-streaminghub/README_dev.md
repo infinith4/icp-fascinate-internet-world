@@ -264,12 +264,17 @@ lsof -i :4949
 
 #################
 
-sudo rm -R /src/streamingservice/target
-sudo rm -R /src/streamingservice/src/declarations
-sudo rm -R /src/streamingservice/node_modules
+
 
 dfx start --clean --host 127.0.0.1:4949
 
+
+
+sudo rm -R /src/streamingservice/target
+sudo rm -R /src/streamingservice/src/declarations
+sudo rm -R /src/streamingservice/src/streamingservice_frontend/node_modules
+sudo rm -R /src/streamingservice/node_modules
+sudo rm -R /src/streamingservice/.dfx
 
 
 cd /src/streamingservice/src/streamingservice_backend
@@ -278,11 +283,17 @@ cargo build --release --target wasm32-unknown-unknown --package streamingservice
 
 cd /src/streamingservice/src/streamingservice_frontend
 npm install --save-dev @types/react @types/react-dom @types/node
-npm run build
 
 cd /src/streamingservice
 dfx generate
 dfx deploy
+
+
+
+
+npm install
+npm run build
+
 
 cd /src/streamingservice
 dfx build streamingservice_manager

@@ -4,12 +4,12 @@ import { Button, Container, Typography, Box } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 
 export function getIdentityProvider(): string {
+  console.log('VITE_DFX_NETWORK:', import.meta.env.VITE_DFX_NETWORK);
+  console.log('VITE_LOCAL_CANISTER_PORT:', import.meta.env.VITE_LOCAL_CANISTER_PORT);
+  console.log('VITE_CANISTER_ID_INTERNET_IDENTITY:', import.meta.env.VITE_CANISTER_ID_INTERNET_IDENTITY);
   if(import.meta.env.VITE_DFX_NETWORK === "local") {// Safari detection
     const isSafari = /^(?!.*chrome\/\d+)(?!.*chromium\/\d+).*safari\/\d+/i.test(navigator.userAgent);
     console.log('isSafari:', isSafari);
-    console.log('VITE_LOCAL_CANISTER_PORT:', import.meta.env.VITE_LOCAL_CANISTER_PORT);
-    console.log('VITE_CANISTER_ID_INTERNET_IDENTITY:', import.meta.env.VITE_CANISTER_ID_INTERNET_IDENTITY);
-    console.log('VITE_DFX_NETWORK:', import.meta.env.VITE_DFX_NETWORK);
     if(isSafari)
       return `http://localhost:${import.meta.env.VITE_LOCAL_CANISTER_PORT}/?canisterId=${import.meta.env.VITE_CANISTER_ID_INTERNET_IDENTITY}`
     else

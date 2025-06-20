@@ -265,6 +265,6 @@ async fn call_canister_method(canister_principal: String, method_name: String, a
     // キャニスター間呼び出し
     match ic_cdk::call(canister_id, &method_name, (args,)).await {
         Ok((response,)) => Ok(response),
-        Err((code, msg)) => Err(format!("Failed to call Greet: code {:?}, message: {}", code, msg)),
+        Err((code, msg)) => Err(format!("Failed to call method_name {} code {:?}, message: {}", method_name, code, msg)),
     }
 }

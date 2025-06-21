@@ -1,6 +1,16 @@
 type CanisterStatusResult = record {
     controllers: vec principal;
 };
+// SegmentChunkResponse 構造体の定義を追加
+type SegmentChunkResponse = record {
+    segment_chunk_data: vec nat8; // Vec<u8> は Candid の vec nat8 にマッピングされます
+    total_chunk_count: nat32;    // u32 は Candid の nat32 にマッピングされます
+};
+
+type GreetResult = record {
+    ok: text;
+    err: text;
+};
 
 service : {
     "create_and_install_canister": () -> (variant { Ok: text; Err: text });
@@ -10,5 +20,6 @@ service : {
     "remove_canister": (text) -> (variant { Ok; Err: text });
     "canister_condition": (text) -> (variant { Ok: CanisterStatusResult; Err: text });
     "call_canister_method": (text, text, text) -> (variant { Ok: text; Err: text });
+    "call_canister_method_customresult": (text, text, text) -> (variant { Ok: text; Err: text });
     "get_canister_id_list": () -> (vec record { text; text; }) query;
 }

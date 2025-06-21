@@ -7,7 +7,7 @@ import { _SERVICE as _MNG_SERVICE } from '../../../declarations/streamingservice
 import { createActor as createManagerActorInit } from '../../../declarations/streamingservice_manager';
 import { createActor as createBackendActorInit } from '../../../declarations/streamingservice_backend';
 import { Header } from './Header';
-import { Box, Button, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, Typography } from '@mui/material';
+import { Box, Button, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, Typography, TextField } from '@mui/material';
 
 interface VideoInfo {
   id: string;
@@ -30,6 +30,8 @@ function CanisterList() {
   const [identity, setIdentity] = useState<Identity | null>(null);
   const [canisterList, setCanisterList] = useState<CanisterInfo[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [methodNameInput, setMethodNameInput] = useState<string>('');
+  const [methodArgsInput, setMethodArgsInput] = useState<string>('');
 
   useEffect(() => {
     initAuth();
@@ -190,22 +192,20 @@ function CanisterList() {
     }
   };
 
-  const handleCanisterCallMethod = async (canisterId: string) => {
+  const handleCanisterCallMethod = async (canisterId: string, methodName: string, args: string) => {
     try {
       setIsLoading(true);
       const actor = createManagerActor();
-      const method_name = "get_video_info";
-      const args = "hi";
-      const result = await actor.call_canister_method(canisterId, method_name, args);
-      console.warn(`-------------------------canisterId: ${canisterId}, method_name: ${method_name}, args: ${args}`);
+      const result = await actor.call_canister_method(canisterId, methodName, args);
+      console.warn(`-------------------------canisterId: ${canisterId}, methodName: ${methodName}, args: ${args}`);
       if ('Ok' in result) {
-        console.warn(`-------------------------method_name: ${method_name}, ${JSON.stringify(result.Ok)}`);
+        console.warn(`-------------------------methodName: ${methodName}, ${JSON.stringify(result.Ok)}`);
         await fetchCanisterList();
       } else {
-        console.error("Error call greet:", result.Err);
+        console.error("Error call handleCanisterCallMethod:", result.Err);
       }
     } catch (error) {
-      console.error("Error call greet:", error);
+      console.error("Error call handleCanisterCallMethod:", error);
     } finally {
       setIsLoading(false);
     }
@@ -323,10 +323,26 @@ function CanisterList() {
                       >
                         Canister Condition
                       </Button>
+                      <TextField
+                        label="Method Name"
+                        size="small"
+                        value={methodNameInput}
+                        onChange={(e) => setMethodNameInput(e.target.value)}
+                        disabled={isLoading}
+                        style={{ marginRight: '8px', width: '120px' }} // Add some styling
+                      />
+                      <TextField
+                        label="Method Args (JSON string)"
+                        size="small"
+                        value={methodArgsInput}
+                        onChange={(e) => setMethodArgsInput(e.target.value)}
+                        disabled={isLoading}
+                        style={{ marginRight: '8px', width: '180px' }} // Add some styling
+                      />
                       <Button 
                         size="small" 
                         color="info"
-                        onClick={() => handleCanisterCallMethod(canister.principal_id)}
+                        onClick={() => handleCanisterCallMethod(canister.principal_id, methodNameInput, methodArgsInput)}
                         disabled={isLoading}
                       >
                         Call Method

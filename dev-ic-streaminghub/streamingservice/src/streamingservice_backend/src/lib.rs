@@ -130,10 +130,58 @@ thread_local! {
     static VIDEOS: RefCell<HashMap<String, Video>> = RefCell::new(HashMap::new());
 }
 
+
+#[derive(CandidType, Deserialize)]
+enum GreetResult {
+    //NOTE: #[serde(rename = "ok")] をつけないと Cannot find field hash _17724_ になる
+    //Cannot find field hash となるときはClassをResponse に設定したほうが良い
+    #[serde(rename = "ok")]
+    Ok(String),
+    #[serde(rename = "err")]
+    Err(String),
+}
+
+
 //dfx canister call streamingservice_backend greet everyone
 #[ic_cdk::query]
 fn greet(name: String) -> String {
     format!("Hello, {}!", name)
+}
+
+
+#[ic_cdk::query]
+fn greet_streaming(name: String) -> String {
+    ic_cdk::println!("greet_streaming called with name: {}", name);
+    format!("Hello, {}! This is a streaming service backend response.", name)
+}
+
+#[ic_cdk::query]
+fn greet_streaming_no_arg() -> String {
+    ic_cdk::println!("greet_streaming_no_arg:");
+    format!("Hello, greet_streaming_no_arg! This is a streaming service backend response.")
+}
+
+#[ic_cdk::query]
+fn greet_streaming_result(name: String) -> GreetResult {
+    ic_cdk::println!("greet_streaming_result: {}", name);
+    if false {
+        ic_cdk::println!("greet_streaming_result: Error occurred");
+        return GreetResult::Err("Error, greet_streaming_result!".to_string());
+    }
+    GreetResult::Ok("Hello, greet_streaming_result! This is a streaming service backend response.".to_string())
+    
+}
+
+#[ic_cdk::query]
+fn greet_streaming_no_arg_result() -> GreetResult {
+    ic_cdk::println!("greet_streaming_no_arg_result:");
+    if false {
+        ic_cdk::println!("greet_streaming_no_arg_result: Error occurred");
+        return GreetResult::Err("Error, greet_streaming_no_arg_result!".to_string());
+    }
+    GreetResult::Ok("Hello, greet_streaming_no_arg_result! This is a streaming service backend response.".to_string())
+    // GreetResult::Err("Error, greet_streaming_no_arg!".to_string()),
+    
 }
 
 // #[update]

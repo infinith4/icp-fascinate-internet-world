@@ -1,4 +1,4 @@
-use candid::{encode_args, types::principal, CandidType, Decode, Encode, Nat, Principal};
+use candid::{encode_args, decode_args, types::principal, CandidType, Decode, Encode, Nat, Principal};
 use ic_cdk::api::management_canister::{
     main::{
         create_canister, install_code, deposit_cycles, start_canister, stop_canister, delete_canister, canister_status,
@@ -36,6 +36,14 @@ enum CreateAndInstallCanisterResult {
 
 thread_local! {
     static GENERATED_CANISTERS: RefCell<HashMap<String, CanisterInfo>> = RefCell::new(HashMap::new());
+}
+
+// 1. Define Rust types that mirror your Candid DID
+//    For the variant type
+#[derive(CandidType, Deserialize, Debug)]
+pub enum MyResult {
+    Ok(String),
+    Err(String),
 }
 
 #[query]
@@ -250,6 +258,15 @@ async fn canister_condition(canister_principal: String) -> Result<CanisterStatus
     }
 }
 
+#[derive(CandidType, Deserialize)]
+enum GreetResult {
+    //NOTE: #[serde(rename = "ok")] をつけないと Cannot find field hash _17724_ になる
+    //Cannot find field hash となるときはClassをResponse に設定したほうが良い
+    #[serde(rename = "ok")]
+    Ok(String),
+    #[serde(rename = "err")]
+    Err(String),
+}
 //TODO: 引数がないときにエラーになる
 #[update]
 async fn call_canister_method(canister_principal: String, method_name: String, args: String) -> Result<String, String> {
@@ -268,3 +285,132 @@ async fn call_canister_method(canister_principal: String, method_name: String, a
         Err((code, msg)) => Err(format!("Failed to call method_name {} code {:?}, message: {}", method_name, code, msg)),
     }
 }
+
+#[update]
+async fn call_canister_method_customresult(canister_principal: String, method_name: String, args: String) -> Result<String, String> {
+    let canister_id = match Principal::from_text(canister_principal) {
+        Ok(principal) => principal,
+        Err(e) => return Err(format!("Invalid principal: {:?}", e)),
+    };
+    // // greet関数の引数をエンコード
+    // let args = match encode_args((greeting,)) {
+    //     Ok(args) => args,
+    //     Err(e) => return Err(format!("Failed to encode arguments: {:?}", e)),
+    // };
+    // キャニスター間呼び出し
+    match ic_cdk::call(canister_id, &method_name, (args,)).await {
+        Ok((response,)) => Ok(response),
+        Err((code, msg)) => Err(format!("Failed to call method_name {} code {:?}, message: {}", method_name, code, msg)),
+    }
+}
+// //TODO: 引数がないときにエラーになる
+// #[update]
+// async fn call_canister_method_customresult(canister_principal: String, method_name: String, args: String) -> Result<MyResult, String> {
+//     let canister_id = match Principal::from_text(canister_principal) {
+//         Ok(principal) => principal,
+//         Err(e) => return Err(format!("Invalid principal: {:?}", e)),
+//     };
+//     // // greet関数の引数をエンコード
+//     // let args = match encode_args((greeting,)) {
+//     //     Ok(args) => args,
+//     //     Err(e) => return Err(format!("Failed to encode arguments: {:?}", e)),
+//     // };
+//     // キャニスター間呼び出し
+//     match ic_cdk::call(canister_id, &method_name, (args,)).await {
+//         Ok(response_bytes) => {
+//             // レスポンスをデコード
+//             match decode_args::<(MyResult,)>(response_bytes) {
+//                 Ok((response,)) => Ok(response),
+//                 Err(e) => Err(format!("Failed to decode response: {:?}", e)),
+//             }
+//         }
+//         // Ok((response,)) => Ok(response),
+//         // Err((code, msg)) => Err(format!("Failed to call method_name {} code {:?}, message: {}", method_name, code, msg)),
+//     }
+// }
+
+// #[update]
+// async fn call_canister_method<Input, Output>(
+//     canister_principal: String,
+//     method_name: String,
+//     args: Input,
+// ) -> Result<Output, String>
+// where
+//     Input: CandidType + Send + 'static,
+//     Output: CandidType + Deserialize<'static> + Send + 'static,
+// {
+//     let canister_id = match Principal::from_text(canister_principal) {
+//         Ok(principal) => principal,
+//         Err(e) => return Err(format!("Invalid principal: {:?}", e)),
+//     };
+
+//     // Encode the input arguments
+//     let encoded_args = match encode_args((args,)) {
+//         Ok(encoded) => encoded,
+//         Err(e) => return Err(format!("Failed to encode arguments: {:?}", e)),
+//     };
+
+//     // Perform the inter-canister call
+//     match ic_call(canister_id, &method_name, encoded_args).await {
+//         Ok(response_bytes) => {
+//             // Decode the response bytes into the desired Output type
+//             match decode_args(&response_bytes) {
+//                 Ok((decoded_response,)) => Ok(decoded_response),
+//                 Err(e) => Err(format!("Failed to decode response: {:?}", e)),
+//             }
+//         }
+//         Err((code, msg)) => Err(format!(
+//             "Failed to call method {} code {:?}, message: {}",
+//             method_name, code, msg
+//         )),
+//     }
+// }
+
+
+// #[update]
+// async fn call_canister_method(canister_principal: String, method_name: String, args: String) -> Result<String, String> {
+//     let canister_id = match Principal::from_text(canister_principal) {
+//         Ok(principal) => principal,
+//         Err(e) => return Err(format!("Invalid principal: {:?}", e)),
+//     };
+
+//     // 1. Argument Encoding:
+//     // This part is crucial. The `args: String` parameter from the frontend needs to be
+//     // Candid-encoded into raw bytes that the target canister method expects.
+//     // Assuming the target method expects a single `text` (string) argument,
+//     // we should encode your `args` string as such.
+//     // If your target method expects a different type or multiple arguments,
+//     // you'll need to adjust the `encode_args` tuple accordingly.
+//     // For example, if target expects `(nat, text)`, you'd need `encode_args((my_nat, &args))`
+//     let encoded_args = match encode_args((args,)) { // Encodes the single string argument
+//         Ok(bytes) => bytes,
+//         Err(e) => return Err(format!("Failed to encode arguments for {}: {:?}", method_name, e)),
+//     };
+
+//     // 2. Canister Call
+//     // Use `call_raw` for more control over response decoding, or confirm the exact return type.
+//     // If the target method truly returns a `String`, `call` with `(String,)` is fine.
+//     // The error suggests it's *not* returning a `String` (or not just a string).
+
+//     match ic_cdk::call(canister_id, &method_name, (encoded_args,)).await {
+//         Ok(raw_response_tuple) => {
+//             // 3. Response Decoding:
+//             // The error `failed to decode canister response as (alloc::string::String,)`
+//             // implies that the response tuple from the called method is NOT a single String.
+//             // Let's try to decode the raw response bytes into a String.
+//             // We need to match the actual return type of the remote method.
+//             // If `greet_streaming_result` returns `text`, then `decode_args::<(String,)>` is correct.
+//             // If it returns other types, you need to change `(String,)` to match it, e.g., `(nat, String)`.
+
+//             // Example: Try to decode as a single string. This is what your original code implies.
+//             // The error suggests this is failing, likely because the *actual* response type
+//             // from the remote method doesn't match `(String,)`.
+//             match decode_args::<(String,)>(raw_response_tuple.0) { // Access the first element of the tuple of tuples
+//                 Ok((decoded_string,)) => Ok(decoded_string),
+//                 Err(e) => Err(format!("Failed to decode response from {}: {:?}", method_name, e)),
+//             }
+//         },
+//         Err((code, msg)) => Err(format!("Failed to call method {} on canister {}: Code {:?}, Message: {}", method_name, canister_id, code, msg)),
+//     }
+// }
+

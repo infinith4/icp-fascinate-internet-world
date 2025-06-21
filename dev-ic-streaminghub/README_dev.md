@@ -286,8 +286,14 @@ npm install --save-dev @types/react @types/react-dom @types/node
 
 cd /src/streamingservice
 dfx generate
+
+
+cd /src/streamingservice
+
+dfx build
 dfx deploy
 
+dfx canister deposit-cycles 10000000000000 ulvla-h7777-77774-qaacq-cai
 
 
 
@@ -300,7 +306,6 @@ dfx build streamingservice_manager
 
 
 
-dfx canister deposit-cycles 10000000000000 ulvla-h7777-77774-qaacq-cai
 
 dfx deploy streamingservice_frontend
 

@@ -12,6 +12,10 @@ type SegmentChunkInfo = record {
 
 service : {
     "greet": (text) -> (text) query;
+    "greet_streaming": (text) -> (text) query;
+    "greet_streaming_no_arg": () -> (text) query;
+    "greet_streaming_result": (text) -> (variant { ok: text; err: text }) query;
+    "greet_streaming_no_arg_result": () -> (variant { ok: text; err: text }) query;
     "create_video": (text, text, text) -> (text);
     //"upload_video_chunk": (text, text, nat32, vec nat8) -> (variant { ok: text; err: text });
     //"upload_video_segment": (text, text, nat32, vec nat8) -> (variant { ok; err: text });

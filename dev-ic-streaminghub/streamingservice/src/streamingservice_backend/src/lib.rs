@@ -156,9 +156,21 @@ fn greet_streaming(name: String) -> String {
 }
 
 #[ic_cdk::query]
+fn greet_streaming_args(name0: String, name1: String, name2: String) -> String {
+    ic_cdk::println!("greet_streaming_args called with name: {} {} {}", name0, name1, name2);
+    format!("greet_streaming_args: Hello, {} {} {}! This is a streaming service backend response.", name0, name1, name2)
+}
+
+#[ic_cdk::query]
 fn greet_streaming_no_arg() -> String {
     ic_cdk::println!("greet_streaming_no_arg:");
-    format!("Hello, greet_streaming_no_arg! This is a streaming service backend response.")
+    format!("greet_streaming_no_arg: Hello! This is a streaming service backend response.")
+}
+
+#[ic_cdk::update]
+fn update_greet_streaming_args(name0: String, name1: String, name2: String) -> String {
+    ic_cdk::println!("update_greet_streaming_args called with name: {} {} {}", name0, name1, name2);
+    format!("update_greet_streaming_args: Hello, {} {} {}! This is a streaming service backend response.", name0, name1, name2)
 }
 
 #[ic_cdk::query]

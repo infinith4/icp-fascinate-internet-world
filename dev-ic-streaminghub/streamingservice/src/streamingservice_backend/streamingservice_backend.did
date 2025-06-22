@@ -13,6 +13,8 @@ type SegmentChunkInfo = record {
 service : {
     "greet": (text) -> (text) query;
     "greet_streaming": (text) -> (text) query;
+    "greet_streaming_args": (text,text,text) -> (text) query;
+    "update_greet_streaming_args": (text,text,text) -> (text);
     "greet_streaming_no_arg": () -> (text) query;
     "greet_streaming_result": (text) -> (variant { ok: text; err: text }) query;
     "greet_streaming_no_arg_result": () -> (variant { ok: text; err: text }) query;

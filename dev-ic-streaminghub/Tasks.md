@@ -53,3 +53,7 @@ dfx canister call streamingservice_manager call_canister_method '("v56tl-sp777-7
 
 dfx canister call streamingservice_manager call_canister_method_customresult '("xad5d-bh777-77774-qaaia-cai", "greet_streaming_no_arg_result", "()")'
 
+
+dfx canister call streamingservice_manager call_canister_method '("xobql-2x777-77774-qaaja-cai", "create_video", "('1','testtitle01','')")'
+
+dfx canister call streamingservice_manager call_canister_method_vec '("x4hhs-wh777-77774-qaaka-cai", "greet_streaming_args", vec { "1"; "testtitle01"; "" })'

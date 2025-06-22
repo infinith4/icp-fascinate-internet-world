@@ -280,9 +280,50 @@ async fn call_canister_method(canister_principal: String, method_name: String, a
     //     Err(e) => return Err(format!("Failed to encode arguments: {:?}", e)),
     // };
     // キャニスター間呼び出し
-    match ic_cdk::call(canister_id, &method_name, (args,)).await {
+    match ic_cdk::call(canister_id, &method_name, (args, )).await {
         Ok((response,)) => Ok(response),
         Err((code, msg)) => Err(format!("Failed to call method_name {} code {:?}, message: {}", method_name, code, msg)),
+    }
+}
+
+#[update]
+async fn call_canister_method_vec(
+    canister_principal: String,
+    method_name: String,
+    args: Vec<String>,
+) -> Result<String, String> {
+    let canister_id = match Principal::from_text(canister_principal) {
+        Ok(principal) => principal,
+        Err(e) => return Err(format!("Invalid principal: {:?}", e)),
+    };
+
+    // Vec<String>をタプルに変換してCandidエンコード
+    let encoded_args = match match args.len() {
+        0 => encode_args(()),
+        1 => encode_args((&args[0],)),
+        2 => encode_args((&args[0], &args[1])),
+        3 => encode_args((&args[0], &args[1], &args[2])),
+        4 => encode_args((&args[0], &args[1], &args[2], &args[3])),
+        _ => return Err("Too many arguments (max 4 supported)".to_string()),
+    } {
+        Ok(bytes) => bytes,
+        Err(e) => return Err(format!("Failed to encode arguments: {:?}", e)),
+    };
+
+    // call_rawで呼び出し
+    match ic_cdk::api::call::call_raw(canister_id, &method_name, encoded_args, 0).await {
+        Ok(response_bytes) => {
+            // variant { Ok: text; Err: text } で返ることを想定
+            match decode_args::<(MyResult,)>(&response_bytes) {
+                Ok((MyResult::Ok(response),)) => Ok(response),
+                Ok((MyResult::Err(err_msg),)) => Err(format!("Remote error: {}", err_msg)),
+                Err(e) => Err(format!("Failed to decode response as MyResult: {:?}\ntable0: {:?}", e, response_bytes)),
+            }
+        }
+        Err((code, msg)) => Err(format!(
+            "Failed to call method {} code {:?}, message: {}",
+            method_name, code, msg
+        )),
     }
 }
 

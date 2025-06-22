@@ -312,18 +312,8 @@ async fn call_canister_method_vec(
 
     // call_rawで呼び出し
     match ic_cdk::api::call::call_raw(canister_id, &method_name, encoded_args, 0).await {
-        Ok(response_bytes) => {
-            // variant { Ok: text; Err: text } で返ることを想定
-            match decode_args::<(MyResult,)>(&response_bytes) {
-                Ok((MyResult::Ok(response),)) => Ok(response),
-                Ok((MyResult::Err(err_msg),)) => Err(format!("Remote error: {}", err_msg)),
-                Err(e) => Err(format!("Failed to decode response as MyResult: {:?}\ntable0: {:?}", e, response_bytes)),
-            }
-        }
-        Err((code, msg)) => Err(format!(
-            "Failed to call method {} code {:?}, message: {}",
-            method_name, code, msg
-        )),
+        Ok(response) => Ok(String::from_utf8_lossy(&response).to_string()),
+        Err((code, msg)) => Err(format!("Failed to call method_name {} code {:?}, message: {}", method_name, code, msg)),
     }
 }
 

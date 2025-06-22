@@ -168,8 +168,7 @@ fn greet_streaming_result(name: String) -> GreetResult {
         ic_cdk::println!("greet_streaming_result: Error occurred");
         return GreetResult::Err("Error, greet_streaming_result!".to_string());
     }
-    GreetResult::Ok("Hello, greet_streaming_result! This is a streaming service backend response.".to_string())
-    
+    GreetResult::Ok(format!("greet_streaming_result: Hello, {}! This is a streaming service backend response.", name))
 }
 
 #[ic_cdk::query]

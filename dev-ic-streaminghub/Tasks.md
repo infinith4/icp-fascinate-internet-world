@@ -1,17 +1,40 @@
 
-createAndInstallCanister
-で作成されたIDを保存しておく。
-→済
 
-
-ログイン後に真っ白になった。
+dfx start --clean --host 127.0.0.1:4949
 
 
 
-call method
+sudo rm -R /src/streamingservice/target
+sudo rm -R /src/streamingservice/src/declarations
+sudo rm -R /src/streamingservice/src/streamingservice_frontend/node_modules
+sudo rm -R /src/streamingservice/node_modules
+sudo rm -R /src/streamingservice/.dfx
 
 
-greet 以外が呼べない
+cd /src/streamingservice/src/streamingservice_backend
+cargo build --release --target wasm32-unknown-unknown --package streamingservice_backend
+
+
+cd /src/streamingservice/src/streamingservice_frontend
+npm install --save-dev @types/react @types/react-dom @types/node
+
+cd /src/streamingservice
+dfx generate
+
+
+cd /src/streamingservice
+
+dfx build
+dfx deploy
+
+dfx canister deposit-cycles 10000000000000 ulvla-h7777-77774-qaacq-cai
+
+
+
+- [x] createAndInstallCanister で作成されたIDを保存しておく。
+- [x] ログイン後に真っ白になった。
+
+- [ ] call method でgreet 以外が呼べない
 
 dfx canister call streamingservice_manager create_and_install_canister '()'
 

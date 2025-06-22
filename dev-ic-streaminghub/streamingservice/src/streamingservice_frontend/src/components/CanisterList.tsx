@@ -210,6 +210,25 @@ function CanisterList() {
       setIsLoading(false);
     }
   };
+  
+  const handleCanisterCallMethodCustomresult = async (canisterId: string, methodName: string, args: string) => {
+    try {
+      setIsLoading(true);
+      const actor = createManagerActor();
+      const result = await actor.call_canister_method_customresult(canisterId, methodName, args);
+      console.warn(`-------------------------canisterId: ${canisterId}, methodName: ${methodName}, args: ${args}`);
+      if ('Ok' in result) {
+        console.warn(`-------------------------methodName: ${methodName}, ${JSON.stringify(result.Ok)}`);
+        await fetchCanisterList();
+      } else {
+        console.error("Error call handleCanisterCallMethod:", result.Err);
+      }
+    } catch (error) {
+      console.error("Error call handleCanisterCallMethod:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const fetchVideoList = async () => {
     try {
@@ -342,7 +361,7 @@ function CanisterList() {
                       <Button 
                         size="small" 
                         color="info"
-                        onClick={() => handleCanisterCallMethod(canister.principal_id, methodNameInput, methodArgsInput)}
+                        onClick={() => handleCanisterCallMethodCustomresult(canister.principal_id, methodNameInput, methodArgsInput)}
                         disabled={isLoading}
                       >
                         Call Method

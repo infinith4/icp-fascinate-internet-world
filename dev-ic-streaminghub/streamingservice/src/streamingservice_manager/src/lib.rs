@@ -9,7 +9,7 @@ use ic_cdk::api::management_canister::{
 use ic_cdk_macros::*;
 use serde::Deserialize;
 use ic_cdk::{
-    api::{call, time},
+    api::{call, time, call::call_raw},
     id,
 };
 use std::cell::RefCell;
@@ -292,15 +292,24 @@ async fn call_canister_method_customresult(canister_principal: String, method_na
         Ok(principal) => principal,
         Err(e) => return Err(format!("Invalid principal: {:?}", e)),
     };
-    // // greet関数の引数をエンコード
-    // let args = match encode_args((greeting,)) {
-    //     Ok(args) => args,
-    //     Err(e) => return Err(format!("Failed to encode arguments: {:?}", e)),
-    // };
-    // キャニスター間呼び出し
-    match ic_cdk::call(canister_id, &method_name, (args,)).await {
-        Ok((response,)) => Ok(response),
-        Err((code, msg)) => Err(format!("Failed to call method_name {} code {:?}, message: {}", method_name, code, msg)),
+    // Encode the arguments as Candid bytes
+    let encoded_args = match encode_args((args,)) {
+        Ok(bytes) => bytes,
+        Err(e) => return Err(format!("Failed to encode arguments: {:?}", e)),
+    };
+    // Perform the raw call with cycles payment set to 0
+    match ic_cdk::api::call::call_raw(canister_id, &method_name, encoded_args, 0).await {
+        Ok(response_bytes) => {
+            // Decode the response bytes into the desired type
+            match decode_args::<(GreetResult,)>(&response_bytes) {
+                Ok((result,)) => match result {
+                    GreetResult::Ok(message) => Ok(message),
+                    GreetResult::Err(error) => Err(error),
+                },
+                Err(e) => Err(format!("Failed to decode response: {:?}", e)),
+            }
+        }
+        Err((code, msg)) => Err(format!("Failed to call method {} code {:?}, message: {}", method_name, code, msg)),
     }
 }
 // //TODO: 引数がないときにエラーになる

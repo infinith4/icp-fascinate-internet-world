@@ -1,4 +1,7 @@
 import React, { useEffect, useState } from 'react';
+import { IconButton } from '@mui/material';
+import AddIcon from '@mui/icons-material/Add';
+import RemoveIcon from '@mui/icons-material/Remove';
 //import { streamingservice_backend } from 'declarations/streamingservice_backend'; // 適宜パスを調整
 import { Actor, HttpAgent, Identity } from '@dfinity/agent';
 import { AuthClient } from '@dfinity/auth-client';
@@ -32,6 +35,8 @@ function CanisterList() {
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [methodNameInput, setMethodNameInput] = useState<string>('');
   const [methodArgsInput, setMethodArgsInput] = useState<string>('');
+  const [methodArgsArray, setMethodArgsArray] = useState<string[]>([""]);
+
 
   useEffect(() => {
     initAuth();
@@ -210,6 +215,26 @@ function CanisterList() {
       setIsLoading(false);
     }
   };
+
+  
+  const handleCanisterCallMethodVec = async (canisterId: string, methodName: string, args: string[]) => {
+    try {
+      setIsLoading(true);
+      const actor = createManagerActor();
+      const result = await actor.call_canister_method_vec(canisterId, methodName, args);
+      console.warn(`-------------------------canisterId: ${canisterId}, methodName: ${methodName}, args: ${args}`);
+      if ('Ok' in result) {
+        console.warn(`-------------------------methodName: ${methodName}, ${JSON.stringify(result.Ok)}`);
+        await fetchCanisterList();
+      } else {
+        console.error("Error call handleCanisterCallMethodVec:", result.Err);
+      }
+    } catch (error) {
+      console.error("Error call handleCanisterCallMethodVec:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
   
   const handleCanisterCallMethodCustomresult = async (canisterId: string, methodName: string, args: string) => {
     try {
@@ -265,7 +290,22 @@ function CanisterList() {
       console.error("Error fetching video list:", error);
     }
   };
+  
+  const handleMethodArgChange = (index: number, value: string) => {
+    setMethodArgsArray((prev) => {
+      const newArgs = [...prev];
+      newArgs[index] = value;
+      return newArgs;
+    });
+  };
+  
+  const handleAddMethodArg = () => {
+    setMethodArgsArray((prev) => [...prev, ""]);
+  };
 
+  const handleRemoveMethodArg = (index: number) => {
+    setMethodArgsArray((prev) => prev.length > 1 ? prev.filter((_, i) => i !== index) : prev);
+  };
 //   const formatBytes = (bytes: number, decimals = 2) => {
 //     if (bytes === 0) return '0 Bytes';
 //     const k = 1024;
@@ -348,20 +388,43 @@ function CanisterList() {
                         value={methodNameInput}
                         onChange={(e) => setMethodNameInput(e.target.value)}
                         disabled={isLoading}
-                        style={{ marginRight: '8px', width: '120px' }} // Add some styling
+                        style={{ marginRight: '8px', width: '120px' }}
                       />
-                      <TextField
-                        label="Method Args (JSON string)"
-                        size="small"
-                        value={methodArgsInput}
-                        onChange={(e) => setMethodArgsInput(e.target.value)}
-                        disabled={isLoading}
-                        style={{ marginRight: '8px', width: '180px' }} // Add some styling
-                      />
+                      {/* Argument array UI */}
+                      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, mb: 1 }}>
+                        {methodArgsArray.map((arg, idx) => (
+                          <Box key={idx} sx={{ display: 'flex', alignItems: 'center' }}>
+                            <TextField
+                              label={`Arg ${idx + 1}`}
+                              size="small"
+                              value={arg}
+                              onChange={(e) => handleMethodArgChange(idx, e.target.value)}
+                              disabled={isLoading}
+                              style={{ width: '140px', marginRight: 4 }}
+                            />
+                            <IconButton
+                              size="small"
+                              onClick={() => handleRemoveMethodArg(idx)}
+                              disabled={isLoading || methodArgsArray.length === 1}
+                            >
+                              <RemoveIcon fontSize="small" />
+                            </IconButton>
+                            {idx === methodArgsArray.length - 1 && (
+                              <IconButton
+                                size="small"
+                                onClick={handleAddMethodArg}
+                                disabled={isLoading}
+                              >
+                                <AddIcon fontSize="small" />
+                              </IconButton>
+                            )}
+                          </Box>
+                        ))}
+                      </Box>
                       <Button 
                         size="small" 
                         color="info"
-                        onClick={() => handleCanisterCallMethodCustomresult(canister.principal_id, methodNameInput, methodArgsInput)}
+                        onClick={() => handleCanisterCallMethodVec(canister.principal_id, methodNameInput, methodArgsArray)}
                         disabled={isLoading}
                       >
                         Call Method

@@ -1,19 +1,5 @@
 FROM mcr.microsoft.com/devcontainers/base:jammy
 
-ARG USER_NAME=icuser
-ARG USER_ID=1001
-ARG GROUP_ID=1001
-
-RUN if ! getent group $GROUP_ID; then groupadd --gid $GROUP_ID $USER_NAME; fi && \
-    if ! id -u $USER_ID >/dev/null 2>&1; then useradd -s /bin/bash --uid $USER_ID --gid $GROUP_ID -m $USER_NAME; fi && \
-    usermod -aG sudo $USER_NAME && \
-    echo "$USER_NAME ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/$USER_NAME && \
-    chmod 0440 /etc/sudoers.d/$USER_NAME && \
-    mkdir -p /src
-
-RUN chown -R $USER_ID:$GROUP_ID /src
-
-
 # Set environment variables for non-interactive installations
 ENV DEBIAN_FRONTEND=noninteractive
 # ENV DFXVM_INIT_YES=true
@@ -36,19 +22,46 @@ RUN apt-get update -y && \
     rm -rf /var/lib/apt/lists/*
 
 
-# --- Node.js (NVM) Installation ---
-# Install NVM and then Node.js LTS, Yarn, and specific npm versions.
-# We run these commands in a single RUN layer to ensure environment sourcing
-# persists for subsequent Node.js-related commands.
-RUN curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.1/install.sh | bash && \
-    . "$HOME/.nvm/nvm.sh" && \
-    nvm install --lts && \
-    nvm use --lts && \
-    node -v && npm -v && \
-    npm i -g yarn && \
-    npm install -g npm@11.4.2 && \
-    nvm use --lts && \
-    npm install -g typescript react
+ARG USER_NAME=icuser
+ARG USER_UID=1001
+ARG USER_GID=$USER_UID
+
+RUN apt-get update -y && apt-get install -y sudo && \
+    if ! getent group $USER_GID; then groupadd --gid $USER_GID $USER_NAME; fi && \
+    if ! id -u $USER_UID >/dev/null 2>&1; then useradd -s /bin/bash --uid $USER_UID --gid $USER_GID -m $USER_NAME; fi && \
+    usermod -aG sudo $USER_NAME && \
+    echo "$USER_NAME ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/$USER_NAME && \
+    chmod 0440 /etc/sudoers.d/$USER_NAME && \
+    mkdir -p /src && \
+    chown -R $USER_NAME:$USER_GID /src
+
+USER $USER_NAME:$USER_GID
+
+# RUN groupadd --gid $USER_GID $USER_NAME && \
+#     useradd -s /bin/bash --uid $USER_UID --gid $USER_GID -m $USER_NAME && \
+#     # usermod -aG sudo $USER_NAME && \
+#     # echo "$USER_NAME ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/$USER_NAME && \
+#     # chmod 0440 /etc/sudoers.d/$USER_NAME && \
+#     chmod -R $USER_NAME:$USER_GID /src
+
+
+# USER $USER_NAME:$USER_GID
+
+
+
+# # --- Node.js (NVM) Installation ---
+# # Install NVM and then Node.js LTS, Yarn, and specific npm versions.
+# # We run these commands in a single RUN layer to ensure environment sourcing
+# # persists for subsequent Node.js-related commands.
+# RUN curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.1/install.sh | bash && \
+#     . "$HOME/.nvm/nvm.sh" && \
+#     nvm install --lts && \
+#     nvm use --lts && \
+#     node -v && npm -v && \
+#     npm i -g yarn && \
+#     npm install -g npm@11.4.2 && \
+#     nvm use --lts && \
+#     npm install -g typescript react
 
 # --- DFX (Internet Computer SDK) Installation ---
 # Install the DFX SDK. We let it install the latest stable version by default.
@@ -162,5 +175,3 @@ RUN curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.1/install.sh | b
 # # Ensure /src exists and is accessible for the user.
 # # If WORKDIR is /home/vscode/src, then copy to there.
 # COPY . /home/$USERNAME/src/
-
-USER $USER_NAME

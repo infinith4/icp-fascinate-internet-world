@@ -1,20 +1,17 @@
-# dfx --version
-# cargo --version
+### install nvm
+curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.1/install.sh | bash
 
-# ### install nvm
-# curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.1/install.sh | bash
+#### install node
+. $HOME/.nvm/nvm.sh && \
+    nvm install --lts && \
+    nvm use --lts && \
+    node -v && npm -v && \
+    npm i -g yarn
+npm install -g npm@11.4.2
+nvm use --lts
 
-# #### install node
-# . $HOME/.nvm/nvm.sh && \
-#     nvm install --lts && \
-#     nvm use --lts && \
-#     node -v && npm -v && \
-#     npm i -g yarn
-# npm install -g npm@11.4.2
-# nvm use --lts
-
-# npm install typescript -g
-# npm install n react -g
+npm install typescript -g
+npm install n react -g
 
 # # sudo apt-get update
 # sudo apt install libxtables12 -y
@@ -27,13 +24,13 @@ sh -ci "$(curl -fsSL https://internetcomputer.org/install.sh)"
 # Fix permissions for the dfx environment file
 chmod +x "$HOME/.local/share/dfx/env"
 source "$HOME/.local/share/dfx/env"
-bash -ci "source $HOME/.local/share/dfx/env && dfx --version"
 
 
 # dfx --version
 
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
-. "$HOME/.cargo/env"
+
+source "$HOME/.cargo/env"
 
 cargo --version
 

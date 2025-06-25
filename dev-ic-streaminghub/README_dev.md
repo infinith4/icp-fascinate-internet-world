@@ -264,7 +264,9 @@ lsof -i :4949
 
 #################
 
-
+dfx --version
+cargo --version
+npm --version
 
 dfx start --clean --host 127.0.0.1:4949
 

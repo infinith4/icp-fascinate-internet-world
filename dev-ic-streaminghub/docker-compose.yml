@@ -2,6 +2,7 @@ version: '3'
 
 services:
   app-feature:
+    user: icuser
     platform: linux/x86_64
     container_name: dev-icp-streaminghub-app-feature
     build: 

@@ -56,7 +56,33 @@ dfx canister call streamingservice_manager call_canister_method_customresult '("
 
 dfx canister call streamingservice_manager call_canister_method '("xobql-2x777-77774-qaaja-cai", "create_video", "('1','testtitle01','')")'
 
-dfx canister call streamingservice_manager call_canister_method_vec '("x4hhs-wh777-77774-qaaka-cai", "greet_streaming_args", vec { "1"; "testtitle01"; "" })'
+dfx canister call streamingservice_manager call_canister_method_vec '("ufxgi-4p777-77774-qaadq-cai", "greet_streaming_args", vec { "1"; "testtitle01"; "" })'
 
 
-(1,2,3)
+greet_streaming_args
+
+{ "1"; "testtitle01"; "" }
+
+
+call_raw は「生のCandidバイト列」を返します。
+そのまま String::from_utf8_lossy(&response) で文字列化すると、Candidバイナリ（DIDLヘッダ付き）を無理やり文字列化するため、DIDL\0\u{1}q\ などの不可視文字が先頭に現れます。
+本来は decode_args::<(String,)>(...) などでCandidデコードしてから使うべきです。
+
+```
+    // // call_rawで呼び出し
+    // match ic_cdk::api::call::call_raw(canister_id, &method_name, encoded_args, 0).await {
+    //     Ok(response) => Ok(String::from_utf8_lossy(&response).to_string()),
+    //     Err((code, msg)) => Err(format!("Failed to call method_name {} code {:?}, message: {}", method_name, code, msg)),
+    // }
+
+    match ic_cdk::api::call::call_raw(canister_id, &method_name, encoded_args, 0).await {
+    Ok(response) => {
+        // CandidデコードしてDIDLヘッダを除去
+        match decode_args::<(String,)>(&response) {
+            Ok((decoded,)) => Ok(decoded),
+            Err(e) => Err(format!("decode error: {:?}", e)),
+        }
+    }
+    Err((code, msg)) => Err(format!("Failed to call method_name {} code {:?}, message: {}", method_name, code, msg)),
+}
+```

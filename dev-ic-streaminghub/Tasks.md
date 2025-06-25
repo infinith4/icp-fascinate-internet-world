@@ -86,3 +86,20 @@ call_raw は「生のCandidバイト列」を返します。
     Err((code, msg)) => Err(format!("Failed to call method_name {} code {:?}, message: {}", method_name, code, msg)),
 }
 ```
+
+以下のようにupdate となっていてもCallできる。
+
+```
+#[ic_cdk::update]
+```
+
+
+dfx canister call streamingservice_manager call_canister_method_vec '("ufxgi-4p777-77774-qaadq-cai", "update_greet_streaming_args", vec { "1"; "testtitle01"; "" })'
+
+```
+(
+  variant {
+    Ok = "update_greet_streaming_args: Hello, 1 testtitle01 ! This is a streaming service backend response."
+  },
+)
+```

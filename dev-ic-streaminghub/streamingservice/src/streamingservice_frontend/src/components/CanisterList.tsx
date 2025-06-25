@@ -225,7 +225,6 @@ function CanisterList() {
       console.warn(`-------------------------canisterId: ${canisterId}, methodName: ${methodName}, args: ${args}`);
       if ('Ok' in result) {
         console.warn(`-------------------------methodName: ${methodName}, ${JSON.stringify(result.Ok)}`);
-        console.warn(`-------------------------methodName: ${methodName}, ${JSON.stringify(result.Ok)}`);
         await fetchCanisterList();
       } else {
         console.error("Error call handleCanisterCallMethodVec:", result.Err);

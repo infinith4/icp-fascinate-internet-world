@@ -402,7 +402,6 @@ async fn call_canister_method_vecargs_customresult(
     } else {
         encode_args((&video_id, args[1].clone(), chunk_index))
     };
-    
     let encoded_args = match encoded_args {
         Ok(bytes) => bytes,
         Err(e) => return Err(format!("Failed to encode arguments: {:?}", e)),

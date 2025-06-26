@@ -159,9 +159,14 @@ dfx canister call streamingservice_manager call_canister_method_customresult '("
 (variant { Err = "Video not found" })
 
 
-- [] get_segment_chunk(video_id: String, segment_index: u32, chunk_index: u32) -> SegmentChunkResult
+- [x] get_segment_chunk(video_id: String, segment_index: u32, chunk_index: u32) -> SegmentChunkResult
 
 ```
+dfx canister call streamingservice_manager call_canister_method_get_segment_chunk_vecargs_customresult '("ufxgi-4p777-77774-qaadq-cai", "get_segment_chunk", vec { "1750864283742760589"; "0"; "0" })'
+```
+
+
+- [ ] call_canister_method_get_segment_chunk_vecargs_customresult を任意の関数で呼び出せるようにしたい
+
+
 dfx canister call streamingservice_manager call_canister_method_vecargs_customresult '("ufxgi-4p777-77774-qaadq-cai", "get_segment_chunk", vec { "1750864283742760589"; "0"; "0" })'
-```
-

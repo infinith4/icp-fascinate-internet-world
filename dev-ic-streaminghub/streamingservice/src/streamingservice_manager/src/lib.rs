@@ -368,6 +368,80 @@ async fn call_canister_method_customresult(canister_principal: String, method_na
     }
 }
 
+// --- どこか上部で定義 ---
+enum EitherSegmentIndex {
+    U32(u32),
+    U64(u64),
+    Str(String),
+}
+
+#[update]
+async fn call_canister_method_vecargs_customresult(
+    canister_principal: String,
+    method_name: String,
+    args: Vec<String>,
+) -> Result<String, String> {
+    let canister_id = match Principal::from_text(canister_principal) {
+        Ok(principal) => principal,
+        Err(e) => return Err(format!("Invalid principal: {:?}", e)),
+    };
+
+    // get_segment_chunk(video_id: String, segment_index: u32/u64/String, chunk_index: u32)
+    if args.len() != 3 {
+        return Err("get_segment_chunk expects exactly 3 arguments: (video_id: String, segment_index: u32/u64/String, chunk_index: u32)".to_string());
+    }
+
+    let video_id = args[0].clone();
+    // segment_index: try u32, then u64, then String
+    let segment_index = if let Ok(val) = args[1].parse::<u32>() {
+        EitherSegmentIndex::U32(val)
+    } else if let Ok(val) = args[1].parse::<u64>() {
+        EitherSegmentIndex::U64(val)
+    } else {
+        EitherSegmentIndex::Str(args[1].clone())
+    };
+    // chunk_index: try u32, then u64, then String
+    let chunk_index = if let Ok(val) = args[2].parse::<u32>() {
+        EitherSegmentIndex::U32(val)
+    } else if let Ok(val) = args[2].parse::<u64>() {
+        EitherSegmentIndex::U64(val)
+    } else {
+        EitherSegmentIndex::Str(args[2].clone())
+    };
+
+    // encode_argsの型を分岐
+    let encoded_args = match (&segment_index, &chunk_index) {
+        (EitherSegmentIndex::U32(seg), EitherSegmentIndex::U32(chunk)) => encode_args((&video_id, *seg, *chunk)),
+        (EitherSegmentIndex::U32(seg), EitherSegmentIndex::U64(chunk)) => encode_args((&video_id, *seg, *chunk)),
+        (EitherSegmentIndex::U32(seg), EitherSegmentIndex::Str(chunk)) => encode_args((&video_id, *seg, chunk)),
+        (EitherSegmentIndex::U64(seg), EitherSegmentIndex::U32(chunk)) => encode_args((&video_id, *seg, *chunk)),
+        (EitherSegmentIndex::U64(seg), EitherSegmentIndex::U64(chunk)) => encode_args((&video_id, *seg, *chunk)),
+        (EitherSegmentIndex::U64(seg), EitherSegmentIndex::Str(chunk)) => encode_args((&video_id, *seg, chunk)),
+        (EitherSegmentIndex::Str(seg), EitherSegmentIndex::U32(chunk)) => encode_args((&video_id, seg, *chunk)),
+        (EitherSegmentIndex::Str(seg), EitherSegmentIndex::U64(chunk)) => encode_args((&video_id, seg, *chunk)),
+        (EitherSegmentIndex::Str(seg), EitherSegmentIndex::Str(chunk)) => encode_args((&video_id, seg, chunk)),
+    };
+    let encoded_args = match encoded_args {
+        Ok(bytes) => bytes,
+        Err(e) => return Err(format!("Failed to encode arguments: {:?}", e)),
+    };
+
+    // Perform the raw call with cycles payment set to 0
+    match ic_cdk::api::call::call_raw(canister_id, &method_name, encoded_args, 0).await {
+        Ok(response_bytes) => {
+            // SegmentChunkResult型でデコード
+            match decode_args::<(SegmentChunkResult,)>(&response_bytes) {
+                Ok((result,)) => match result {
+                    SegmentChunkResult::Ok(resp) => Ok(resp),
+                    SegmentChunkResult::Err(error) => Err(error),
+                },
+                Err(e) => Err(format!("Failed to decode response: {:?}", e)),
+            }
+        }
+        Err((code, msg)) => Err(format!("Failed to call method {} code {:?}, message: {}", method_name, code, msg)),
+    }
+}
+
 #[update]
 async fn call_canister_method_get_segment_chunk_vecargs_customresult(
     canister_principal: String,

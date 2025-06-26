@@ -392,35 +392,17 @@ async fn call_canister_method_vecargs_customresult(
     }
 
     let video_id = args[0].clone();
-    // segment_index: try u32, then u64, then String
-    let segment_index = if let Ok(val) = args[1].parse::<u32>() {
-        EitherSegmentIndex::U32(val)
-    } else if let Ok(val) = args[1].parse::<u64>() {
-        EitherSegmentIndex::U64(val)
-    } else {
-        EitherSegmentIndex::Str(args[1].clone())
-    };
-    // chunk_index: try u32, then u64, then String
-    let chunk_index = if let Ok(val) = args[2].parse::<u32>() {
-        EitherSegmentIndex::U32(val)
-    } else if let Ok(val) = args[2].parse::<u64>() {
-        EitherSegmentIndex::U64(val)
-    } else {
-        EitherSegmentIndex::Str(args[2].clone())
-    };
+    let chunk_index = args[2].parse::<u32>().map_err(|e| format!("Failed to parse chunk_index: {:?}", e))?;
 
-    // encode_argsの型を分岐
-    let encoded_args = match (&segment_index, &chunk_index) {
-        (EitherSegmentIndex::U32(seg), EitherSegmentIndex::U32(chunk)) => encode_args((&video_id, *seg, *chunk)),
-        (EitherSegmentIndex::U32(seg), EitherSegmentIndex::U64(chunk)) => encode_args((&video_id, *seg, *chunk)),
-        (EitherSegmentIndex::U32(seg), EitherSegmentIndex::Str(chunk)) => encode_args((&video_id, *seg, chunk)),
-        (EitherSegmentIndex::U64(seg), EitherSegmentIndex::U32(chunk)) => encode_args((&video_id, *seg, *chunk)),
-        (EitherSegmentIndex::U64(seg), EitherSegmentIndex::U64(chunk)) => encode_args((&video_id, *seg, *chunk)),
-        (EitherSegmentIndex::U64(seg), EitherSegmentIndex::Str(chunk)) => encode_args((&video_id, *seg, chunk)),
-        (EitherSegmentIndex::Str(seg), EitherSegmentIndex::U32(chunk)) => encode_args((&video_id, seg, *chunk)),
-        (EitherSegmentIndex::Str(seg), EitherSegmentIndex::U64(chunk)) => encode_args((&video_id, seg, *chunk)),
-        (EitherSegmentIndex::Str(seg), EitherSegmentIndex::Str(chunk)) => encode_args((&video_id, seg, chunk)),
+    // segment_index: try u32, then u64, then String
+    let encoded_args = if let Ok(val) = args[1].parse::<u32>() {
+        encode_args((&video_id, val, chunk_index))
+    } else if let Ok(val) = args[1].parse::<u64>() {
+        encode_args((&video_id, val, chunk_index))
+    } else {
+        encode_args((&video_id, args[1].clone(), chunk_index))
     };
+    
     let encoded_args = match encoded_args {
         Ok(bytes) => bytes,
         Err(e) => return Err(format!("Failed to encode arguments: {:?}", e)),

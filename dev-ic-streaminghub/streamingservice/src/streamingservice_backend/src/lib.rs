@@ -343,7 +343,7 @@ fn get_video_list() -> Vec<(String, String, String, String)> {
 
 // HLS用プレイリスト(m3u8)を返すAPI
 #[query]
-fn get_hls_playlist(video_id: String, _canister_id: String) -> GetHlsPlaylistResult {
+fn get_hls_playlist(video_id: String) -> GetHlsPlaylistResult {
     ic_cdk::println!("get_hls_playlist: {}", video_id);
     VIDEOS.with(|videos| {
         let videos = videos.borrow();

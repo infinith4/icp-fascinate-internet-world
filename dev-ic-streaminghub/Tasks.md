@@ -34,7 +34,7 @@ dfx canister deposit-cycles 10000000000000 ulvla-h7777-77774-qaacq-cai
 - [x] createAndInstallCanister で作成されたIDを保存しておく。
 - [x] ログイン後に真っ白になった。
 
-- [ ] call method でgreet 以外が呼べない
+- [x] call method でgreet 以外が呼べない
 
 dfx canister call streamingservice_manager create_and_install_canister '()'
 
@@ -103,3 +103,65 @@ dfx canister call streamingservice_manager call_canister_method_vec '("ufxgi-4p7
   },
 )
 ```
+
+- [x] create_video(version: String, title: String, description: String) を呼ぶ
+
+`create_video(version: String, title: String, description: String)`
+
+dfx canister call streamingservice_manager call_canister_method_vec '("ufxgi-4p777-77774-qaadq-cai", "create_video", vec { "1"; "testtitle01"; "" })'
+
+```
+(variant { Ok = "1750864283742760589" })
+```
+
+- [x] get_video_info(video_id: String) -> VideoInfoResult を呼ぶ
+
+
+dfx canister call streamingservice_manager call_canister_method_customresult '("ufxgi-4p777-77774-qaadq-cai", "get_video_info", "('1750864283742760589')")'
+
+(variant { Err = "Video not found" })
+
+- [x] get_video_list() -> Vec<(String, String, String, String)> を呼ぶ
+
+
+```
+dfx canister call streamingservice_manager call_canister_method_vecresult '("ufxgi-4p777-77774-qaadq-cai", "get_video_list", "()")'
+```
+
+(variant { Ok = "[(\"1750864283742760589\", \"testtitle01\", \"\", \"\")]" })
+
+- [ ] get_hls_playlist(video_id: String, _canister_id: String) -> GetHlsPlaylistResult
+
+```
+dfx canister call streamingservice_manager call_canister_method_customresult '("ufxgi-4p777-77774-qaadq-cai", "get_hls_playlist", "('1750864283742760589', 'ufxgi-4p777-77774-qaadq-cai')")'
+```
+
+
+- [x] get_segment_info(video_id: String) -> SegmentChunkInfoResult
+
+
+```
+dfx canister call streamingservice_manager call_canister_method_customresult '("ufxgi-4p777-77774-qaadq-cai", "get_segment_info", "('1750864283742760589')")'
+```
+
+
+(variant { Err = "Video not found with ID (1750864283742760589)" })
+
+
+
+- [x] get_thumbnail(video_id: String) -> ThumbnailResult 
+
+
+```
+dfx canister call streamingservice_manager call_canister_method_customresult '("ufxgi-4p777-77774-qaadq-cai", "get_thumbnail", "('1750864283742760589')")'
+```
+
+(variant { Err = "Video not found" })
+
+
+- [] get_segment_chunk(video_id: String, segment_index: u32, chunk_index: u32) -> SegmentChunkResult
+
+```
+dfx canister call streamingservice_manager call_canister_method_vecargs_customresult '("ufxgi-4p777-77774-qaadq-cai", "get_segment_chunk", vec { "1750864283742760589"; "0"; "0" })'
+```
+

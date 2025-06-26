@@ -21,6 +21,8 @@ service : {
     "canister_condition": (text) -> (variant { Ok: CanisterStatusResult; Err: text });
     "call_canister_method": (text, text, text) -> (variant { Ok: text; Err: text });
     "call_canister_method_vec": (text, text, vec text) -> (variant { Ok: text; Err: text });
+    "call_canister_method_vecargs_customresult": (text, text, vec text) -> (variant { Ok: text; Err: text });
     "call_canister_method_customresult": (text, text, text) -> (variant { Ok: text; Err: text });
+    "call_canister_method_vecresult": (text, text, text) -> (variant { Ok: text; Err: text });
     "get_canister_id_list": () -> (vec record { text; text; }) query;
 }

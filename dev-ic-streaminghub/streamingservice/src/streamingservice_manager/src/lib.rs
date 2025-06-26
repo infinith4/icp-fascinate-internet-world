@@ -1,4 +1,7 @@
 use candid::{encode_args, decode_args, types::principal, CandidType, Decode, Encode, Nat, Principal};
+use std::str::FromStr;
+use candid::ser::IDLBuilder; // Import IDLBuilder
+
 use ic_cdk::api::management_canister::{
     main::{
         create_canister, install_code, deposit_cycles, start_canister, stop_canister, delete_canister, canister_status,
@@ -267,6 +270,7 @@ enum GreetResult {
     #[serde(rename = "err")]
     Err(String),
 }
+
 //TODO: 引数がないときにエラーになる
 #[update]
 async fn call_canister_method(canister_principal: String, method_name: String, args: String) -> Result<String, String> {
@@ -354,6 +358,87 @@ async fn call_canister_method_customresult(canister_principal: String, method_na
         Err((code, msg)) => Err(format!("Failed to call method {} code {:?}, message: {}", method_name, code, msg)),
     }
 }
+
+#[update]
+async fn call_canister_method_vecargs_customresult(
+    canister_principal: String,
+    method_name: String,
+    args: Vec<String>,
+) -> Result<String, String> {
+    let canister_id = match Principal::from_text(canister_principal) {
+        Ok(principal) => principal,
+        Err(e) => return Err(format!("Invalid principal: {:?}", e)),
+    };
+
+    let mut builder = IDLBuilder::new();
+
+    for arg_str in args.iter() {
+        // Try parsing as an integer (i64) first
+        if let Ok(num) = i64::from_str(arg_str) {
+            builder.arg(&num).map_err(|e| format!("Failed to add i64 argument: {:?}", e))?;
+        }
+        // Then try as an unsigned integer (u64)
+        else if let Ok(num) = u64::from_str(arg_str) {
+            builder.arg(&num).map_err(|e| format!("Failed to add u64 argument: {:?}", e))?;
+        }
+        // Then try as a boolean
+        else if let Ok(b) = bool::from_str(arg_str) {
+            builder.arg(&b).map_err(|e| format!("Failed to add bool argument: {:?}", e))?;
+        }
+        // If not a recognized number or boolean, treat as text
+        else {
+            builder.arg(&arg_str).map_err(|e| format!("Failed to add text argument: {:?}", e))?;
+        }
+    }
+
+    let encoded_args = builder.serialize_to_vec()
+        .map_err(|e| format!("Failed to encode arguments: {:?}", e))?;
+
+    // Perform the raw call with cycles payment set to 0
+    match call_raw(canister_id, &method_name, encoded_args, 0).await {
+        Ok(response_bytes) => {
+            // Decode the response bytes into the desired type
+            match decode_args::<(GreetResult,)>(&response_bytes) {
+                Ok((result,)) => match result {
+                    GreetResult::Ok(message) => Ok(message),
+                    GreetResult::Err(error) => Err(error),
+                },
+                Err(e) => Err(format!("Failed to decode response: {:?}", e)),
+            }
+        }
+        Err((code, msg)) => Err(format!("Failed to call method {} code {:?}, message: {}", method_name, code, msg)),
+    }
+}
+
+#[update]
+async fn call_canister_method_vecresult(canister_principal: String, method_name: String, args: String) -> Result<String, String> {
+    let canister_id = match Principal::from_text(canister_principal) {
+        Ok(principal) => principal,
+        Err(e) => return Err(format!("Invalid principal: {:?}", e)),
+    };
+    // Encode the arguments as Candid bytes
+    let encoded_args = match encode_args((args,)) {
+        Ok(bytes) => bytes,
+        Err(e) => return Err(format!("Failed to encode arguments: {:?}", e)),
+    };
+    // Perform the raw call with cycles payment set to 0
+    match ic_cdk::api::call::call_raw(canister_id, &method_name, encoded_args, 0).await {
+        Ok(response) => {
+            // デコード
+            match decode_args::<(Vec<(String, String, String, String)>,)>(&response) {
+                Ok((list,)) => {
+                    // list は Vec<(String, String, String, String)>
+                    // ここで利用できる
+                    // 例: Ok(format!("{:?}", list))
+                    Ok(format!("{:?}", list))
+                }
+                Err(e) => Err(format!("decode error: {:?}", e)),
+            }
+        }
+        Err((code, msg)) => Err(format!("Failed to call method {} code {:?}, message: {}", method_name, code, msg)),
+    }
+}
+
 // //TODO: 引数がないときにエラーになる
 // #[update]
 // async fn call_canister_method_customresult(canister_principal: String, method_name: String, args: String) -> Result<MyResult, String> {

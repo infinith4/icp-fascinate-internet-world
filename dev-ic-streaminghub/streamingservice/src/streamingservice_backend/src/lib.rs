@@ -380,6 +380,7 @@ fn get_hls_playlist(video_id: String) -> GetHlsPlaylistResult {
 
 #[update]
 fn upload_playlist(version: String,video_id: String, playlist_text: String) -> UploadResult {
+    ic_cdk::println!("upload_playlist called with video_id: {}, playlist_text: {}", video_id, playlist_text);
     VIDEOS.with(|videos| {
         let mut videos: std::cell::RefMut<'_, HashMap<String, Video>> = videos.borrow_mut();
         if let Some(video) = videos.get_mut(&video_id) {
@@ -403,7 +404,7 @@ fn upload_ts_segment_chunk(
     total_chunk_count: u32,
     segment_chunk_data: Vec<u8>
 ) -> UploadResult {
-
+    ic_cdk::println!("upload_ts_segment_chunk called with video_id: {}, segment_index: {}, chunk_index: {}, total_chunk_count: {}", video_id, segment_index, chunk_index, total_chunk_count);
     VIDEOS.with(|videos| {
         let mut videos = videos.borrow_mut();
         if let Some(video) = videos.get_mut(&video_id) {
@@ -446,6 +447,7 @@ fn upload_ts_segment_chunk(
 /// video_id: 動画のID
 #[query]
 fn get_segment_info(video_id: String) -> SegmentChunkInfoResult {
+    ic_cdk::println!("get_segment_info called with video_id: {}", video_id);
     VIDEOS.with(|videos| {
         let videos = videos.borrow();
 
@@ -471,6 +473,7 @@ fn get_segment_info(video_id: String) -> SegmentChunkInfoResult {
 /// 戻り値: 成功した場合は結合された Vec<u8>、失敗した場合はエラーメッセージ
 #[query] // データの読み取りのみ行う場合は #[query] を使用 (状態を変更しない場合)
 fn get_segment_chunk(video_id: String, segment_index: u32, chunk_index: u32) -> SegmentChunkResult {
+    ic_cdk::println!("get_segment_chunk called with video_id: {}, segment_index: {}, chunk_index: {}", video_id, segment_index, chunk_index);
     VIDEOS.with(|videos| {
         let videos = videos.borrow(); // 読み取り専用でアクセス
 

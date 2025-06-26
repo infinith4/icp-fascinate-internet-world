@@ -271,6 +271,15 @@ enum GreetResult {
     Err(String),
 }
 
+#[derive(CandidType, Deserialize)]
+enum SegmentChunkResult {
+    //NOTE: #[serde(rename = "ok")] をつけないと Cannot find field hash _17724_ になる
+    //Cannot find field hash となるときはClassをResponse に設定したほうが良い
+    #[serde(rename = "ok")]
+    Ok(String),
+    #[serde(rename = "err")]
+    Err(String),
+}
 //TODO: 引数がないときにエラーになる
 #[update]
 async fn call_canister_method(canister_principal: String, method_name: String, args: String) -> Result<String, String> {
@@ -360,7 +369,7 @@ async fn call_canister_method_customresult(canister_principal: String, method_na
 }
 
 #[update]
-async fn call_canister_method_vecargs_customresult(
+async fn call_canister_method_get_segment_chunk_vecargs_customresult(
     canister_principal: String,
     method_name: String,
     args: Vec<String>,
@@ -370,38 +379,29 @@ async fn call_canister_method_vecargs_customresult(
         Err(e) => return Err(format!("Invalid principal: {:?}", e)),
     };
 
-    let mut builder = IDLBuilder::new();
-
-    for arg_str in args.iter() {
-        // Try parsing as an integer (i64) first
-        if let Ok(num) = i64::from_str(arg_str) {
-            builder.arg(&num).map_err(|e| format!("Failed to add i64 argument: {:?}", e))?;
-        }
-        // Then try as an unsigned integer (u64)
-        else if let Ok(num) = u64::from_str(arg_str) {
-            builder.arg(&num).map_err(|e| format!("Failed to add u64 argument: {:?}", e))?;
-        }
-        // Then try as a boolean
-        else if let Ok(b) = bool::from_str(arg_str) {
-            builder.arg(&b).map_err(|e| format!("Failed to add bool argument: {:?}", e))?;
-        }
-        // If not a recognized number or boolean, treat as text
-        else {
-            builder.arg(&arg_str).map_err(|e| format!("Failed to add text argument: {:?}", e))?;
-        }
+    // get_segment_chunk(video_id: String, segment_index: u32, chunk_index: u32)
+    // のような関数に対応するため、引数を型推論してタプルに変換
+    if args.len() != 3 {
+        return Err("get_segment_chunk expects exactly 3 arguments: (video_id: String, segment_index: u32, chunk_index: u32)".to_string());
     }
 
-    let encoded_args = builder.serialize_to_vec()
-        .map_err(|e| format!("Failed to encode arguments: {:?}", e))?;
+    let video_id = args[0].clone();
+    let segment_index = args[1].parse::<u32>().map_err(|e| format!("Failed to parse segment_index: {:?}", e))?;
+    let chunk_index = args[2].parse::<u32>().map_err(|e| format!("Failed to parse chunk_index: {:?}", e))?;
+
+    let encoded_args = match encode_args((&video_id, segment_index, chunk_index)) {
+        Ok(bytes) => bytes,
+        Err(e) => return Err(format!("Failed to encode arguments: {:?}", e)),
+    };
 
     // Perform the raw call with cycles payment set to 0
-    match call_raw(canister_id, &method_name, encoded_args, 0).await {
+    match ic_cdk::api::call::call_raw(canister_id, &method_name, encoded_args, 0).await {
         Ok(response_bytes) => {
-            // Decode the response bytes into the desired type
-            match decode_args::<(GreetResult,)>(&response_bytes) {
+            // SegmentChunkResult型でデコード
+            match decode_args::<(SegmentChunkResult,)>(&response_bytes) {
                 Ok((result,)) => match result {
-                    GreetResult::Ok(message) => Ok(message),
-                    GreetResult::Err(error) => Err(error),
+                    SegmentChunkResult::Ok(resp) => Ok(format!("chunk_data: {} bytes, total_chunk_count: {}", resp.len(), resp)),
+                    SegmentChunkResult::Err(error) => Err(error),
                 },
                 Err(e) => Err(format!("Failed to decode response: {:?}", e)),
             }
